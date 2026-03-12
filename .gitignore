@@ -1,11 +1,9 @@
 *
 !/.gitignore
-!/Docs.meta
 !/Docs/
 !/Docs/**
-!/AGXUnity_Excavator_Assets.meta
 !/AGXUnity_Excavator_Assets/
 /AGXUnity_Excavator_Assets/*
-!/AGXUnity_Excavator_Assets/Scripts.meta
 !/AGXUnity_Excavator_Assets/Scripts/
 !/AGXUnity_Excavator_Assets/Scripts/**
+*.meta
