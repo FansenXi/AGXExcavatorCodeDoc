@@ -95,14 +95,9 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
 
     private void ResolveReferences()
     {
-      if ( m_machineController == null )
-        m_machineController = GetComponent<ExcavatorMachineController>();
-
-      if ( m_excavator == null )
-        m_excavator = FindObjectOfType<Excavator>();
-
-      if ( m_massVolumeCounter == null )
-        m_massVolumeCounter = FindObjectOfType<global::MassVolumeCounter>();
+      m_machineController = ExcavatorRigLocator.ResolveComponent( this, m_machineController );
+      m_excavator = ExcavatorRigLocator.ResolveComponent( this, m_excavator );
+      m_massVolumeCounter = ExcavatorRigLocator.ResolveComponent( this, m_massVolumeCounter );
     }
 
     private void UpdateBaseVelocity( Transform baseTransform )

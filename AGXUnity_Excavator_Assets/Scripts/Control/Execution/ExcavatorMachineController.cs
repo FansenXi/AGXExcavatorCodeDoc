@@ -162,8 +162,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
 
     private bool ResolveReferences()
     {
-      if ( m_excavator == null )
-        m_excavator = FindObjectOfType<Excavator>();
+      m_excavator = ExcavatorRigLocator.ResolveComponent( this, m_excavator );
 
       if ( m_bucketReference == null && m_excavator != null )
         m_bucketReference = FindChildRecursive( m_excavator.transform, "Bucket" );

@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using AGXUnity_Excavator.Scripts.Control.Core;
 using AGXUnity_Excavator.Scripts.Control.Execution;
 using AGXUnity_Excavator.Scripts.Control.Simulation;
@@ -35,6 +37,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     [SerializeField]
     private ExcavatorCommandInterpreter m_interpreter = new ExcavatorCommandInterpreter();
 
+    private OperatorCommandSourceBehaviour[] m_availableSources = Array.Empty<OperatorCommandSourceBehaviour>();
     private int m_nextEpisodeIndex = 1;
     private bool m_massVolumeCounterResolved = false;
 
@@ -49,6 +52,8 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     public float MassInBucket => m_massVolumeCounter != null ? m_massVolumeCounter.MassInBucket : 0.0f;
     public float ExcavatedMass => m_massVolumeCounter != null ? m_massVolumeCounter.ExcavatedMass : 0.0f;
     public float ExcavatedVolume => m_massVolumeCounter != null ? m_massVolumeCounter.ExcavatedVolume : 0.0f;
+    public int AvailableSourceCount => m_availableSources != null ? m_availableSources.Length : 0;
+    public int CurrentSourceIndex => GetSourceIndex( m_commandSource );
 
     private void Awake()
     {
@@ -97,6 +102,81 @@ namespace AGXUnity_Excavator.Scripts.Experiment
           m_machineController != null ? m_machineController.BucketReference : null,
           m_massVolumeCounter );
       }
+    }
+
+    public OperatorCommandSourceBehaviour GetAvailableSource( int index )
+    {
+      ResolveReferences();
+      return index >= 0 && index < AvailableSourceCount ? m_availableSources[ index ] : null;
+    }
+
+    public string GetAvailableSourceDisplayName( int index )
+    {
+      var source = GetAvailableSource( index );
+      if ( source == null )
+        return string.Empty;
+
+      var duplicateCount = 0;
+      for ( var sourceIndex = 0; sourceIndex < AvailableSourceCount; ++sourceIndex ) {
+        var otherSource = m_availableSources[ sourceIndex ];
+        if ( otherSource != null && otherSource.SourceName == source.SourceName )
+          ++duplicateCount;
+      }
+
+      return duplicateCount > 1 ? $"{source.SourceName} ({source.gameObject.name})" : source.SourceName;
+    }
+
+    public void RefreshAvailableSources()
+    {
+      var discoveredSources = DiscoverAvailableSources();
+      m_availableSources = discoveredSources;
+
+      if ( AvailableSourceCount == 0 ) {
+        m_commandSource = null;
+        return;
+      }
+
+      if ( m_commandSource == null || GetSourceIndex( m_commandSource ) < 0 )
+        m_commandSource = ChooseDefaultSource( discoveredSources );
+
+      SyncSourceEnabledStates();
+    }
+
+    public bool SetCommandSourceByIndex( int index, bool restartEpisodeIfRunning = true )
+    {
+      var source = GetAvailableSource( index );
+      return SetCommandSource( source, restartEpisodeIfRunning );
+    }
+
+    public bool SetCommandSource( OperatorCommandSourceBehaviour source, bool restartEpisodeIfRunning = true )
+    {
+      ResolveReferences();
+      if ( source == null || source == m_commandSource )
+        return false;
+
+      if ( GetSourceIndex( source ) < 0 ) {
+        RefreshAvailableSources();
+        if ( GetSourceIndex( source ) < 0 )
+          return false;
+      }
+
+      var shouldRestartEpisode = restartEpisodeIfRunning && IsEpisodeRunning;
+      if ( shouldRestartEpisode )
+        StopEpisode( "source_switch" );
+      else
+        m_machineController?.StopMotion();
+
+      m_commandSource = source;
+      SyncSourceEnabledStates();
+
+      LastRawCommand = OperatorCommand.Zero;
+      LastSimulatedCommand = OperatorCommand.Zero;
+      LastActuationCommand = ExcavatorActuationCommand.Zero;
+
+      if ( shouldRestartEpisode )
+        StartEpisode();
+
+      return true;
     }
 
     public void StartEpisode()
@@ -151,8 +231,8 @@ namespace AGXUnity_Excavator.Scripts.Experiment
 
     private void ResolveReferences()
     {
-      if ( m_commandSource == null )
-        m_commandSource = GetComponent<OperatorCommandSourceBehaviour>();
+      if ( AvailableSourceCount == 0 || m_commandSource == null || GetSourceIndex( m_commandSource ) < 0 )
+        RefreshAvailableSources();
 
       if ( m_commandSimulator == null )
         m_commandSimulator = GetComponent<OperatorCommandSimulator>();
@@ -170,6 +250,88 @@ namespace AGXUnity_Excavator.Scripts.Experiment
         m_massVolumeCounter = FindObjectOfType<global::MassVolumeCounter>();
 
       m_massVolumeCounterResolved = true;
+    }
+
+    private OperatorCommandSourceBehaviour[] DiscoverAvailableSources()
+    {
+      var discoveredSources = FindObjectsByType<OperatorCommandSourceBehaviour>(
+        FindObjectsInactive.Include,
+        FindObjectsSortMode.None );
+
+      if ( discoveredSources == null || discoveredSources.Length == 0 )
+        return Array.Empty<OperatorCommandSourceBehaviour>();
+
+      var sameRootSources = new List<OperatorCommandSourceBehaviour>();
+      var otherSources = new List<OperatorCommandSourceBehaviour>();
+      foreach ( var source in discoveredSources ) {
+        if ( source == null )
+          continue;
+
+        if ( source.transform.root == transform.root )
+          sameRootSources.Add( source );
+        else
+          otherSources.Add( source );
+      }
+
+      var selectedSources = sameRootSources.Count > 0 ? sameRootSources : otherSources;
+      selectedSources.Sort( CompareSources );
+      return selectedSources.ToArray();
+    }
+
+    private static int CompareSources( OperatorCommandSourceBehaviour left, OperatorCommandSourceBehaviour right )
+    {
+      if ( left == right )
+        return 0;
+
+      if ( left == null )
+        return 1;
+
+      if ( right == null )
+        return -1;
+
+      var nameComparison = string.Compare( left.SourceName, right.SourceName, StringComparison.Ordinal );
+      if ( nameComparison != 0 )
+        return nameComparison;
+
+      return string.Compare( left.gameObject.name, right.gameObject.name, StringComparison.Ordinal );
+    }
+
+    private OperatorCommandSourceBehaviour ChooseDefaultSource( OperatorCommandSourceBehaviour[] sources )
+    {
+      if ( sources == null || sources.Length == 0 )
+        return null;
+
+      for ( var sourceIndex = 0; sourceIndex < sources.Length; ++sourceIndex ) {
+        var source = sources[ sourceIndex ];
+        if ( source != null && source.enabled )
+          return source;
+      }
+
+      return sources[ 0 ];
+    }
+
+    private void SyncSourceEnabledStates()
+    {
+      if ( m_availableSources == null || m_availableSources.Length == 0 )
+        return;
+
+      for ( var sourceIndex = 0; sourceIndex < m_availableSources.Length; ++sourceIndex ) {
+        var source = m_availableSources[ sourceIndex ];
+        if ( source == null )
+          continue;
+
+        var shouldEnable = source == m_commandSource;
+        if ( source.enabled != shouldEnable )
+          source.enabled = shouldEnable;
+      }
+    }
+
+    private int GetSourceIndex( OperatorCommandSourceBehaviour source )
+    {
+      if ( source == null || m_availableSources == null )
+        return -1;
+
+      return Array.IndexOf( m_availableSources, source );
     }
 
     private void DisableLegacyExcavatorInputControllers()

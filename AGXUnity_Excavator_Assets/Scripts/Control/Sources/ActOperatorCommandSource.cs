@@ -110,11 +110,8 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
 
     private void ResolveReferences()
     {
-      if ( m_observationCollector == null )
-        m_observationCollector = GetComponent<ActObservationCollector>();
-
-      if ( m_backendClient == null )
-        m_backendClient = GetComponent<ActBackendClientBehaviour>();
+      m_observationCollector = ExcavatorRigLocator.ResolveComponent( this, m_observationCollector );
+      m_backendClient = ExcavatorRigLocator.ResolveComponent( this, m_backendClient );
     }
 
     private void SubmitObservationIfDue()
