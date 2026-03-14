@@ -23,7 +23,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     public void BeginEpisode( int episodeIndex, string sourceName )
     {
       m_rows.Clear();
-      m_rows.Add( "time,source,raw_left_x,raw_left_y,raw_right_x,raw_right_y,raw_drive,raw_steer,sim_left_x,sim_left_y,sim_right_x,sim_right_y,sim_drive,sim_steer,boom,bucket,stick,swing,drive,steer,throttle,bucket_pos_x,bucket_pos_y,bucket_pos_z,bucket_rot_x,bucket_rot_y,bucket_rot_z,bucket_rot_w,mass_in_bucket,excavated_mass,excavated_volume" );
+      m_rows.Add( "time,source,device_name,profile_name,binding_status,hardware_left_x,hardware_left_y,hardware_right_x,hardware_right_y,hardware_drive,hardware_steer,hardware_reset_button,hardware_start_button,hardware_stop_button,hardware_input_summary,raw_left_x,raw_left_y,raw_right_x,raw_right_y,raw_drive,raw_steer,sim_left_x,sim_left_y,sim_right_x,sim_right_y,sim_drive,sim_steer,boom,bucket,stick,swing,drive,steer,throttle,bucket_pos_x,bucket_pos_y,bucket_pos_z,bucket_rot_x,bucket_rot_y,bucket_rot_z,bucket_rot_w,mass_in_bucket,excavated_mass,excavated_volume" );
 
       m_episodeIndex = episodeIndex;
       m_sourceName = sourceName;
@@ -35,6 +35,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
                              OperatorCommand rawCommand,
                              OperatorCommand simulatedCommand,
                              ExcavatorActuationCommand actuationCommand,
+                             IHardwareCommandDiagnostics hardwareDiagnostics,
                              Transform bucketReference,
                              global::MassVolumeCounter massVolumeCounter )
     {
@@ -46,12 +47,30 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       var massInBucket = massVolumeCounter != null ? massVolumeCounter.MassInBucket : 0.0f;
       var excavatedMass = massVolumeCounter != null ? massVolumeCounter.ExcavatedMass : 0.0f;
       var excavatedVolume = massVolumeCounter != null ? massVolumeCounter.ExcavatedVolume : 0.0f;
+      var hardwareSnapshot = hardwareDiagnostics != null ? hardwareDiagnostics.LastRawInputSnapshot : HardwareInputSnapshot.Zero;
+      var deviceName = hardwareDiagnostics != null ? hardwareDiagnostics.DeviceDisplayName : string.Empty;
+      var profileName = hardwareDiagnostics != null ? hardwareDiagnostics.ProfileName : string.Empty;
+      var bindingStatus = hardwareDiagnostics != null ? hardwareDiagnostics.BindingStatus : string.Empty;
+      var rawInputSummary = hardwareDiagnostics != null ? hardwareDiagnostics.LastRawInputSummary : string.Empty;
 
       m_rows.Add(
         string.Join(
           ",",
           F( timeSeconds ),
-          Sanitize( m_sourceName ),
+          Csv( m_sourceName ),
+          Csv( deviceName ),
+          Csv( profileName ),
+          Csv( bindingStatus ),
+          F( hardwareSnapshot.LeftStickX ),
+          F( hardwareSnapshot.LeftStickY ),
+          F( hardwareSnapshot.RightStickX ),
+          F( hardwareSnapshot.RightStickY ),
+          F( hardwareSnapshot.Drive ),
+          F( hardwareSnapshot.Steer ),
+          F( hardwareSnapshot.ResetButton ),
+          F( hardwareSnapshot.StartEpisodeButton ),
+          F( hardwareSnapshot.StopEpisodeButton ),
+          Csv( rawInputSummary ),
           F( rawCommand.LeftStickX ),
           F( rawCommand.LeftStickY ),
           F( rawCommand.RightStickX ),
@@ -100,8 +119,8 @@ namespace AGXUnity_Excavator.Scripts.Experiment
         "episode_{0:000}_{1}_{2}_{3}.csv",
         m_episodeIndex,
         DateTime.Now.ToString( "yyyyMMdd_HHmmss", CultureInfo.InvariantCulture ),
-        Sanitize( m_sourceName ),
-        Sanitize( reason ) );
+        SanitizeFileName( m_sourceName ),
+        SanitizeFileName( reason ) );
 
       LastSavedPath = Path.Combine( directory, fileName );
       File.WriteAllLines( LastSavedPath, m_rows );
@@ -113,7 +132,17 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       return value.ToString( "0.######", CultureInfo.InvariantCulture );
     }
 
-    private static string Sanitize( string value )
+    private static string Csv( string value )
+    {
+      if ( string.IsNullOrWhiteSpace( value ) )
+        return "none";
+
+      return value.Replace( ',', ';' )
+                  .Replace( '\r', ' ' )
+                  .Replace( '\n', ' ' );
+    }
+
+    private static string SanitizeFileName( string value )
     {
       if ( string.IsNullOrWhiteSpace( value ) )
         return "none";

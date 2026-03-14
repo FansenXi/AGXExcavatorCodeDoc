@@ -68,6 +68,15 @@ namespace AGXUnity_Excavator.Scripts.Presentation
         GUILayout.Label( $"ACT session: {m_episodeManager.CurrentSourceSessionId}    Status: {m_episodeManager.CurrentSourceBackendStatus}", m_style );
       }
 
+      if ( m_episodeManager.CurrentSourceHasHardwareDiagnostics ) {
+        GUILayout.Label( $"Device connected: {m_episodeManager.CurrentSourceDeviceConnected}    Status: {m_episodeManager.CurrentSourceBindingStatus}", m_style );
+        GUILayout.Label( $"Device: {m_episodeManager.CurrentSourceDeviceDisplayName}", m_style );
+        GUILayout.Label( $"Profile: {m_episodeManager.CurrentSourceProfileName}", m_style );
+        GUILayout.Label( $"HW Raw: {m_episodeManager.CurrentSourceHardwareInputSnapshot.ToCompactString()}", m_style );
+        if ( !string.IsNullOrWhiteSpace( m_episodeManager.CurrentSourceRawInputSummary ) )
+          GUILayout.Label( $"Bindings: {m_episodeManager.CurrentSourceRawInputSummary}", m_style );
+      }
+
       GUILayout.Space( 6.0f );
       GUILayout.Label( $"Raw: {m_episodeManager.LastRawCommand.ToCompactString()}", m_style );
       GUILayout.Label( $"Sim: {m_episodeManager.LastSimulatedCommand.ToCompactString()}", m_style );

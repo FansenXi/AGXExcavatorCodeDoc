@@ -94,11 +94,13 @@ namespace AGXUnity_Excavator.Scripts.Experiment
         m_machineController.ApplyActuationCommand( LastActuationCommand );
 
       if ( IsEpisodeRunning && m_logger != null ) {
+        var hardwareDiagnostics = m_commandSource as IHardwareCommandDiagnostics;
         m_logger.RecordFrame(
           Time.time,
           LastRawCommand,
           LastSimulatedCommand,
           LastActuationCommand,
+          hardwareDiagnostics,
           m_machineController != null ? m_machineController.BucketReference : null,
           m_massVolumeCounter );
       }
@@ -357,5 +359,12 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     public float CurrentSourceInferenceTimeMs => ( m_commandSource as IActCommandDiagnostics )?.LastInferenceTimeMs ?? 0.0f;
     public string CurrentSourceSessionId => ( m_commandSource as IActCommandDiagnostics )?.CurrentSessionId ?? string.Empty;
     public string CurrentSourceBackendStatus => ( m_commandSource as IActCommandDiagnostics )?.LastBackendStatus ?? string.Empty;
+    public bool CurrentSourceHasHardwareDiagnostics => m_commandSource is IHardwareCommandDiagnostics;
+    public bool CurrentSourceDeviceConnected => ( m_commandSource as IHardwareCommandDiagnostics )?.DeviceConnected ?? false;
+    public string CurrentSourceDeviceDisplayName => ( m_commandSource as IHardwareCommandDiagnostics )?.DeviceDisplayName ?? string.Empty;
+    public string CurrentSourceProfileName => ( m_commandSource as IHardwareCommandDiagnostics )?.ProfileName ?? string.Empty;
+    public string CurrentSourceBindingStatus => ( m_commandSource as IHardwareCommandDiagnostics )?.BindingStatus ?? string.Empty;
+    public string CurrentSourceRawInputSummary => ( m_commandSource as IHardwareCommandDiagnostics )?.LastRawInputSummary ?? string.Empty;
+    public HardwareInputSnapshot CurrentSourceHardwareInputSnapshot => ( m_commandSource as IHardwareCommandDiagnostics )?.LastRawInputSnapshot ?? HardwareInputSnapshot.Zero;
   }
 }
