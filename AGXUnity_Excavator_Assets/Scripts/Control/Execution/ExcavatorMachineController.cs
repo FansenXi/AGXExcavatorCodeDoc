@@ -16,6 +16,14 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
     [SerializeField]
     private ExcavatorActuationLimits m_limits = new ExcavatorActuationLimits();
 
+    [SerializeField]
+    [Range( 0.0f, 1.0f )]
+    private float m_trackSpeedScale = 0.2f;
+
+    [SerializeField]
+    [Range( 0.0f, 1.0f )]
+    private float m_trackCommandDeadZone = 0.05f;
+
     public ExcavatorActuationCommand LastActuationCommand { get; private set; }
 
     public Transform BucketReference
@@ -51,7 +59,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
       LastActuationCommand = command.ClampAxes();
 
       SetThrottle( LastActuationCommand.Throttle );
-      ApplyDriveTrain( LastActuationCommand.Drive, LastActuationCommand.Steer, LastActuationCommand.Throttle );
+      ApplyDriveTrain( LastActuationCommand.Drive, LastActuationCommand.Steer );
       SetBoom( LastActuationCommand.Boom );
       SetBucket( LastActuationCommand.Bucket );
       SetStick( LastActuationCommand.Stick );
@@ -63,35 +71,27 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
       ApplyActuationCommand( ExcavatorActuationCommand.Zero );
     }
 
-    private void ApplyDriveTrain( float drive, float steer, float throttle )
+    private void ApplyDriveTrain( float drive, float steer )
     {
-      if ( Mathf.Abs( throttle ) > 0.0f ) {
-        m_excavator.ClutchEfficiency = new Vector2( 1.0f, 1.0f );
-        m_excavator.BrakeEfficiency = new Vector2( 0.0f, 0.0f );
-      }
-      else {
-        m_excavator.ClutchEfficiency = new Vector2( 0.0f, 0.0f );
-        m_excavator.BrakeEfficiency = new Vector2( 1.0f, 1.0f );
-      }
+      var leftTrack = ApplyTrackDeadZone( Mathf.Clamp( drive - steer, -1.0f, 1.0f ) );
+      var rightTrack = ApplyTrackDeadZone( Mathf.Clamp( drive + steer, -1.0f, 1.0f ) );
+      var clutch = new Vector2(
+        Mathf.Abs( leftTrack ) > 0.0f ? 1.0f : 0.0f,
+        Mathf.Abs( rightTrack ) > 0.0f ? 1.0f : 0.0f );
 
-      var gear = Vector2.zero;
-      if ( Mathf.Abs( drive ) > 0.0f ) {
-        gear[ 0 ] = -Mathf.Sign( drive );
-        gear[ 1 ] = -Mathf.Sign( drive );
-      }
-
-      var gearRatio = Mathf.Abs( steer ) > 0.0f ? 1.0f : 0.2f;
-      if ( Mathf.Abs( steer ) > 0.0f ) {
-        gear[ 0 ] = -Mathf.Sign( steer );
-        gear[ 1 ] = Mathf.Sign( steer );
-      }
-
-      m_excavator.GearRatio = gear * gearRatio;
+      m_excavator.ClutchEfficiency = clutch;
+      m_excavator.BrakeEfficiency = Vector2.one - clutch;
+      m_excavator.GearRatio = new Vector2( -leftTrack, -rightTrack ) * m_trackSpeedScale;
     }
 
     private void SetThrottle( float value )
     {
       m_excavator.Throttle = Mathf.Clamp01( value );
+    }
+
+    private float ApplyTrackDeadZone( float command )
+    {
+      return Mathf.Abs( command ) >= m_trackCommandDeadZone ? command : 0.0f;
     }
 
     private void SetSwing( float value )

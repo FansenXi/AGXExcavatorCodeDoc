@@ -30,6 +30,10 @@ namespace AGXUnity_Excavator.Scripts.Editor
     {
       var assetPath = CombineAssetPath( targetDirectory, assetFileName );
       var profile = AssetDatabase.LoadAssetAtPath<FarmStickControlProfile>( assetPath );
+      if ( profile == null )
+        DeleteInvalidAssetAtPath( assetPath );
+
+      profile = AssetDatabase.LoadAssetAtPath<FarmStickControlProfile>( assetPath );
       if ( profile == null ) {
         profile = ScriptableObject.CreateInstance<FarmStickControlProfile>();
         profile.ApplyDefaultExcavatorLayout( handedness );
@@ -41,6 +45,17 @@ namespace AGXUnity_Excavator.Scripts.Editor
       }
 
       return profile;
+    }
+
+    private static void DeleteInvalidAssetAtPath( string assetPath )
+    {
+      var projectRoot = Directory.GetParent( Application.dataPath )?.FullName ?? Directory.GetCurrentDirectory();
+      var normalizedAssetPath = assetPath.Replace( '/', Path.DirectorySeparatorChar );
+      var absoluteAssetPath = Path.GetFullPath( Path.Combine( projectRoot, normalizedAssetPath ) );
+      if ( !File.Exists( absoluteAssetPath ) )
+        return;
+
+      AssetDatabase.DeleteAsset( assetPath );
     }
 
     private static string GetTargetDirectory()

@@ -6,6 +6,10 @@ using AGXUnity_Excavator.Scripts.Control.Simulation;
 using AGXUnity_Excavator.Scripts.Control.Sources;
 using UnityEngine;
 
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
+
 namespace AGXUnity_Excavator.Scripts.Experiment
 {
   public class EpisodeManager : MonoBehaviour
@@ -48,6 +52,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     public ExcavatorActuationCommand LastActuationCommand { get; private set; }
 
     public string CurrentSourceName => m_commandSource != null ? m_commandSource.SourceName : "None";
+    public string CurrentControlLayout => m_interpreter != null ? m_interpreter.LayoutDescription : string.Empty;
     public string LastSavedPath => m_logger != null ? m_logger.LastSavedPath : string.Empty;
     public float MassInBucket => m_massVolumeCounter != null ? m_massVolumeCounter.MassInBucket : 0.0f;
     public float ExcavatedMass => m_massVolumeCounter != null ? m_massVolumeCounter.ExcavatedMass : 0.0f;
@@ -70,6 +75,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     private void Update()
     {
       ResolveReferences();
+      HandleSourceSwitchHotkeys();
 
       LastRawCommand = m_commandSource != null ? m_commandSource.ReadCommand() : OperatorCommand.Zero;
 
@@ -138,7 +144,9 @@ namespace AGXUnity_Excavator.Scripts.Experiment
         return;
       }
 
-      if ( m_commandSource == null || GetSourceIndex( m_commandSource ) < 0 )
+      if ( m_commandSource == null ||
+           GetSourceIndex( m_commandSource ) < 0 ||
+           ShouldPromotePreferredSource( m_commandSource, discoveredSources ) )
         m_commandSource = ChooseDefaultSource( discoveredSources );
 
       SyncSourceEnabledStates();
@@ -148,6 +156,18 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     {
       var source = GetAvailableSource( index );
       return SetCommandSource( source, restartEpisodeIfRunning );
+    }
+
+    public bool CycleCommandSource( int direction, bool restartEpisodeIfRunning = true )
+    {
+      ResolveReferences();
+      if ( AvailableSourceCount <= 1 )
+        return false;
+
+      var normalizedDirection = direction < 0 ? -1 : 1;
+      var currentIndex = CurrentSourceIndex >= 0 ? CurrentSourceIndex : 0;
+      var targetIndex = ( currentIndex + normalizedDirection + AvailableSourceCount ) % AvailableSourceCount;
+      return SetCommandSourceByIndex( targetIndex, restartEpisodeIfRunning );
     }
 
     public bool SetCommandSource( OperatorCommandSourceBehaviour source, bool restartEpisodeIfRunning = true )
@@ -231,6 +251,105 @@ namespace AGXUnity_Excavator.Scripts.Experiment
         StartEpisode();
     }
 
+    private void HandleSourceSwitchHotkeys()
+    {
+      if ( AvailableSourceCount <= 1 )
+        return;
+
+      var requestedIndex = GetRequestedSourceIndexHotkey();
+      if ( requestedIndex >= 0 && requestedIndex < AvailableSourceCount ) {
+        SetCommandSourceByIndex( requestedIndex );
+        return;
+      }
+
+      var cycleDirection = GetSourceCycleDirectionHotkey();
+      if ( cycleDirection != 0 )
+        CycleCommandSource( cycleDirection );
+    }
+
+    private static int GetSourceCycleDirectionHotkey()
+    {
+#if ENABLE_INPUT_SYSTEM
+      var keyboard = Keyboard.current;
+      if ( keyboard != null ) {
+        if ( keyboard.f6Key.wasPressedThisFrame )
+          return -1;
+
+        if ( keyboard.f7Key.wasPressedThisFrame )
+          return 1;
+
+        return 0;
+      }
+#endif
+
+      if ( Input.GetKeyDown( KeyCode.F6 ) )
+        return -1;
+
+      if ( Input.GetKeyDown( KeyCode.F7 ) )
+        return 1;
+
+      return 0;
+    }
+
+    private static int GetRequestedSourceIndexHotkey()
+    {
+#if ENABLE_INPUT_SYSTEM
+      var keyboard = Keyboard.current;
+      if ( keyboard != null )
+        return GetRequestedSourceIndexFromKeyboard( keyboard );
+#endif
+
+      if ( Input.GetKeyDown( KeyCode.Alpha1 ) )
+        return 0;
+      if ( Input.GetKeyDown( KeyCode.Alpha2 ) )
+        return 1;
+      if ( Input.GetKeyDown( KeyCode.Alpha3 ) )
+        return 2;
+      if ( Input.GetKeyDown( KeyCode.Alpha4 ) )
+        return 3;
+      if ( Input.GetKeyDown( KeyCode.Alpha5 ) )
+        return 4;
+      if ( Input.GetKeyDown( KeyCode.Alpha6 ) )
+        return 5;
+      if ( Input.GetKeyDown( KeyCode.Alpha7 ) )
+        return 6;
+      if ( Input.GetKeyDown( KeyCode.Alpha8 ) )
+        return 7;
+      if ( Input.GetKeyDown( KeyCode.Alpha9 ) )
+        return 8;
+
+      return -1;
+    }
+
+#if ENABLE_INPUT_SYSTEM
+    private static int GetRequestedSourceIndexFromKeyboard( Keyboard keyboard )
+    {
+      if ( keyboard == null )
+        return -1;
+
+      if ( keyboard.digit1Key.wasPressedThisFrame )
+        return 0;
+      if ( keyboard.digit2Key.wasPressedThisFrame )
+        return 1;
+      if ( keyboard.digit3Key.wasPressedThisFrame )
+        return 2;
+      if ( keyboard.digit4Key.wasPressedThisFrame )
+        return 3;
+      if ( keyboard.digit5Key.wasPressedThisFrame )
+        return 4;
+      if ( keyboard.digit6Key.wasPressedThisFrame )
+        return 5;
+      if ( keyboard.digit7Key.wasPressedThisFrame )
+        return 6;
+      if ( keyboard.digit8Key.wasPressedThisFrame )
+        return 7;
+      if ( keyboard.digit9Key.wasPressedThisFrame )
+        return 8;
+
+      return -1;
+    }
+#endif
+
     private void ResolveReferences()
     {
       if ( AvailableSourceCount == 0 || m_commandSource == null || GetSourceIndex( m_commandSource ) < 0 )
@@ -275,9 +394,18 @@ namespace AGXUnity_Excavator.Scripts.Experiment
           otherSources.Add( source );
       }
 
-      var selectedSources = sameRootSources.Count > 0 ? sameRootSources : otherSources;
-      selectedSources.Sort( CompareSources );
-      return selectedSources.ToArray();
+      sameRootSources.Sort( CompareSources );
+      otherSources.Sort( CompareSources );
+
+      if ( sameRootSources.Count == 0 )
+        return otherSources.ToArray();
+
+      if ( otherSources.Count == 0 )
+        return sameRootSources.ToArray();
+
+      // Keep local rig sources first, but do not discard valid sources on other roots.
+      sameRootSources.AddRange( otherSources );
+      return sameRootSources.ToArray();
     }
 
     private static int CompareSources( OperatorCommandSourceBehaviour left, OperatorCommandSourceBehaviour right )
@@ -305,11 +433,38 @@ namespace AGXUnity_Excavator.Scripts.Experiment
 
       for ( var sourceIndex = 0; sourceIndex < sources.Length; ++sourceIndex ) {
         var source = sources[ sourceIndex ];
+        if ( source is FarmStickOperatorCommandSource && source.enabled )
+          return source;
+      }
+
+      for ( var sourceIndex = 0; sourceIndex < sources.Length; ++sourceIndex ) {
+        var source = sources[ sourceIndex ];
         if ( source != null && source.enabled )
           return source;
       }
 
       return sources[ 0 ];
+    }
+
+    private static bool ShouldPromotePreferredSource( OperatorCommandSourceBehaviour currentSource,
+                                                      OperatorCommandSourceBehaviour[] sources )
+    {
+      if ( currentSource == null || sources == null || sources.Length == 0 )
+        return false;
+
+      if ( currentSource is FarmStickOperatorCommandSource )
+        return false;
+
+      if ( currentSource is not KeyboardOperatorCommandSource )
+        return false;
+
+      for ( var sourceIndex = 0; sourceIndex < sources.Length; ++sourceIndex ) {
+        var source = sources[ sourceIndex ];
+        if ( source is FarmStickOperatorCommandSource && source.enabled )
+          return true;
+      }
+
+      return false;
     }
 
     private void SyncSourceEnabledStates()

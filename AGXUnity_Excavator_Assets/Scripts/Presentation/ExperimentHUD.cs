@@ -58,7 +58,9 @@ namespace AGXUnity_Excavator.Scripts.Presentation
       GUILayout.EndHorizontal();
       GUILayout.Label( $"Episode: {m_episodeManager.CurrentEpisodeIndex}    Running: {m_episodeManager.IsEpisodeRunning}", m_style );
       GUILayout.Label( $"Source: {m_episodeManager.CurrentSourceName}", m_style );
-      GUILayout.Label( "Controls: R reset, Enter start, Backspace stop", m_style );
+      if ( !string.IsNullOrWhiteSpace( m_episodeManager.CurrentControlLayout ) )
+        GUILayout.Label( $"Layout: {m_episodeManager.CurrentControlLayout}", m_style );
+      GUILayout.Label( "Controls: R reset, Enter start, Backspace stop, F6/F7 switch source, 1-9 select source", m_style );
       if ( m_showRuntimeConfig )
         DrawRuntimeConfig();
 
@@ -83,8 +85,6 @@ namespace AGXUnity_Excavator.Scripts.Presentation
       GUILayout.Label( $"Act: {m_episodeManager.LastActuationCommand.ToCompactString()}", m_style );
       GUILayout.Space( 6.0f );
       GUILayout.Label( $"Mass in bucket: {m_episodeManager.MassInBucket:0.00} kg", m_style );
-      GUILayout.Label( $"Excavated mass: {m_episodeManager.ExcavatedMass:0.00} kg", m_style );
-      GUILayout.Label( $"Excavated volume: {m_episodeManager.ExcavatedVolume:0.000} m^3", m_style );
       GUILayout.Space( 6.0f );
       GUILayout.Label( $"Last log: {m_episodeManager.LastSavedPath}", m_style );
       GUILayout.EndArea();
@@ -96,12 +96,14 @@ namespace AGXUnity_Excavator.Scripts.Presentation
       GUILayout.Label( "<b>Runtime Config</b>", m_style );
 
       if ( m_episodeManager.AvailableSourceCount > 0 ) {
-        GUILayout.Label( "Control source (switching restarts the active episode):", m_style );
+        GUILayout.Label( "Control source (F6/F7 cycle, 1-9 select, switching restarts the active episode):", m_style );
         for ( var sourceIndex = 0; sourceIndex < m_episodeManager.AvailableSourceCount; ++sourceIndex ) {
           var isCurrentSource = sourceIndex == m_episodeManager.CurrentSourceIndex;
+          var sourceDisplayName = m_episodeManager.GetAvailableSourceDisplayName( sourceIndex );
+          var hotkeyPrefix = GetSourceHotkeyLabel( sourceIndex );
           var buttonLabel = isCurrentSource ?
-                            $"[{m_episodeManager.GetAvailableSourceDisplayName( sourceIndex )}] Active" :
-                            m_episodeManager.GetAvailableSourceDisplayName( sourceIndex );
+                            $"{hotkeyPrefix}{sourceDisplayName} Active" :
+                            $"{hotkeyPrefix}{sourceDisplayName}";
 
           GUI.enabled = !isCurrentSource;
           if ( GUILayout.Button( buttonLabel ) )
@@ -139,6 +141,11 @@ namespace AGXUnity_Excavator.Scripts.Presentation
         FindObjectsInactive.Include,
         FindObjectsSortMode.None );
       Array.Sort( m_cameraWindows, CompareCameraWindows );
+    }
+
+    private static string GetSourceHotkeyLabel( int sourceIndex )
+    {
+      return sourceIndex >= 0 && sourceIndex < 9 ? $"[{sourceIndex + 1}] " : string.Empty;
     }
 
     private static int CompareCameraWindows( TrackedCameraWindow left, TrackedCameraWindow right )
