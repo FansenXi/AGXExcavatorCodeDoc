@@ -24,6 +24,9 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
     [Range( 0.0f, 1.0f )]
     private float m_trackCommandDeadZone = 0.05f;
 
+    [SerializeField]
+    private bool m_trackVectorOrderIsRightLeft = true;
+
     public ExcavatorActuationCommand LastActuationCommand { get; private set; }
 
     public Transform BucketReference
@@ -75,13 +78,15 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
     {
       var leftTrack = ApplyTrackDeadZone( Mathf.Clamp( drive - steer, -1.0f, 1.0f ) );
       var rightTrack = ApplyTrackDeadZone( Mathf.Clamp( drive + steer, -1.0f, 1.0f ) );
+      var firstTrack = m_trackVectorOrderIsRightLeft ? rightTrack : leftTrack;
+      var secondTrack = m_trackVectorOrderIsRightLeft ? leftTrack : rightTrack;
       var clutch = new Vector2(
-        Mathf.Abs( leftTrack ) > 0.0f ? 1.0f : 0.0f,
-        Mathf.Abs( rightTrack ) > 0.0f ? 1.0f : 0.0f );
+        Mathf.Abs( firstTrack ) > 0.0f ? 1.0f : 0.0f,
+        Mathf.Abs( secondTrack ) > 0.0f ? 1.0f : 0.0f );
 
       m_excavator.ClutchEfficiency = clutch;
       m_excavator.BrakeEfficiency = Vector2.one - clutch;
-      m_excavator.GearRatio = new Vector2( -leftTrack, -rightTrack ) * m_trackSpeedScale;
+      m_excavator.GearRatio = new Vector2( -firstTrack, -secondTrack ) * m_trackSpeedScale;
     }
 
     private void SetThrottle( float value )
