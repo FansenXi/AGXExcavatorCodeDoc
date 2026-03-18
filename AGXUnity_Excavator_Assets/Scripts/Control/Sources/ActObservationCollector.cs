@@ -26,6 +26,24 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
 
   public class ActObservationCollector : MonoBehaviour
   {
+    private struct BaseVelocitySampleState
+    {
+      public Vector3 LastBasePosition;
+      public Quaternion LastBaseRotation;
+      public float LastBaseSampleTime;
+      public Vector3 LastLinearVelocityLocal;
+      public Vector3 LastAngularVelocityLocal;
+
+      public static BaseVelocitySampleState ResetState => new BaseVelocitySampleState
+      {
+        LastBasePosition = Vector3.zero,
+        LastBaseRotation = Quaternion.identity,
+        LastBaseSampleTime = -1.0f,
+        LastLinearVelocityLocal = Vector3.zero,
+        LastAngularVelocityLocal = Vector3.zero
+      };
+    }
+
     [SerializeField]
     private ExcavatorMachineController m_machineController = null;
 
@@ -44,11 +62,8 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
     [SerializeField]
     private ActuatorNormalizationRange m_bucketRange = new ActuatorNormalizationRange();
 
-    private Vector3 m_lastBasePosition = Vector3.zero;
-    private Quaternion m_lastBaseRotation = Quaternion.identity;
-    private float m_lastBaseSampleTime = -1.0f;
-    private Vector3 m_lastLinearVelocityLocal = Vector3.zero;
-    private Vector3 m_lastAngularVelocityLocal = Vector3.zero;
+    private BaseVelocitySampleState m_defaultBaseVelocityState = BaseVelocitySampleState.ResetState;
+    private BaseVelocitySampleState m_loggingBaseVelocityState = BaseVelocitySampleState.ResetState;
 
     private void Awake()
     {
@@ -56,6 +71,23 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
     }
 
     public ActObservation Collect( OperatorCommand previousOperatorCommand )
+    {
+      return CollectInternal( previousOperatorCommand, ref m_defaultBaseVelocityState );
+    }
+
+    public ActObservation CollectForLogging( OperatorCommand previousOperatorCommand )
+    {
+      return CollectInternal( previousOperatorCommand, ref m_loggingBaseVelocityState );
+    }
+
+    public void ResetSampling()
+    {
+      m_defaultBaseVelocityState = BaseVelocitySampleState.ResetState;
+      m_loggingBaseVelocityState = BaseVelocitySampleState.ResetState;
+    }
+
+    private ActObservation CollectInternal( OperatorCommand previousOperatorCommand,
+                                           ref BaseVelocitySampleState baseVelocityState )
     {
       ResolveReferences();
 
@@ -67,10 +99,12 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       };
 
       var baseTransform = m_excavator != null ? m_excavator.transform : transform;
-      UpdateBaseVelocity( baseTransform );
+      UpdateBaseVelocity( baseTransform, ref baseVelocityState );
 
       observation.base_pose_world.Set( baseTransform.position, baseTransform.rotation );
-      observation.base_velocity_local.Set( m_lastLinearVelocityLocal, m_lastAngularVelocityLocal );
+      observation.base_velocity_local.Set(
+        baseVelocityState.LastLinearVelocityLocal,
+        baseVelocityState.LastAngularVelocityLocal );
 
       var bucketReference = m_machineController != null ? m_machineController.BucketReference : null;
       if ( bucketReference != null )
@@ -86,8 +120,6 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
 
       if ( m_massVolumeCounter != null ) {
         observation.task_state.mass_in_bucket_kg = m_massVolumeCounter.MassInBucket;
-        observation.task_state.excavated_mass_kg = m_massVolumeCounter.ExcavatedMass;
-        observation.task_state.excavated_volume_m3 = m_massVolumeCounter.ExcavatedVolume;
       }
 
       return observation;
@@ -100,29 +132,37 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       m_massVolumeCounter = ExcavatorRigLocator.ResolveComponent( this, m_massVolumeCounter );
     }
 
-    private void UpdateBaseVelocity( Transform baseTransform )
+    private static void UpdateBaseVelocity( Transform baseTransform, ref BaseVelocitySampleState sampleState )
     {
       var sampleTime = Time.time;
       if ( baseTransform == null ) {
-        m_lastLinearVelocityLocal = Vector3.zero;
-        m_lastAngularVelocityLocal = Vector3.zero;
+        sampleState.LastLinearVelocityLocal = Vector3.zero;
+        sampleState.LastAngularVelocityLocal = Vector3.zero;
         return;
       }
 
-      if ( m_lastBaseSampleTime < 0.0f ) {
-        m_lastBasePosition = baseTransform.position;
-        m_lastBaseRotation = baseTransform.rotation;
-        m_lastBaseSampleTime = sampleTime;
-        m_lastLinearVelocityLocal = Vector3.zero;
-        m_lastAngularVelocityLocal = Vector3.zero;
+      if ( sampleState.LastBaseSampleTime < 0.0f ) {
+        sampleState.LastBasePosition = baseTransform.position;
+        sampleState.LastBaseRotation = baseTransform.rotation;
+        sampleState.LastBaseSampleTime = sampleTime;
+        sampleState.LastLinearVelocityLocal = Vector3.zero;
+        sampleState.LastAngularVelocityLocal = Vector3.zero;
         return;
       }
 
-      var deltaTime = Mathf.Max( sampleTime - m_lastBaseSampleTime, 1.0e-5f );
-      var worldLinearVelocity = ( baseTransform.position - m_lastBasePosition ) / deltaTime;
-      m_lastLinearVelocityLocal = baseTransform.InverseTransformDirection( worldLinearVelocity );
+      var elapsedTime = sampleTime - sampleState.LastBaseSampleTime;
+      if ( elapsedTime <= 1.0e-5f ) {
+        sampleState.LastBasePosition = baseTransform.position;
+        sampleState.LastBaseRotation = baseTransform.rotation;
+        sampleState.LastBaseSampleTime = sampleTime;
+        return;
+      }
 
-      var deltaRotation = baseTransform.rotation * Quaternion.Inverse( m_lastBaseRotation );
+      var deltaTime = Mathf.Max( elapsedTime, 1.0e-5f );
+      var worldLinearVelocity = ( baseTransform.position - sampleState.LastBasePosition ) / deltaTime;
+      sampleState.LastLinearVelocityLocal = baseTransform.InverseTransformDirection( worldLinearVelocity );
+
+      var deltaRotation = baseTransform.rotation * Quaternion.Inverse( sampleState.LastBaseRotation );
       deltaRotation.ToAngleAxis( out var angleDegrees, out var axis );
       if ( float.IsNaN( axis.x ) || float.IsInfinity( axis.x ) )
         axis = Vector3.zero;
@@ -131,11 +171,11 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
         angleDegrees -= 360.0f;
 
       var angularVelocityWorld = axis.normalized * angleDegrees * Mathf.Deg2Rad / deltaTime;
-      m_lastAngularVelocityLocal = baseTransform.InverseTransformDirection( angularVelocityWorld );
+      sampleState.LastAngularVelocityLocal = baseTransform.InverseTransformDirection( angularVelocityWorld );
 
-      m_lastBasePosition = baseTransform.position;
-      m_lastBaseRotation = baseTransform.rotation;
-      m_lastBaseSampleTime = sampleTime;
+      sampleState.LastBasePosition = baseTransform.position;
+      sampleState.LastBaseRotation = baseTransform.rotation;
+      sampleState.LastBaseSampleTime = sampleTime;
     }
 
     private static float ReadConstraintSpeed( Constraint constraint )

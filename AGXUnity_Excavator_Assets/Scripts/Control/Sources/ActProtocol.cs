@@ -71,8 +71,6 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
   public class ActTaskState
   {
     public float mass_in_bucket_kg = 0.0f;
-    public float excavated_mass_kg = 0.0f;
-    public float excavated_volume_m3 = 0.0f;
   }
 
   [Serializable]

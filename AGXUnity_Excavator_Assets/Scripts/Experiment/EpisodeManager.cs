@@ -43,7 +43,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
 
     private OperatorCommandSourceBehaviour[] m_availableSources = Array.Empty<OperatorCommandSourceBehaviour>();
     private int m_nextEpisodeIndex = 1;
-    private bool m_massVolumeCounterResolved = false;
+    private bool m_hasControlStateForCurrentEpisode = false;
 
     public int CurrentEpisodeIndex { get; private set; }
     public bool IsEpisodeRunning { get; private set; }
@@ -55,8 +55,6 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     public string CurrentControlLayout => m_interpreter != null ? m_interpreter.LayoutDescription : string.Empty;
     public string LastSavedPath => m_logger != null ? m_logger.LastSavedPath : string.Empty;
     public float MassInBucket => m_massVolumeCounter != null ? m_massVolumeCounter.MassInBucket : 0.0f;
-    public float ExcavatedMass => m_massVolumeCounter != null ? m_massVolumeCounter.ExcavatedMass : 0.0f;
-    public float ExcavatedVolume => m_massVolumeCounter != null ? m_massVolumeCounter.ExcavatedVolume : 0.0f;
     public int AvailableSourceCount => m_availableSources != null ? m_availableSources.Length : 0;
     public int CurrentSourceIndex => GetSourceIndex( m_commandSource );
 
@@ -99,17 +97,19 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       if ( m_machineController != null )
         m_machineController.ApplyActuationCommand( LastActuationCommand );
 
-      if ( IsEpisodeRunning && m_logger != null ) {
-        var hardwareDiagnostics = m_commandSource as IHardwareCommandDiagnostics;
-        m_logger.RecordFrame(
-          Time.time,
-          LastRawCommand,
-          LastSimulatedCommand,
-          LastActuationCommand,
-          hardwareDiagnostics,
-          m_machineController != null ? m_machineController.BucketReference : null,
-          m_massVolumeCounter );
-      }
+      m_hasControlStateForCurrentEpisode = IsEpisodeRunning;
+    }
+
+    private void FixedUpdate()
+    {
+      if ( !IsEpisodeRunning || !m_hasControlStateForCurrentEpisode || m_logger == null )
+        return;
+
+      m_logger.RecordFrame(
+        m_commandSource,
+        LastRawCommand,
+        LastSimulatedCommand,
+        LastActuationCommand );
     }
 
     public OperatorCommandSourceBehaviour GetAvailableSource( int index )
@@ -194,6 +194,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       LastRawCommand = OperatorCommand.Zero;
       LastSimulatedCommand = OperatorCommand.Zero;
       LastActuationCommand = ExcavatorActuationCommand.Zero;
+      m_hasControlStateForCurrentEpisode = false;
 
       if ( shouldRestartEpisode )
         StartEpisode();
@@ -210,6 +211,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
 
       CurrentEpisodeIndex = m_nextEpisodeIndex++;
       IsEpisodeRunning = true;
+      m_hasControlStateForCurrentEpisode = false;
       m_commandSimulator?.ResetState();
       if ( m_commandSource is IEpisodeLifecycleAware lifecycleAware ) {
         lifecycleAware.OnEpisodeStarted( new EpisodeCommandSourceContext
@@ -219,7 +221,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
         } );
       }
 
-      m_logger?.BeginEpisode( CurrentEpisodeIndex, CurrentSourceName );
+      m_logger?.BeginEpisode( CurrentEpisodeIndex, m_commandSource, CurrentControlLayout );
     }
 
     public void StopEpisode( string reason )
@@ -228,10 +230,12 @@ namespace AGXUnity_Excavator.Scripts.Experiment
         m_machineController?.StopMotion();
         LastSimulatedCommand = OperatorCommand.Zero;
         LastActuationCommand = ExcavatorActuationCommand.Zero;
+        m_hasControlStateForCurrentEpisode = false;
         return;
       }
 
       IsEpisodeRunning = false;
+      m_hasControlStateForCurrentEpisode = false;
       m_machineController?.StopMotion();
       m_commandSimulator?.ResetState();
       if ( m_commandSource is IEpisodeLifecycleAware lifecycleAware )
@@ -367,10 +371,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       if ( m_logger == null )
         m_logger = GetComponent<ExperimentLogger>();
 
-      if ( m_massVolumeCounter == null && !m_massVolumeCounterResolved )
-        m_massVolumeCounter = FindObjectOfType<global::MassVolumeCounter>();
-
-      m_massVolumeCounterResolved = true;
+      m_massVolumeCounter = ExcavatorRigLocator.ResolveComponent( this, m_massVolumeCounter );
     }
 
     private OperatorCommandSourceBehaviour[] DiscoverAvailableSources()
