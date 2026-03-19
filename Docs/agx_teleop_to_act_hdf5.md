@@ -1,5 +1,24 @@
 # 将 Unity 人类遥操作记录为 Testbed 可训练的 ACT HDF5 数据集
 
+## 2026-03-18 状态更新
+
+下面这份文档里有一些“当时还没完成”的分析结论，现在已经部分过时。
+
+截至当前 Unity 实现，协议侧已经完成这些更新：
+- `AgxSimStepAckServer` 已切到 TCP binary framing，不再使用 JSON transport
+- step-ack `qpos` 已扩成 4 维，并包含 `swing_position_norm`
+- FPV 已支持 `raw_rgb` 原始字节导出
+- `reset_pose` 已走当前 reset 链路支持
+
+当前协议真值文档见：
+- `Docs/protocol.md`
+
+因此，这篇文档里凡是提到下面这些“仍未完成”的结论，都应视为历史分析，不再代表当前代码状态：
+- `qpos` 还是 3 维
+- `supports_images = false`
+- `reset_pose` 未实现
+- transport 仍然是 JSON lines
+
 ## 目标
 
 这里真正要产出的不是“policy 文件”，而是一个能够被 testbed 现有 ACT 训练流程直接消费的 `episode_N.hdf5` 演示数据集。

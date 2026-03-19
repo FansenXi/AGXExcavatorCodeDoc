@@ -25,9 +25,10 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
     private float m_trackCommandDeadZone = 0.05f;
 
     [SerializeField]
-    private bool m_trackVectorOrderIsRightLeft = true;
+    private bool m_startWithEngineRunning = true;
 
     public ExcavatorActuationCommand LastActuationCommand { get; private set; }
+    public bool IsEngineRunning { get; private set; } = true;
 
     public Transform BucketReference
     {
@@ -52,6 +53,10 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
     private void Awake()
     {
       ResolveReferences();
+      IsEngineRunning = m_startWithEngineRunning;
+
+      if ( !IsEngineRunning )
+        ApplyNeutralActuation( true );
     }
 
     public void ApplyActuationCommand( ExcavatorActuationCommand command )
@@ -59,34 +64,68 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
       if ( m_excavator == null && !ResolveReferences() )
         return;
 
+      if ( !IsEngineRunning ) {
+        LastActuationCommand = ExcavatorActuationCommand.Zero;
+        ApplyNeutralActuation( true );
+        return;
+      }
+
       LastActuationCommand = command.ClampAxes();
 
-      SetThrottle( LastActuationCommand.Throttle );
-      ApplyDriveTrain( LastActuationCommand.Drive, LastActuationCommand.Steer );
-      SetBoom( LastActuationCommand.Boom );
-      SetBucket( LastActuationCommand.Bucket );
-      SetStick( LastActuationCommand.Stick );
-      SetSwing( LastActuationCommand.Swing );
+      ApplyActuation( LastActuationCommand, false );
+    }
+
+    public void StartEngine()
+    {
+      if ( m_excavator == null && !ResolveReferences() )
+        return;
+
+      IsEngineRunning = true;
+      LastActuationCommand = ExcavatorActuationCommand.Zero;
+    }
+
+    public void StopEngine()
+    {
+      if ( m_excavator == null && !ResolveReferences() )
+        return;
+
+      IsEngineRunning = false;
+      LastActuationCommand = ExcavatorActuationCommand.Zero;
+      ApplyNeutralActuation( true );
     }
 
     public void StopMotion()
     {
-      ApplyActuationCommand( ExcavatorActuationCommand.Zero );
+      LastActuationCommand = ExcavatorActuationCommand.Zero;
+      ApplyNeutralActuation( true );
+    }
+
+    private void ApplyActuation( ExcavatorActuationCommand command, bool immediateConstraintStop )
+    {
+      SetThrottle( command.Throttle );
+      ApplyDriveTrain( command.Drive, command.Steer );
+      SetBoom( command.Boom, immediateConstraintStop );
+      SetBucket( command.Bucket, immediateConstraintStop );
+      SetStick( command.Stick, immediateConstraintStop );
+      SetSwing( command.Swing, immediateConstraintStop );
+    }
+
+    private void ApplyNeutralActuation( bool immediateConstraintStop )
+    {
+      ApplyActuation( ExcavatorActuationCommand.Zero, immediateConstraintStop );
     }
 
     private void ApplyDriveTrain( float drive, float steer )
     {
       var leftTrack = ApplyTrackDeadZone( Mathf.Clamp( drive - steer, -1.0f, 1.0f ) );
       var rightTrack = ApplyTrackDeadZone( Mathf.Clamp( drive + steer, -1.0f, 1.0f ) );
-      var firstTrack = m_trackVectorOrderIsRightLeft ? rightTrack : leftTrack;
-      var secondTrack = m_trackVectorOrderIsRightLeft ? leftTrack : rightTrack;
       var clutch = new Vector2(
-        Mathf.Abs( firstTrack ) > 0.0f ? 1.0f : 0.0f,
-        Mathf.Abs( secondTrack ) > 0.0f ? 1.0f : 0.0f );
+        Mathf.Abs( leftTrack ) > 0.0f ? 1.0f : 0.0f,
+        Mathf.Abs( rightTrack ) > 0.0f ? 1.0f : 0.0f );
 
       m_excavator.ClutchEfficiency = clutch;
       m_excavator.BrakeEfficiency = Vector2.one - clutch;
-      m_excavator.GearRatio = new Vector2( -firstTrack, -secondTrack ) * m_trackSpeedScale;
+      m_excavator.GearRatio = new Vector2( -leftTrack, -rightTrack ) * m_trackSpeedScale;
     }
 
     private void SetThrottle( float value )
@@ -99,17 +138,17 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
       return Mathf.Abs( command ) >= m_trackCommandDeadZone ? command : 0.0f;
     }
 
-    private void SetSwing( float value )
+    private void SetSwing( float value, bool immediateStop )
     {
       if ( m_excavator.SwingHinge == null )
         return;
 
       var currentSpeed = (float)m_excavator.SwingHinge.Native.asHinge().getCurrentSpeed();
       var newSpeed = CalculateSpeed( value, currentSpeed, m_limits.MaxRotationalAcceleration );
-      SetSpeed( m_excavator.SwingHinge, newSpeed );
+      SetSpeed( m_excavator.SwingHinge, newSpeed, immediateStop );
     }
 
-    private void SetBoom( float value )
+    private void SetBoom( float value, bool immediateStop )
     {
       if ( m_excavator.BoomPrismatics == null || m_excavator.BoomPrismatics.Length == 0 )
         return;
@@ -117,27 +156,27 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
       var currentSpeed = (float)m_excavator.BoomPrismatics[ 0 ].Native.asPrismatic().getCurrentSpeed();
       var newSpeed = CalculateSpeed( value, currentSpeed, m_limits.MaxLinearAcceleration );
       foreach ( var prismatic in m_excavator.BoomPrismatics )
-        SetSpeed( prismatic, newSpeed );
+        SetSpeed( prismatic, newSpeed, immediateStop );
     }
 
-    private void SetStick( float value )
+    private void SetStick( float value, bool immediateStop )
     {
       if ( m_excavator.StickPrismatic == null )
         return;
 
       var currentSpeed = (float)m_excavator.StickPrismatic.Native.asPrismatic().getCurrentSpeed();
       var newSpeed = CalculateSpeed( value, currentSpeed, m_limits.MaxLinearAcceleration );
-      SetSpeed( m_excavator.StickPrismatic, newSpeed );
+      SetSpeed( m_excavator.StickPrismatic, newSpeed, immediateStop );
     }
 
-    private void SetBucket( float value )
+    private void SetBucket( float value, bool immediateStop )
     {
       if ( m_excavator.BucketPrismatic == null )
         return;
 
       var currentSpeed = (float)m_excavator.BucketPrismatic.Native.asPrismatic().getCurrentSpeed();
       var newSpeed = CalculateSpeed( value, currentSpeed, m_limits.MaxLinearAcceleration );
-      SetSpeed( m_excavator.BucketPrismatic, newSpeed );
+      SetSpeed( m_excavator.BucketPrismatic, newSpeed, immediateStop );
     }
 
     private float CalculateSpeed( float desiredSpeed, float currentSpeed, float maxAcceleration )
@@ -148,7 +187,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
       return Mathf.Clamp( desiredSpeed, currentSpeed - maxDeltaSpeed, currentSpeed + maxDeltaSpeed );
     }
 
-    private void SetSpeed( Constraint constraint, float speed )
+    private void SetSpeed( Constraint constraint, float speed, bool immediateStop )
     {
       if ( constraint == null )
         return;
@@ -157,10 +196,27 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
       if ( speedController == null )
         return;
 
+      var lockController = constraint.GetController<LockController>();
+
+      if ( immediateStop && Mathf.Abs( speed ) < 1.0e-4f ) {
+        speedController.Speed = 0.0f;
+        speedController.LockAtZeroSpeed = false;
+
+        if ( lockController != null ) {
+          speedController.Enable = false;
+          lockController.Position = constraint.GetCurrentAngle();
+          lockController.Enable = true;
+        }
+        else {
+          speedController.Enable = true;
+        }
+
+        return;
+      }
+
+      speedController.LockAtZeroSpeed = false;
       speedController.Enable = true;
       speedController.Speed = Mathf.Abs( speed ) < 1.0e-4f ? 0.0f : speed;
-
-      var lockController = constraint.GetController<LockController>();
       if ( lockController != null )
         lockController.Enable = false;
     }

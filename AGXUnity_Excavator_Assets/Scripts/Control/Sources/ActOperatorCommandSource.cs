@@ -79,7 +79,6 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       m_lastBackendStatus = "waiting_reset";
       m_lastResponseSequence = -1;
       m_lastInferenceTimeMs = 0.0f;
-      m_observationCollector?.ResetSampling();
 
       if ( m_backendClient != null ) {
         m_backendClient.BeginEpisode(
@@ -107,7 +106,6 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       m_latestValidCommand = OperatorCommand.Zero;
       m_lastBackendStatus = string.IsNullOrWhiteSpace( reason ) ? "stopped" : reason;
       m_sessionId = string.Empty;
-      m_observationCollector?.ResetSampling();
     }
 
     private void ResolveReferences()

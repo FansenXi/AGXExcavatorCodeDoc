@@ -58,6 +58,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
   [Serializable]
   public class ActActuatorState
   {
+    public float swing_position_norm = 0.0f;
     public float boom_position_norm = 0.0f;
     public float boom_speed = 0.0f;
     public float stick_position_norm = 0.0f;
@@ -71,6 +72,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
   public class ActTaskState
   {
     public float mass_in_bucket_kg = 0.0f;
+    public float excavated_mass_kg = 0.0f;
   }
 
   [Serializable]

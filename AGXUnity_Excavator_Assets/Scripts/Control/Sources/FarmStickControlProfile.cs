@@ -169,6 +169,8 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
   [CreateAssetMenu( fileName = "FarmStickControlProfile", menuName = "AGX Excavator/Input/FarmStick Control Profile" )]
   public sealed class FarmStickControlProfile : ScriptableObject
   {
+    private const string DefaultResetEpisodeButtonPath = "base5";
+
     [SerializeField]
     private string m_displayName = "FarmStick Excavator Right Default";
 
@@ -210,7 +212,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
     private FarmStickControlModeSwitchBehavior m_controlModeSwitchBehavior = FarmStickControlModeSwitchBehavior.Toggle;
 
     [SerializeField]
-    private FarmStickButtonBinding m_resetEpisode = FarmStickButtonBinding.CreateDisabled( "Reset Episode" );
+    private FarmStickButtonBinding m_resetEpisode = FarmStickButtonBinding.Create( "Reset Episode", DefaultResetEpisodeButtonPath );
 
     [SerializeField]
     private FarmStickButtonBinding m_startEpisode = FarmStickButtonBinding.CreateDisabled( "Start Episode" );
@@ -280,7 +282,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       m_steer = FarmStickAxisBinding.CreateSingleAxis( "Steer / Right Rocker", "Rudder", false, 0.02f, -1.0f, 1.0f, 0.0f );
       m_controlModeSwitch = FarmStickButtonBinding.Create( "Stick Mode Switch", "Unknown" );
       m_controlModeSwitchBehavior = FarmStickControlModeSwitchBehavior.Toggle;
-      m_resetEpisode = FarmStickButtonBinding.CreateDisabled( "Reset Episode" );
+      m_resetEpisode = FarmStickButtonBinding.Create( "Reset Episode", DefaultResetEpisodeButtonPath );
       m_startEpisode = FarmStickButtonBinding.CreateDisabled( "Start Episode" );
       m_stopEpisode = FarmStickButtonBinding.CreateDisabled( "Stop Episode" );
       SetDefaultSetupNotes();
@@ -303,7 +305,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       if ( m_controlModeSwitch == null )
         m_controlModeSwitch = FarmStickButtonBinding.Create( "Stick Mode Switch", "Unknown" );
       if ( m_resetEpisode == null )
-        m_resetEpisode = FarmStickButtonBinding.CreateDisabled( "Reset Episode" );
+        m_resetEpisode = FarmStickButtonBinding.Create( "Reset Episode", DefaultResetEpisodeButtonPath );
       if ( m_startEpisode == null )
         m_startEpisode = FarmStickButtonBinding.CreateDisabled( "Start Episode" );
       if ( m_stopEpisode == null )
@@ -321,7 +323,8 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
         "Switch the FarmStick to Work mode if you want analog rocker axes; in Drive mode those controls become buttons 27-30 and Linux may not expose them individually.\n" +
         "The FarmStick MODE button is official button 31. On Linux it may appear as an Unknown button or may not be exposed; this profile defaults the software stick-mode switch to Unknown so you can test that path quickly.\n" +
         "When the stick-mode switch is active, the main stick and mini-stick roles are swapped so the main stick can drive boom/bucket instead of swing/stick.\n" +
-        "Episode buttons are disabled by default because Unity's Linux joystick layout does not expose the FarmStick's official button 19-33 numbering directly; bind them manually to the actual control names reported by the diagnostics menu if needed.\n" +
+        $"Reset Episode defaults to '{DefaultResetEpisodeButtonPath}', which is intended to be a spare base button on the generic joystick layout. If your platform reports different button names, use the diagnostics menu to inspect the live controls and retarget the reset binding.\n" +
+        "Start/stop episode buttons stay disabled by default because Unity's Linux joystick layout does not expose the FarmStick's official button 19-33 numbering consistently across machines.\n" +
         "Run Thrustmaster hardware calibration first; use this profile only for residual deadzone, inversion and range tuning.";
     }
   }

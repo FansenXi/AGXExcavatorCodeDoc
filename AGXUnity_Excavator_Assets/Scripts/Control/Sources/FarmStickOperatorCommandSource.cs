@@ -22,7 +22,6 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
     private const string AmbiguousDeviceStatus = "Ambiguous Device";
     private const string InputSystemDisabledStatus = "Input System Disabled";
     private const string NoResolvedBindingsStatus = "No bindings resolved";
-    private const float DefaultStickSensitivity = 1.0f;
 
     [SerializeField]
     private FarmStickControlProfile m_profile = null;
@@ -32,23 +31,6 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
 
     [SerializeField]
     private bool m_swapDualStickAssignments = false;
-
-    [Header( "Joystick Sensitivity" )]
-    [SerializeField]
-    [Range( 0.1f, 2.0f )]
-    private float m_leftStickXSensitivity = DefaultStickSensitivity;
-
-    [SerializeField]
-    [Range( 0.1f, 2.0f )]
-    private float m_leftStickYSensitivity = DefaultStickSensitivity;
-
-    [SerializeField]
-    [Range( 0.1f, 2.0f )]
-    private float m_rightStickXSensitivity = DefaultStickSensitivity;
-
-    [SerializeField]
-    [Range( 0.1f, 2.0f )]
-    private float m_rightStickYSensitivity = DefaultStickSensitivity;
 
     private bool m_deviceConnected = false;
     private string m_deviceDisplayName = string.Empty;
@@ -74,7 +56,6 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
 
     private void OnEnable()
     {
-      EnsureSensitivityDefaults();
       ResetDiagnostics( GetDefaultStatus() );
     }
 
@@ -85,7 +66,6 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
 
     private void OnValidate()
     {
-      EnsureSensitivityDefaults();
       ResetDiagnostics( GetDefaultStatus() );
     }
 
@@ -127,7 +107,6 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       var controlModeSwitchPressed = ReadButtonBinding( bindings.ControlModeSwitch, ref controlModeSwitchRaw, summaryBuilder );
       UpdateStickModeSwitchState( bindings.ControlModeSwitch.Config, controlModeSwitchPressed );
       ApplyStickRouting( mainStickX, mainStickY, miniStickX, miniStickY, ref command );
-      ApplyStickSensitivity( ref command );
       command.Drive = ReadAxisBinding( bindings.Drive, ref m_lastRawInputSnapshot.Drive, summaryBuilder );
       command.Steer = ReadAxisBinding( bindings.Steer, ref m_lastRawInputSnapshot.Steer, summaryBuilder );
       command.ResetRequested = ReadButtonBinding( bindings.ResetEpisode, ref m_lastRawInputSnapshot.ResetButton, summaryBuilder );
@@ -180,7 +159,6 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       command.LeftStickY = ReadAxisBinding( leftBindings.LeftStickY, ref m_lastRawInputSnapshot.LeftStickY, summaryBuilder, "Left" );
       command.RightStickX = ReadAxisBinding( rightBindings.LeftStickX, ref m_lastRawInputSnapshot.RightStickX, summaryBuilder, "Right" );
       command.RightStickY = ReadAxisBinding( rightBindings.LeftStickY, ref m_lastRawInputSnapshot.RightStickY, summaryBuilder, "Right" );
-      ApplyStickSensitivity( ref command );
 
       var leftTrackSnapshot = 0.0f;
       var rightTrackSnapshot = 0.0f;
@@ -229,18 +207,6 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
         return NoProfileStatus;
 
       return NoDeviceStatus;
-    }
-
-    private void EnsureSensitivityDefaults()
-    {
-      if ( m_leftStickXSensitivity <= 0.0f )
-        m_leftStickXSensitivity = DefaultStickSensitivity;
-      if ( m_leftStickYSensitivity <= 0.0f )
-        m_leftStickYSensitivity = DefaultStickSensitivity;
-      if ( m_rightStickXSensitivity <= 0.0f )
-        m_rightStickXSensitivity = DefaultStickSensitivity;
-      if ( m_rightStickYSensitivity <= 0.0f )
-        m_rightStickYSensitivity = DefaultStickSensitivity;
     }
 
     private void ResetDiagnostics( string status )
@@ -1065,19 +1031,6 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
         command.RightStickX = miniStickX;
         command.RightStickY = miniStickY;
       }
-    }
-
-    private void ApplyStickSensitivity( ref OperatorCommand command )
-    {
-      command.LeftStickX = ApplySensitivity( command.LeftStickX, m_leftStickXSensitivity );
-      command.LeftStickY = ApplySensitivity( command.LeftStickY, m_leftStickYSensitivity );
-      command.RightStickX = ApplySensitivity( command.RightStickX, m_rightStickXSensitivity );
-      command.RightStickY = ApplySensitivity( command.RightStickY, m_rightStickYSensitivity );
-    }
-
-    private static float ApplySensitivity( float value, float sensitivity )
-    {
-      return Mathf.Clamp( value * sensitivity, -1.0f, 1.0f );
     }
 
     private string BuildBindingStatus( string status )

@@ -398,8 +398,7 @@ public class ActEpisodeConfig
   },
   "task_state": {
     "mass_in_bucket_kg": 132.4,
-    "excavated_mass_kg": 210.3,
-    "excavated_volume_m3": 0.19
+    "excavated_mass_kg": 210.3
   },
   "previous_operator_command": {
     "left_stick_x": 0.10,
@@ -647,7 +646,6 @@ Unity 侧维护：
 - bucket pose
 - `mass_in_bucket`
 - `excavated_mass`
-- `excavated_volume`
 
 当前还没有写入 ACT 专用字段：
 

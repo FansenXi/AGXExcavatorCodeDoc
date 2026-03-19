@@ -1,10 +1,8 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.IO;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 using System.Threading;
 using AGXUnity;
 using AGXUnity_Excavator.Scripts.Control.Core;
@@ -20,7 +18,7 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
   {
     private sealed class PendingRequest
     {
-      public string Type = string.Empty;
+      public AgxSimMessageType Type = 0;
       public AgxSimRequestPayload Payload = new AgxSimRequestPayload();
     }
 
@@ -51,15 +49,40 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
     [SerializeField]
     private TrackedCameraWindow m_fpvCamera = null;
 
+    [SerializeField]
+    private bool m_enableDebugLogs = true;
+
+    [SerializeField]
+    [Min( 1 )]
+    private int m_stepDebugLogInterval = 100;
+
     private readonly ConcurrentQueue<PendingRequest> m_pendingRequests = new ConcurrentQueue<PendingRequest>();
-    private readonly ConcurrentQueue<string> m_pendingResponses = new ConcurrentQueue<string>();
+    private readonly ConcurrentQueue<byte[]> m_pendingResponses = new ConcurrentQueue<byte[]>();
 
     private Thread m_serverThread = null;
     private volatile bool m_stopRequested = false;
     private bool m_isListening = false;
     private bool m_restoreEpisodeManagerEnabled = false;
+    private string m_lastRequestTypeName = "none";
+    private long m_lastRequestStepId = -1;
+    private bool m_lastResponseSuccess = true;
+    private bool m_lastResetApplied = false;
+    private int m_lastImageWidth = 0;
+    private int m_lastImageHeight = 0;
+    private int m_lastImagePayloadBytes = 0;
+    private string m_lastWarningsSummary = "none";
+    private string m_lastError = string.Empty;
 
     public bool IsListening => m_isListening;
+    public string LastRequestTypeName => m_lastRequestTypeName;
+    public long LastRequestStepId => m_lastRequestStepId;
+    public bool LastResponseSuccess => m_lastResponseSuccess;
+    public bool LastResetApplied => m_lastResetApplied;
+    public int LastImageWidth => m_lastImageWidth;
+    public int LastImageHeight => m_lastImageHeight;
+    public int LastImagePayloadBytes => m_lastImagePayloadBytes;
+    public string LastWarningsSummary => m_lastWarningsSummary;
+    public string LastError => m_lastError;
 
     private void Awake()
     {
@@ -127,8 +150,7 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
     {
       TcpListener listener = null;
       TcpClient client = null;
-      StreamReader reader = null;
-      StreamWriter writer = null;
+      NetworkStream stream = null;
 
       try {
         listener = new TcpListener( IPAddress.Any, m_port );
@@ -138,30 +160,28 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
         while ( !m_stopRequested ) {
           if ( client == null ) {
             if ( !listener.Pending() ) {
-              FlushPendingResponses( writer );
               Thread.Sleep( 5 );
               continue;
             }
 
             client = listener.AcceptTcpClient();
             client.NoDelay = true;
-            var stream = client.GetStream();
-            reader = new StreamReader( stream, Encoding.UTF8 );
-            writer = new StreamWriter( stream, new UTF8Encoding( false ) )
-            {
-              AutoFlush = true
-            };
+            stream = client.GetStream();
           }
 
-          if ( client.Connected && client.Client.Available > 0 ) {
-            var line = reader.ReadLine();
-            if ( string.IsNullOrWhiteSpace( line ) )
+          if ( client == null || !client.Connected || stream == null ) {
+            CloseClientConnection( ref stream, ref client );
+            continue;
+          }
+
+          if ( client.Client.Available > 0 ) {
+            if ( !TryQueueIncomingRequest( stream ) ) {
+              CloseClientConnection( ref stream, ref client );
               continue;
-
-            TryQueueIncomingRequest( line );
+            }
           }
 
-          FlushPendingResponses( writer );
+          FlushPendingResponses( stream );
           Thread.Sleep( 5 );
         }
       }
@@ -172,24 +192,7 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
       }
       finally {
         m_isListening = false;
-
-        try {
-          reader?.Dispose();
-        }
-        catch ( System.Exception ) {
-        }
-
-        try {
-          writer?.Dispose();
-        }
-        catch ( System.Exception ) {
-        }
-
-        try {
-          client?.Close();
-        }
-        catch ( System.Exception ) {
-        }
+        CloseClientConnection( ref stream, ref client );
 
         try {
           listener?.Stop();
@@ -199,98 +202,104 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
       }
     }
 
-    private void TryQueueIncomingRequest( string line )
+    private bool TryQueueIncomingRequest( NetworkStream stream )
     {
-      AgxSimRequestEnvelope request = null;
-      try {
-        request = JsonUtility.FromJson<AgxSimRequestEnvelope>( line );
-      }
-      catch ( System.Exception exception ) {
-        QueueResponse( CreateErrorResponse( "error_resp", $"invalid_json:{exception.Message}" ) );
-        return;
+      if ( !AgxSimBinaryProtocol.TryReadFrame( stream, out var messageType, out var payloadBytes, out var error ) ) {
+        Debug.LogWarning( $"AGX sim step-ack server dropped invalid frame: {error}", this );
+        return false;
       }
 
-      if ( request == null || string.IsNullOrWhiteSpace( request.type ) ) {
-        QueueResponse( CreateErrorResponse( "error_resp", "invalid_request" ) );
-        return;
+      if ( messageType != AgxSimMessageType.GetInfoReq &&
+           messageType != AgxSimMessageType.ResetReq &&
+           messageType != AgxSimMessageType.StepReq ) {
+        Debug.LogWarning( $"AGX sim step-ack server received unsupported msg_type: {messageType}", this );
+        return false;
+      }
+
+      if ( !AgxSimBinaryProtocol.TryDeserializeRequest( messageType, payloadBytes, out var payload, out error ) ) {
+        QueueResponse( CreateErrorResponse( GetResponseTypeForRequest( messageType ), error ) );
+        return true;
       }
 
       m_pendingRequests.Enqueue( new PendingRequest
       {
-        Type = request.type,
-        Payload = request.payload ?? new AgxSimRequestPayload()
+        Type = messageType,
+        Payload = payload ?? new AgxSimRequestPayload()
       } );
+
+      return true;
     }
 
     private void ProcessPendingRequests()
     {
       while ( m_pendingRequests.TryDequeue( out var request ) ) {
+        RecordIncomingRequestDebug( request );
+
         switch ( request.Type ) {
-          case "get_info_req":
+          case AgxSimMessageType.GetInfoReq:
             QueueResponse( CreateInfoResponse() );
             break;
-          case "reset_req":
+          case AgxSimMessageType.ResetReq:
             QueueResponse( CreateResetResponse( request.Payload ) );
             break;
-          case "step_req":
+          case AgxSimMessageType.StepReq:
             QueueResponse( CreateStepResponse( request.Payload ) );
             break;
           default:
-            QueueResponse( CreateErrorResponse( "error_resp", $"unsupported_type:{request.Type}" ) );
+            Debug.LogWarning( $"AGX sim step-ack server encountered unsupported pending request: {request.Type}", this );
             break;
         }
       }
     }
 
-    private string CreateInfoResponse()
+    private byte[] CreateInfoResponse()
     {
       var payload = CreateBasePayload();
       payload.action_order = new[] { "swing_speed_cmd", "boom_speed_cmd", "stick_speed_cmd", "bucket_speed_cmd" };
-      payload.qpos_order = new[] { "boom_position_norm", "stick_position_norm", "bucket_position_norm" };
+      payload.qpos_order = new[] { "swing_position_norm", "boom_position_norm", "stick_position_norm", "bucket_position_norm" };
       payload.qvel_order = new[] { "swing_speed", "boom_speed", "stick_speed", "bucket_speed" };
       payload.env_state_order = new[] { "mass_in_bucket_kg" };
-      payload.camera_names = m_fpvCamera != null ? new[] { "fpv" } : Array.Empty<string>();
-      payload.supports_images = false;
-      payload.supports_reset_pose = false;
+      payload.cameras = CreateCameraDescriptors();
+      payload.camera_names = Array.ConvertAll( payload.cameras, camera => camera.name );
+      payload.supports_images = payload.cameras.Length > 0;
+      payload.supports_reset_pose = true;
 
-      return JsonUtility.ToJson( new AgxSimResponseEnvelope
-      {
-        type = "get_info_resp",
-        payload = payload
-      } );
+      return AgxSimBinaryProtocol.SerializeResponse( AgxSimMessageType.GetInfoResp, payload );
     }
 
-    private string CreateResetResponse( AgxSimRequestPayload request )
+    private byte[] CreateResetResponse( AgxSimRequestPayload request )
     {
       var warnings = new List<string>();
       EnsureManualStepping( warnings );
 
-      m_machineController?.StopMotion();
+      var shouldResetToInitialFrame = request != null && ( request.reset_terrain || request.reset_pose );
+      if ( shouldResetToInitialFrame ) {
+        if ( m_episodeManager != null )
+          m_episodeManager.ResetEpisode( restartEpisode: true );
+        else
+          m_sceneResetService?.ResetScene();
+      }
+      else {
+        m_machineController?.StopMotion();
+      }
+
       m_observationCollector?.ResetSampling();
 
-      if ( request != null && request.reset_terrain )
-        m_sceneResetService?.ResetScene();
-
-      if ( request != null && request.reset_pose )
-        warnings.Add( "reset_pose_not_implemented_yet" );
-
       var payload = CreateBasePayload();
+      payload.reset_applied = shouldResetToInitialFrame;
       payload.warnings = warnings.ToArray();
+      RecordResetResponseDebug( shouldResetToInitialFrame, payload.success, payload.error, payload.warnings );
 
-      return JsonUtility.ToJson( new AgxSimResponseEnvelope
-      {
-        type = "reset_resp",
-        payload = payload
-      } );
+      return AgxSimBinaryProtocol.SerializeResponse( AgxSimMessageType.ResetResp, payload );
     }
 
-    private string CreateStepResponse( AgxSimRequestPayload request )
+    private byte[] CreateStepResponse( AgxSimRequestPayload request )
     {
       if ( request == null )
-        return CreateErrorResponse( "step_resp", "missing_payload" );
+        return CreateErrorResponse( AgxSimMessageType.StepResp, "missing_payload" );
 
       if ( request.action == null || request.action.Length < 4 )
-        return CreateErrorResponse( "step_resp", "action_dim_must_be_4" );
+        return CreateErrorResponse( AgxSimMessageType.StepResp, "action_dim_must_be_4" );
 
       var warnings = new List<string>();
       EnsureManualStepping( warnings );
@@ -316,6 +325,7 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
       payload.step_id = request.step_id;
       payload.qpos = new[]
       {
+        observation.actuator_state != null ? observation.actuator_state.swing_position_norm : 0.0f,
         observation.actuator_state != null ? observation.actuator_state.boom_position_norm : 0.0f,
         observation.actuator_state != null ? observation.actuator_state.stick_position_norm : 0.0f,
         observation.actuator_state != null ? observation.actuator_state.bucket_position_norm : 0.0f
@@ -332,14 +342,12 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
         observation.task_state != null ? observation.task_state.mass_in_bucket_kg : 0.0f
       };
       payload.reward = 0.0f;
-      payload.sim_time_sec = observation.sim_time_sec;
+      payload.sim_time_ns = observation != null ? (long)Math.Round( observation.sim_time_sec * 1000000000.0 ) : -1;
+      payload.image_fpv = CaptureImageFrame( warnings );
       payload.warnings = warnings.ToArray();
+      RecordStepResponseDebug( payload );
 
-      return JsonUtility.ToJson( new AgxSimResponseEnvelope
-      {
-        type = "step_resp",
-        payload = payload
-      } );
+      return AgxSimBinaryProtocol.SerializeResponse( AgxSimMessageType.StepResp, payload );
     }
 
     private void EnsureManualStepping( List<string> warnings )
@@ -370,6 +378,46 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
       };
     }
 
+    private AgxSimCameraDescriptor[] CreateCameraDescriptors()
+    {
+      if ( m_fpvCamera == null )
+        return Array.Empty<AgxSimCameraDescriptor>();
+
+      return new[]
+      {
+        new AgxSimCameraDescriptor
+        {
+          name = "fpv",
+          width = m_fpvCamera.TextureWidth,
+          height = m_fpvCamera.TextureHeight,
+          fps = GetDt() > 1.0e-6f ? 1.0f / GetDt() : 0.0f,
+          pixel_format = AgxSimProtocolConstants.ImagePixelFormat,
+          row_order = AgxSimProtocolConstants.ImageRowOrder
+        }
+      };
+    }
+
+    private AgxSimImageFrame CaptureImageFrame( List<string> warnings )
+    {
+      if ( m_fpvCamera == null )
+        return null;
+
+      if ( !m_fpvCamera.TryCaptureRgb24( out var rgb24, out var width, out var height ) ) {
+        warnings?.Add( "fpv_capture_failed" );
+        return null;
+      }
+
+      return new AgxSimImageFrame
+      {
+        name = "fpv",
+        width = width,
+        height = height,
+        pixel_format = AgxSimProtocolConstants.ImagePixelFormat,
+        row_order = AgxSimProtocolConstants.ImageRowOrder,
+        data = rgb24 ?? Array.Empty<byte>()
+      };
+    }
+
     private float GetDt()
     {
       if ( Simulation.HasInstance && Simulation.Instance != null )
@@ -378,38 +426,73 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
       return Time.fixedDeltaTime;
     }
 
-    private static string CreateErrorResponse( string type, string error )
+    private byte[] CreateErrorResponse( AgxSimMessageType responseType, string error )
     {
-      return JsonUtility.ToJson( new AgxSimResponseEnvelope
+      var warnings = new[] { error ?? string.Empty };
+      RecordCommonResponseDebug( false, error, warnings );
+      if ( m_enableDebugLogs )
+        Debug.LogWarning( $"AGX sim step-ack server {responseType} error={error}", this );
+
+      return AgxSimBinaryProtocol.SerializeResponse( responseType, new AgxSimResponsePayload
       {
-        type = type,
-        status = "error",
         error = error ?? string.Empty,
-        payload = new AgxSimResponsePayload
-        {
-          warnings = new[] { error ?? string.Empty }
-        }
+        success = false,
+        warnings = warnings
       } );
     }
 
-    private void QueueResponse( string response )
+    private void QueueResponse( byte[] response )
     {
-      if ( string.IsNullOrWhiteSpace( response ) )
+      if ( response == null || response.Length == 0 )
         return;
 
       m_pendingResponses.Enqueue( response );
     }
 
-    private void FlushPendingResponses( StreamWriter writer )
+    private void FlushPendingResponses( NetworkStream stream )
     {
-      if ( writer == null )
+      if ( stream == null || !stream.CanWrite )
         return;
 
       while ( true ) {
         if ( !m_pendingResponses.TryDequeue( out var response ) )
           break;
 
-        writer.WriteLine( response );
+        stream.Write( response, 0, response.Length );
+      }
+    }
+
+    private static AgxSimMessageType GetResponseTypeForRequest( AgxSimMessageType requestType )
+    {
+      switch ( requestType ) {
+        case AgxSimMessageType.GetInfoReq:
+          return AgxSimMessageType.GetInfoResp;
+        case AgxSimMessageType.ResetReq:
+          return AgxSimMessageType.ResetResp;
+        case AgxSimMessageType.StepReq:
+        default:
+          return AgxSimMessageType.StepResp;
+      }
+    }
+
+    private static void CloseClientConnection( ref NetworkStream stream, ref TcpClient client )
+    {
+      try {
+        stream?.Dispose();
+      }
+      catch ( System.Exception ) {
+      }
+      finally {
+        stream = null;
+      }
+
+      try {
+        client?.Close();
+      }
+      catch ( System.Exception ) {
+      }
+      finally {
+        client = null;
       }
     }
 
@@ -421,6 +504,93 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
       m_massVolumeCounter = ExcavatorRigLocator.ResolveComponent( this, m_massVolumeCounter );
       m_episodeManager = ExcavatorRigLocator.ResolveComponent( this, m_episodeManager );
       m_fpvCamera = ExcavatorRigLocator.ResolveComponent( this, m_fpvCamera );
+    }
+
+    private void RecordIncomingRequestDebug( PendingRequest request )
+    {
+      if ( request == null ) {
+        m_lastRequestTypeName = "none";
+        m_lastRequestStepId = -1;
+        return;
+      }
+
+      m_lastRequestTypeName = request.Type.ToString();
+      m_lastRequestStepId = request.Type == AgxSimMessageType.StepReq && request.Payload != null ?
+                            request.Payload.step_id :
+                            -1;
+
+      if ( !m_enableDebugLogs )
+        return;
+
+      if ( request.Type != AgxSimMessageType.StepReq ) {
+        Debug.Log( $"AGX sim step-ack server recv msg_type={request.Type}", this );
+        return;
+      }
+
+      if ( ShouldLogStepDebug( m_lastRequestStepId, false ) )
+        Debug.Log( $"AGX sim step-ack server recv msg_type={request.Type} step_id={m_lastRequestStepId}", this );
+    }
+
+    private void RecordResetResponseDebug( bool resetApplied, bool success, string error, string[] warnings )
+    {
+      m_lastResetApplied = resetApplied;
+      m_lastImageWidth = 0;
+      m_lastImageHeight = 0;
+      m_lastImagePayloadBytes = 0;
+      RecordCommonResponseDebug( success, error, warnings );
+
+      if ( m_enableDebugLogs ) {
+        Debug.Log(
+          $"AGX sim step-ack server reset_applied={resetApplied} warnings={FormatWarnings( warnings )}",
+          this );
+      }
+    }
+
+    private void RecordStepResponseDebug( AgxSimResponsePayload payload )
+    {
+      var image = payload != null ? payload.image_fpv : null;
+      m_lastResetApplied = false;
+      m_lastImageWidth = image != null ? image.width : 0;
+      m_lastImageHeight = image != null ? image.height : 0;
+      m_lastImagePayloadBytes = image != null && image.data != null ? image.data.Length : 0;
+      RecordCommonResponseDebug( payload != null && payload.success,
+                                 payload != null ? payload.error : string.Empty,
+                                 payload != null ? payload.warnings : null );
+
+      if ( !m_enableDebugLogs || payload == null )
+        return;
+
+      if ( ShouldLogStepDebug( payload.step_id, payload.warnings != null && payload.warnings.Length > 0 ) ) {
+        Debug.Log(
+          $"AGX sim step-ack server step_id={payload.step_id} image={m_lastImageWidth}x{m_lastImageHeight} payload_bytes={m_lastImagePayloadBytes} warnings={FormatWarnings( payload.warnings )}",
+          this );
+      }
+    }
+
+    private void RecordCommonResponseDebug( bool success, string error, string[] warnings )
+    {
+      m_lastResponseSuccess = success;
+      m_lastError = error ?? string.Empty;
+      m_lastWarningsSummary = FormatWarnings( warnings );
+    }
+
+    private bool ShouldLogStepDebug( long stepId, bool hasWarnings )
+    {
+      if ( hasWarnings )
+        return true;
+
+      if ( stepId <= 0 )
+        return true;
+
+      return m_stepDebugLogInterval > 0 && stepId % m_stepDebugLogInterval == 0;
+    }
+
+    private static string FormatWarnings( string[] warnings )
+    {
+      if ( warnings == null || warnings.Length == 0 )
+        return "none";
+
+      return string.Join( ", ", warnings );
     }
   }
 }

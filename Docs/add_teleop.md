@@ -4,6 +4,22 @@
 **Scope (V0):** Expert teleop demos → HDF5 → train (ACT) → eval (success_rate) → auto videos  
 **Control rate (V0):** 50 Hz (dt = 0.02s)
 
+## Implementation Status Update (2026-03-18)
+
+Current Unity implementation is no longer using JSON transport.
+
+Authoritative implementation doc:
+- `Docs/protocol.md`
+
+Important updates already landed in code:
+- transport = TCP binary framing with fixed header + CRC32
+- `qpos` = 4D and now includes `swing_position_norm`
+- FPV export = `raw_rgb` bytes in step response
+- `reset_pose` is supported through the current reset path
+
+Some sections later in this draft still discuss earlier design options and historical gaps.
+If this draft conflicts with `Docs/protocol.md` or the Unity code, `Docs/protocol.md` and the code win.
+
 ---
 
 ## 0) Decisions We Already Made (Lock These)
