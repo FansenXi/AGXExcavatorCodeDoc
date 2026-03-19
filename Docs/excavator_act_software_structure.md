@@ -244,7 +244,7 @@ public struct ExcavatorActuationCommand
 可复用现有能力：
 
 - `ResetTerrain.cs`
-- `MassVolumeCounter.cs`
+- `ExcavationMassTracker.cs`
 
 ### 4.2 日志记录
 
@@ -360,11 +360,11 @@ Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/Scripts/
 
 - 继续把它当作主扩展入口
 
-### `MassVolumeCounter`
+### `ExcavationMassTracker`
 
 定位：
 
-- 当前任务指标统计器
+- 当前质量指标统计器
 
 后续建议：
 

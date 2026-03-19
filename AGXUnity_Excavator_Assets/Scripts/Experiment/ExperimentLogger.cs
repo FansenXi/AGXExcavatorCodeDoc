@@ -38,15 +38,15 @@ namespace AGXUnity_Excavator.Scripts.Experiment
                              IActCommandDiagnostics actDiagnostics,
                              IHardwareCommandDiagnostics hardwareDiagnostics,
                              Transform bucketReference,
-                             global::MassVolumeCounter massVolumeCounter )
+                             global::ExcavationMassTracker massTracker )
     {
       if ( !IsRecording )
         return;
 
       var bucketPosition = bucketReference != null ? bucketReference.position : Vector3.zero;
       var bucketRotation = bucketReference != null ? bucketReference.rotation : Quaternion.identity;
-      var massInBucket = massVolumeCounter != null ? massVolumeCounter.MassInBucket : 0.0f;
-      var excavatedMass = massVolumeCounter != null ? massVolumeCounter.ExcavatedMass : 0.0f;
+      var massInBucket = massTracker != null ? massTracker.MassInBucket : 0.0f;
+      var excavatedMass = massTracker != null ? massTracker.ExcavatedMass : 0.0f;
       var hardwareSnapshot = hardwareDiagnostics != null ? hardwareDiagnostics.LastRawInputSnapshot : HardwareInputSnapshot.Zero;
       var deviceName = hardwareDiagnostics != null ? hardwareDiagnostics.DeviceDisplayName : string.Empty;
       var profileName = hardwareDiagnostics != null ? hardwareDiagnostics.ProfileName : string.Empty;

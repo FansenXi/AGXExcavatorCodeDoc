@@ -41,9 +41,6 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
     private SceneResetService m_sceneResetService = null;
 
     [SerializeField]
-    private global::MassVolumeCounter m_massVolumeCounter = null;
-
-    [SerializeField]
     private EpisodeManager m_episodeManager = null;
 
     [SerializeField]
@@ -555,7 +552,6 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
       m_machineController = ExcavatorRigLocator.ResolveComponent( this, m_machineController );
       m_observationCollector = ExcavatorRigLocator.ResolveComponent( this, m_observationCollector );
       m_sceneResetService = ExcavatorRigLocator.ResolveComponent( this, m_sceneResetService );
-      m_massVolumeCounter = ExcavatorRigLocator.ResolveComponent( this, m_massVolumeCounter );
       m_episodeManager = ExcavatorRigLocator.ResolveComponent( this, m_episodeManager );
       m_fpvCamera = ExcavatorRigLocator.ResolveComponent( this, m_fpvCamera );
     }

@@ -247,7 +247,7 @@ public interface IActBackendClient
 | `bucket_pose_world` | `ExcavatorMachineController.BucketReference` |
 | `actuator_state.*_speed` | 对应 AGX 约束的 `GetCurrentSpeed()` |
 | `actuator_state.*_position_norm` | 对应 AGX 约束值经过可配置范围归一化 |
-| `task_state.*` | `MassVolumeCounter` |
+| `task_state.*` | `ExcavationMassTracker` |
 | `previous_operator_command` | 最近一次有效的 `OperatorCommand`，去除 episode bool 后序列化 |
 
 当前有三个归一化配置：

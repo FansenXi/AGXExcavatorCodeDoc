@@ -5,6 +5,7 @@ using AGXUnity_Excavator.Scripts.Control.Execution;
 using AGXUnity_Excavator.Scripts.Control.Simulation;
 using AGXUnity_Excavator.Scripts.Control.Sources;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
@@ -49,15 +50,17 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     [SerializeField]
     private TeleopEpisodeExporter m_teleopExporter = null;
 
+    [FormerlySerializedAs( "m_massVolumeCounter" )]
     [SerializeField]
-    private global::MassVolumeCounter m_massVolumeCounter = null;
+    private global::ExcavationMassTracker m_massTracker = null;
 
     [SerializeField]
     private ExcavatorCommandInterpreter m_interpreter = new ExcavatorCommandInterpreter();
 
     private OperatorCommandSourceBehaviour[] m_availableSources = Array.Empty<OperatorCommandSourceBehaviour>();
     private int m_nextEpisodeIndex = 1;
-    private bool m_massVolumeCounterResolved = false;
+    [FormerlySerializedAs( "m_massVolumeCounterResolved" )]
+    private bool m_massTrackerResolved = false;
     private bool m_inputCutActive = false;
     private float m_inputNeutralSinceTime = -1.0f;
 
@@ -71,8 +74,8 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     public string CurrentControlLayout => m_interpreter != null ? m_interpreter.LayoutDescription : string.Empty;
     public string LastSavedPath => m_logger != null ? m_logger.LastSavedPath : string.Empty;
     public string LastTeleopExportPath => m_teleopExporter != null ? m_teleopExporter.LastExportDirectory : string.Empty;
-    public float MassInBucket => m_massVolumeCounter != null ? m_massVolumeCounter.MassInBucket : 0.0f;
-    public float ExcavatedMass => m_massVolumeCounter != null ? m_massVolumeCounter.ExcavatedMass : 0.0f;
+    public float MassInBucket => m_massTracker != null ? m_massTracker.MassInBucket : 0.0f;
+    public float ExcavatedMass => m_massTracker != null ? m_massTracker.ExcavatedMass : 0.0f;
     public int AvailableSourceCount => m_availableSources != null ? m_availableSources.Length : 0;
     public int CurrentSourceIndex => GetSourceIndex( m_commandSource );
     public bool IsTransitionInputCutActive => m_inputCutActive;
@@ -132,7 +135,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
             actDiagnostics,
             hardwareDiagnostics,
             m_machineController != null ? m_machineController.BucketReference : null,
-            m_massVolumeCounter );
+            m_massTracker );
         }
 
         m_teleopExporter?.RecordStep(
@@ -411,10 +414,10 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       if ( m_teleopExporter == null )
         m_teleopExporter = GetComponent<TeleopEpisodeExporter>();
 
-      if ( m_massVolumeCounter == null && !m_massVolumeCounterResolved )
-        m_massVolumeCounter = FindObjectOfType<global::MassVolumeCounter>();
+      if ( m_massTracker == null && !m_massTrackerResolved )
+        m_massTracker = FindObjectOfType<global::ExcavationMassTracker>();
 
-      m_massVolumeCounterResolved = true;
+      m_massTrackerResolved = true;
     }
 
     private OperatorCommandSourceBehaviour[] DiscoverAvailableSources()

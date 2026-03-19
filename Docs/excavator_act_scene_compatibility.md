@@ -294,7 +294,7 @@ Unity 侧已经有：
 - `EpisodeManager.m_commandSource` 是否指向 ACT source
 - `ActOperatorCommandSource` 是否拿到 collector 和 backend client
 - `ActObservationCollector` 是否解析到 `ExcavatorMachineController`
-- `MassVolumeCounter` 是否存在
+- `ExcavationMassTracker` 是否存在
 - bucket reference 是否有效
 
 这属于工程配置问题，不再是架构缺失问题。

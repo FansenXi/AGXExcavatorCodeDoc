@@ -3,6 +3,7 @@ using AGXUnity_Excavator.Scripts;
 using AGXUnity_Excavator.Scripts.Control.Core;
 using AGXUnity_Excavator.Scripts.Control.Execution;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace AGXUnity_Excavator.Scripts.Control.Sources
 {
@@ -108,8 +109,9 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
     [SerializeField]
     private Excavator m_excavator = null;
 
+    [FormerlySerializedAs( "m_massVolumeCounter" )]
     [SerializeField]
-    private global::MassVolumeCounter m_massVolumeCounter = null;
+    private global::ExcavationMassTracker m_massTracker = null;
 
     [SerializeField]
     private ActuatorNormalizationRange m_boomRange = new ActuatorNormalizationRange();
@@ -220,9 +222,9 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       UpdateCalibrationDebug( m_stickCalibration, stickConstraint, stickPositionRaw, observation.actuator_state.stick_position_norm, m_stickRange );
       UpdateCalibrationDebug( m_bucketCalibration, bucketConstraint, bucketPositionRaw, observation.actuator_state.bucket_position_norm, m_bucketRange );
 
-      if ( m_massVolumeCounter != null ) {
-        observation.task_state.mass_in_bucket_kg = m_massVolumeCounter.MassInBucket;
-        observation.task_state.excavated_mass_kg = m_massVolumeCounter.ExcavatedMass;
+      if ( m_massTracker != null ) {
+        observation.task_state.mass_in_bucket_kg = m_massTracker.MassInBucket;
+        observation.task_state.excavated_mass_kg = m_massTracker.ExcavatedMass;
       }
 
       return observation;
@@ -264,7 +266,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
     {
       m_machineController = ExcavatorRigLocator.ResolveComponent( this, m_machineController );
       m_excavator = ExcavatorRigLocator.ResolveComponent( this, m_excavator );
-      m_massVolumeCounter = ExcavatorRigLocator.ResolveComponent( this, m_massVolumeCounter );
+      m_massTracker = ExcavatorRigLocator.ResolveComponent( this, m_massTracker );
     }
 
     private void UpdateBaseVelocity( Transform baseTransform )

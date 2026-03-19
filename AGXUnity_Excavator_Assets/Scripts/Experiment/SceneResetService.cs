@@ -6,6 +6,7 @@ using AGXUnity_Excavator.Scripts;
 using AGXUnity_Excavator.Scripts.Control.Core;
 using AGXUnity_Excavator.Scripts.Control.Execution;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace AGXUnity_Excavator.Scripts.Experiment
 {
@@ -65,8 +66,9 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     [SerializeField]
     private EpisodeManager m_episodeManager = null;
 
+    [FormerlySerializedAs( "m_massVolumeCounters" )]
     [SerializeField]
-    private global::MassVolumeCounter[] m_massVolumeCounters = null;
+    private global::ExcavationMassTracker[] m_massTrackers = null;
 
     [SerializeField]
     private global::ResetTerrain[] m_resetTerrains = null;
@@ -198,7 +200,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
           SetRigidBodiesMotionControlForRestore();
         }
 
-        ResetTerrainAndMeasurements( resetTerrain );
+        ResetTerrains( resetTerrain );
 
         if ( resetPose ) {
           RestoreRigidBodiesFromSnapshot();
@@ -217,6 +219,8 @@ namespace AGXUnity_Excavator.Scripts.Experiment
           ReinitializeTracksFromSnapshot();
           RestoreRigidBodyMotionControls();
         }
+        ResetMeasurementTrackers();
+
       }
       finally {
         if ( Simulation.HasInstance )
@@ -237,23 +241,9 @@ namespace AGXUnity_Excavator.Scripts.Experiment
         ResetScene();
     }
 
-    private void ResetTerrainAndMeasurements( bool resetTerrain )
+    private void ResetTerrains( bool resetTerrain )
     {
-      var countersHandledReset = false;
-      if ( m_massVolumeCounters != null ) {
-        foreach ( var counter in m_massVolumeCounters ) {
-          if ( counter == null )
-            continue;
-
-          counter.ResetMeasurements( resetTerrain );
-          countersHandledReset |= resetTerrain && counter.m_terrain != null;
-        }
-      }
-
       if ( !resetTerrain )
-        return;
-
-      if ( countersHandledReset )
         return;
 
       var terrainResetHandled = false;
@@ -273,6 +263,17 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       foreach ( var terrain in m_fallbackTerrains ) {
         if ( terrain != null )
           terrain.ResetHeights();
+      }
+    }
+
+    private void ResetMeasurementTrackers()
+    {
+      if ( m_massTrackers == null )
+        return;
+
+      foreach ( var tracker in m_massTrackers ) {
+        if ( tracker != null )
+          tracker.ResetMeasurements();
       }
     }
 
@@ -499,8 +500,8 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       m_excavator = ExcavatorRigLocator.ResolveComponent( this, m_excavator );
       m_episodeManager = ExcavatorRigLocator.ResolveComponent( this, m_episodeManager );
 
-      if ( !HasAssignedEntries( m_massVolumeCounters ) )
-        m_massVolumeCounters = FindObjectsOfType<global::MassVolumeCounter>();
+      if ( !HasAssignedEntries( m_massTrackers ) )
+        m_massTrackers = FindObjectsOfType<global::ExcavationMassTracker>();
 
       if ( !HasAssignedEntries( m_resetTerrains ) )
         m_resetTerrains = FindObjectsOfType<global::ResetTerrain>();
