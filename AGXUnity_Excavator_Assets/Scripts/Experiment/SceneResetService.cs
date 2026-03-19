@@ -499,14 +499,27 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       m_excavator = ExcavatorRigLocator.ResolveComponent( this, m_excavator );
       m_episodeManager = ExcavatorRigLocator.ResolveComponent( this, m_episodeManager );
 
-      if ( m_massVolumeCounters == null || m_massVolumeCounters.Length == 0 )
+      if ( !HasAssignedEntries( m_massVolumeCounters ) )
         m_massVolumeCounters = FindObjectsOfType<global::MassVolumeCounter>();
 
-      if ( m_resetTerrains == null || m_resetTerrains.Length == 0 )
+      if ( !HasAssignedEntries( m_resetTerrains ) )
         m_resetTerrains = FindObjectsOfType<global::ResetTerrain>();
 
-      if ( m_fallbackTerrains == null || m_fallbackTerrains.Length == 0 )
+      if ( !HasAssignedEntries( m_fallbackTerrains ) )
         m_fallbackTerrains = FindObjectsOfType<AGXUnity.Model.DeformableTerrain>();
+    }
+
+    private static bool HasAssignedEntries<T>( T[] values ) where T : UnityEngine.Object
+    {
+      if ( values == null || values.Length == 0 )
+        return false;
+
+      foreach ( var value in values ) {
+        if ( value != null )
+          return true;
+      }
+
+      return false;
     }
 
     private static int GetHierarchyDepth( Transform transform )
