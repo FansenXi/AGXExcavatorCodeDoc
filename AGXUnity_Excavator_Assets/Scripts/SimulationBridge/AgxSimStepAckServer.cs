@@ -158,6 +158,11 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
         m_isListening = true;
 
         while ( !m_stopRequested ) {
+          if ( client != null && !IsClientConnectionAlive( client ) ) {
+            CloseClientConnection( ref stream, ref client );
+            continue;
+          }
+
           if ( client == null ) {
             if ( !listener.Pending() ) {
               Thread.Sleep( 5 );
@@ -181,7 +186,11 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
             }
           }
 
-          FlushPendingResponses( stream );
+          if ( !TryFlushPendingResponses( stream ) ) {
+            CloseClientConnection( ref stream, ref client );
+            continue;
+          }
+
           Thread.Sleep( 5 );
         }
       }
@@ -272,12 +281,24 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
       var warnings = new List<string>();
       EnsureManualStepping( warnings );
 
-      var shouldResetToInitialFrame = request != null && ( request.reset_terrain || request.reset_pose );
+      var resetTerrain = request != null && request.reset_terrain;
+      var resetPose = request != null && request.reset_pose;
+      var shouldResetToInitialFrame = resetTerrain || resetPose;
+      var resetApplied = false;
+
       if ( shouldResetToInitialFrame ) {
-        if ( m_episodeManager != null )
+        if ( m_sceneResetService != null ) {
+          m_sceneResetService.ResetScene( resetTerrain, resetPose );
+          m_machineController?.StartEngine();
+          resetApplied = true;
+        }
+        else if ( m_episodeManager != null && resetTerrain && resetPose ) {
           m_episodeManager.ResetEpisode( restartEpisode: true );
-        else
-          m_sceneResetService?.ResetScene();
+          resetApplied = true;
+        }
+        else {
+          warnings.Add( "scene_reset_service_missing" );
+        }
       }
       else {
         m_machineController?.StopMotion();
@@ -286,9 +307,9 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
       m_observationCollector?.ResetSampling();
 
       var payload = CreateBasePayload();
-      payload.reset_applied = shouldResetToInitialFrame;
+      payload.reset_applied = resetApplied;
       payload.warnings = warnings.ToArray();
-      RecordResetResponseDebug( shouldResetToInitialFrame, payload.success, payload.error, payload.warnings );
+      RecordResetResponseDebug( resetApplied, payload.success, payload.error, payload.warnings );
 
       return AgxSimBinaryProtocol.SerializeResponse( AgxSimMessageType.ResetResp, payload );
     }
@@ -449,16 +470,49 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
       m_pendingResponses.Enqueue( response );
     }
 
-    private void FlushPendingResponses( NetworkStream stream )
+    private bool TryFlushPendingResponses( NetworkStream stream )
     {
       if ( stream == null || !stream.CanWrite )
-        return;
+        return false;
 
-      while ( true ) {
-        if ( !m_pendingResponses.TryDequeue( out var response ) )
-          break;
+      try {
+        while ( true ) {
+          if ( !m_pendingResponses.TryDequeue( out var response ) )
+            break;
 
-        stream.Write( response, 0, response.Length );
+          stream.Write( response, 0, response.Length );
+        }
+
+        return true;
+      }
+      catch ( SocketException ) {
+        return false;
+      }
+      catch ( ObjectDisposedException ) {
+        return false;
+      }
+      catch ( System.IO.IOException ) {
+        return false;
+      }
+    }
+
+    private static bool IsClientConnectionAlive( TcpClient client )
+    {
+      if ( client == null )
+        return false;
+
+      try {
+        var socket = client.Client;
+        if ( socket == null || !socket.Connected )
+          return false;
+
+        return !(socket.Poll( 0, SelectMode.SelectRead ) && socket.Available == 0);
+      }
+      catch ( SocketException ) {
+        return false;
+      }
+      catch ( ObjectDisposedException ) {
+        return false;
       }
     }
 

@@ -159,6 +159,11 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     [ContextMenu( "Hard Reset Scene" )]
     public void ResetScene()
     {
+      ResetScene( resetTerrain: true, resetPose: true );
+    }
+
+    public void ResetScene( bool resetTerrain, bool resetPose )
+    {
       if ( m_isResetInProgress )
         return;
 
@@ -168,10 +173,10 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       }
 
       ResolveReferences();
-      if ( !m_hasSnapshot )
+      if ( resetPose && !m_hasSnapshot )
         CaptureResetSnapshot();
 
-      if ( !m_hasSnapshot ) {
+      if ( resetPose && !m_hasSnapshot ) {
         Debug.LogWarning( "SceneResetService.ResetScene(): no rigid body snapshot available.", this );
         return;
       }
@@ -188,22 +193,30 @@ namespace AGXUnity_Excavator.Scripts.Experiment
         if ( Simulation.HasInstance )
           Simulation.Instance.AutoSteppingMode = Simulation.AutoSteppingModes.Disabled;
 
-        DisableConstraintControllers();
-        SetRigidBodiesMotionControlForRestore();
-        ResetTerrainAndMeasurements();
-        RestoreRigidBodiesFromSnapshot();
-        RestoreConstraintControllersFromSnapshot();
-        RestoreDriveTrainFromSnapshot();
-        ReinitializeTracksFromSnapshot();
+        if ( resetPose ) {
+          DisableConstraintControllers();
+          SetRigidBodiesMotionControlForRestore();
+        }
 
-        if ( Simulation.HasInstance )
+        ResetTerrainAndMeasurements( resetTerrain );
+
+        if ( resetPose ) {
+          RestoreRigidBodiesFromSnapshot();
+          RestoreConstraintControllersFromSnapshot();
+          RestoreDriveTrainFromSnapshot();
+          ReinitializeTracksFromSnapshot();
+        }
+
+        if ( Simulation.HasInstance && ( resetTerrain || resetPose ) )
           Simulation.Instance.DoStep();
 
-        RestoreRigidBodiesFromSnapshot();
-        RestoreConstraintControllersFromSnapshot();
-        RestoreDriveTrainFromSnapshot();
-        ReinitializeTracksFromSnapshot();
-        RestoreRigidBodyMotionControls();
+        if ( resetPose ) {
+          RestoreRigidBodiesFromSnapshot();
+          RestoreConstraintControllersFromSnapshot();
+          RestoreDriveTrainFromSnapshot();
+          ReinitializeTracksFromSnapshot();
+          RestoreRigidBodyMotionControls();
+        }
       }
       finally {
         if ( Simulation.HasInstance )
@@ -224,7 +237,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
         ResetScene();
     }
 
-    private void ResetTerrainAndMeasurements()
+    private void ResetTerrainAndMeasurements( bool resetTerrain )
     {
       var countersHandledReset = false;
       if ( m_massVolumeCounters != null ) {
@@ -232,21 +245,24 @@ namespace AGXUnity_Excavator.Scripts.Experiment
           if ( counter == null )
             continue;
 
-          counter.ResetMeasurements();
-          countersHandledReset |= counter.m_terrain != null;
+          counter.ResetMeasurements( resetTerrain );
+          countersHandledReset |= resetTerrain && counter.m_terrain != null;
         }
       }
+
+      if ( !resetTerrain )
+        return;
 
       if ( countersHandledReset )
         return;
 
       var terrainResetHandled = false;
       if ( m_resetTerrains != null ) {
-        foreach ( var resetTerrain in m_resetTerrains ) {
-          if ( resetTerrain == null )
+        foreach ( var terrainResetter in m_resetTerrains ) {
+          if ( terrainResetter == null )
             continue;
 
-          resetTerrain.ResetTerrainHeights();
+          terrainResetter.ResetTerrainHeights();
           terrainResetHandled = true;
         }
       }

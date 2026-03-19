@@ -57,13 +57,13 @@ public class MassVolumeCounter : ScriptComponent
   }
   public TerrainData TerrainData { get { return m_unityTerrain?.terrainData; } }
 
-  public void ResetMeasurements()
+  public void ResetMeasurements( bool resetTerrain = true )
   {
     m_excavatedMass = 0;
     m_massInBucket = 0;
     m_previousMassInBucket = 0;
 
-    if ( m_terrain != null )
+    if ( resetTerrain && m_terrain != null )
       ComputeTerrainHeights();
   }
 

@@ -324,6 +324,9 @@ ActObservationCollector
 
 - `ActObservationCollector` 从场景采集 ACT 观测
 - `TcpJsonLinesActBackendClient` 用 TCP JSON Lines 与 Python ACT backend 通信
+- `TcpJsonLinesActBackendClient` 会检测后端断线，并在同一 `host:port` 上持续重连
+- 若重连时 episode 仍在运行，client 会自动重发 `hello` 和当前 episode 的 `reset`
+- backend 离线期间不会无限堆积旧 observation，而是只保留最新一条待发送 `step`
 - `ActOperatorCommandSource` 管理 episode、`session_id`、`seq`、超时回零、非法响应过滤
 - 产出的仍然是统一 `OperatorCommand`
 

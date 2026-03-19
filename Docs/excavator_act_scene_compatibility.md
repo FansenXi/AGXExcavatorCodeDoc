@@ -86,7 +86,11 @@
 - `close`
 - `step_result` 解析
 - 后台线程通信
+- TCP 对端断开检测
 - 自动重连
+- 重连后自动补发 `hello`
+- active episode 存在时自动补发当前 `reset`
+- 离线期间只保留最新一条待发送 `step`
 - 最近结果缓存
 
 因此 Unity 侧通信层也已经具备。

@@ -170,7 +170,10 @@ After the common response prefix, fields are written in this order:
 
 Current behavior:
 - `reset_applied = true` when `reset_terrain || reset_pose`
-- Unity reset path goes through `EpisodeManager.ResetEpisode(...)` or `SceneResetService.ResetScene()`
+- when `reset_pose = true` and `reset_terrain = false`, Unity resets pose / counters without forcing a terrain height reset
+- when both flags are true, Unity performs the full scene reset path
+- for step-ack serving, a successful reset also re-arms the machine controller engine so subsequent `STEP_REQ` actions take effect immediately
+- Unity reset path prefers `SceneResetService.ResetScene(resetTerrain, resetPose)` and only falls back to `EpisodeManager.ResetEpisode(...)` for full resets
 
 ## 9. STEP_RESP Payload
 
@@ -235,5 +238,5 @@ Compared with older drafts in this repo, the current Unity implementation has th
 The current Unity implementation still has some limits that clients should know about:
 - `protocol_version` string is still `agx-sim/v0`
 - the boom position/speed still uses `BoomPrismatics[0]`
-- transport has CRC32 and framing, but no reconnect/session layer above TCP
+- transport has CRC32 and framing; the server now drops stale dead TCP clients, but it is still a single-client sequential protocol
 - this document describes Unity-side implementation only; Python client must mirror the same field order exactly

@@ -282,8 +282,11 @@ public interface IActBackendClient
 运行特征：
 
 - 后台线程名为 `ACT-TCP-Client`
-- 连接建立后会先发送一次 `hello`
-- 出站消息按队列顺序写入
+- 每次 TCP 连接建立后都会先发送一次 `hello`
+- 若当前存在 active episode，重连后会自动重发当前 `reset`
+- `close` 等控制消息按队列顺序写入
+- `step` 不做无限排队；断线期间只保留最新一条 observation 对应的待发送消息
+- 客户端会主动检测对端关闭并触发重连
 - 入站只解析 `type == "step_result"` 的 JSON 行
 - 客户端只缓存“最新一条 step_result”
 
@@ -323,7 +326,7 @@ public interface IActBackendClient
 
 | `type` | 发送方 | 作用 |
 | --- | --- | --- |
-| `hello` | Unity | 连接握手，连接建立后发送一次 |
+| `hello` | Unity | 连接握手，每次 TCP 连接建立后发送一次 |
 | `reset` | Unity | 通知 backend 开始新回合并清空状态 |
 | `step` | Unity | 发送一次 observation |
 | `close` | Unity | 通知回合结束 |
@@ -461,6 +464,12 @@ public struct ActStepResponse
 4. `m_lastValidResponseTime` 清空
 5. 发送一条 `reset`，其 `seq = 0`
 
+如果 backend 在回合运行期间重启或暂时离线：
+
+- Unity client 会继续在同一 `host:port` 上重连
+- 重连成功后会先重发 `hello`
+- 若当前回合仍有效，会自动重发这一回合最近一次 `reset`
+
 `reset` 示例：
 
 ```json
@@ -495,6 +504,7 @@ public struct ActStepResponse
 - 发送节拍基于 `Time.realtimeSinceStartup`
 - observation 中的 `sim_time_sec` 仍使用 `Time.time`
 - `step.seq` 从 `1` 开始递增
+- 若 backend 离线，client 不会无限缓存历史 `step`，而是只保留最近一条待发送 observation
 
 ### 7.3 回合结束
 
