@@ -33,6 +33,22 @@
 - `Docs/excavator_act_software_structure.md` 更偏设计稿和演进思路，不应再被当成当前实现的精确结构说明。
 - 本文档优先描述“现在代码里有什么、是怎么连起来的”。
 
+## 2.1 当前 V0 任务边界
+
+当前主线 MVP 不是“可驾驶挖机全任务”，而是：
+
+- 固定站位 / 固定初始姿态的 digging 任务
+- step-ack action space 只包含 4D 臂控：
+  `swing / boom / stick / bucket`
+- `drive / steer / track` 暂时不进入 Repo A <-> Repo B 的 step-ack 契约
+
+这意味着：
+
+- Repo A 当前通过二进制 step-ack 录制的 HDF5 数据集，是站位固定的挖掘演示数据
+- 履带移动如果需要，属于回合外人工 reposition，或未来 V1 再扩 action space
+- 当前 `reward` 字段仍为 `0.0`，任务成功由 Repo A / Repo C 基于
+  `env_state[0] = mass_in_bucket_kg` 做 post-hoc evaluator 判定
+
 ## 3. 顶层目录
 
 ```text

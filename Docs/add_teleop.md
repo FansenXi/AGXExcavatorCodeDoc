@@ -45,10 +45,18 @@ for FPV capture
 - The main scene `AGXUnity_Excavator.unity` is wired for this stack, including
 ACT source, ACT backend client, observation collector, step-ack server, and
 FPV camera
+- Repo A direct teleop recording has now been smoke-tested against the live
+  Unity scene:
+  Python joystick input -> binary `STEP_REQ` -> Unity -> HDF5 episode output
 - The current V0 success rule is now closed as:
   - `mass_in_bucket_kg >= 2.0` for `hold_steps = 25`
   - rationale: current March 19 Unity exports showed sub-kg noise below that
     and the smallest clear scoop at about `2.10775 kg`
+- The current V0 task scope is fixed-position / stationary digging:
+  - step-ack action space remains 4D arm control only
+  - drive / steer / track motion are intentionally excluded for V0
+- The per-step `reward` field remains `0.0` in the current Unity bridge;
+  success is computed post-hoc in Repo A / Repo C from `env_state`
 
 ### How to read earlier parts of this file now
 
@@ -73,6 +81,10 @@ the canonical Repo A HDF5 writer
 - Repo A now mirrors the current binary layout in `Docs/protocol.md`; the
 remaining integration task is to rerun live end-to-end smoke against the latest
 Unity worktree, including strict reset/response checks
+- The detailed benchmark task definition is still not fully frozen:
+  exact start pose / terrain setup / success episode packaging still need a
+  final written V0 task spec, even though the mass-based success rule itself is
+  already fixed
 - Unity-side episode export now exists, but it is intentionally a
 `metadata.json` / `steps.jsonl` / raw RGB sidecar format, not the canonical
 Repo A / Repo C HDF5 dataset artifact
@@ -94,10 +106,12 @@ be parity-complete
 3. Keep `TeleopEpisodeExporter` as a Unity-local JSON/RGB sidecar exporter and
   keep canonical HDF5 writing in Repo A unless a deliberate conversion path is
   added later
-4. Finish scene/prefab qpos normalization calibration
-5. Either wire `AGXUnity_Excavator_measurements.unity` to the same stack or
+4. For V0, treat the task as stationary digging and do not expand the step-ack
+  action space with drive / steer yet
+5. Finish scene/prefab qpos normalization calibration
+6. Either wire `AGXUnity_Excavator_measurements.unity` to the same stack or
   explicitly scope it out as a non-parity scene
-6. After the end-to-end smoke passes, clean up or archive the stale V0 sections
+7. After the end-to-end smoke passes, clean up or archive the stale V0 sections
   in this file to avoid future drift
 
 ## Implementation Status Update (2026-03-18)

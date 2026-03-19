@@ -27,6 +27,8 @@ It is a TCP binary protocol with:
 Current control semantics:
 - action semantics: `actuator_speed_cmd`
 - action order: `[swing_speed_cmd, boom_speed_cmd, stick_speed_cmd, bucket_speed_cmd]`
+- V0 task scope is fixed-position / stationary digging; drive / steer / track
+  motion are intentionally excluded from the current step-ack action space
 
 Current observation semantics:
 - qpos order: `[swing_position_norm, boom_position_norm, stick_position_norm, bucket_position_norm]`
@@ -192,6 +194,12 @@ Current Unity values:
 - `reward = 0.0`
 - `image_format = "raw_rgb"` when FPV capture succeeds
 - `image_w = 0`, `image_h = 0`, `image_payload = empty` when no FPV frame is available
+
+Reward note:
+- for the current V0 stationary digging pipeline, `reward` is a placeholder
+  transport field and is not the primary task signal
+- Repo A / Repo C currently determine success post-hoc from
+  `env_state[0] = mass_in_bucket_kg`
 
 Image payload rules:
 - layout is row-major
