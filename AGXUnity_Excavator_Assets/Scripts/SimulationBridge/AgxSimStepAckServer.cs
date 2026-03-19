@@ -111,7 +111,7 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
       StopServer();
     }
 
-    private void Update()
+    private void FixedUpdate()
     {
       ResolveReferences();
       ProcessPendingRequests();

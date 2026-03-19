@@ -175,6 +175,7 @@ Current behavior:
 - for step-ack serving, a successful reset also re-arms the machine controller engine so subsequent `STEP_REQ` actions take effect immediately
 - Unity reset path prefers `SceneResetService.ResetScene(resetTerrain, resetPose)` and only falls back to `EpisodeManager.ResetEpisode(...)` for full resets
 - terrain reset is handled by `ResetTerrain` / `SceneResetService`; the excavation metrics component no longer mutates terrain heights during reset
+- pending step-ack requests are consumed on Unity `FixedUpdate`, so external step-ack teleop stays aligned with `Time.fixedDeltaTime` instead of Editor render-frame jitter
 
 ## 9. STEP_RESP Payload
 
