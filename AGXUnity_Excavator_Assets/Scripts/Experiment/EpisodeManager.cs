@@ -47,6 +47,9 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     private ExperimentLogger m_logger = null;
 
     [SerializeField]
+    private TeleopEpisodeExporter m_teleopExporter = null;
+
+    [SerializeField]
     private global::MassVolumeCounter m_massVolumeCounter = null;
 
     [SerializeField]
@@ -67,6 +70,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     public string CurrentSourceName => m_commandSource != null ? m_commandSource.SourceName : "None";
     public string CurrentControlLayout => m_interpreter != null ? m_interpreter.LayoutDescription : string.Empty;
     public string LastSavedPath => m_logger != null ? m_logger.LastSavedPath : string.Empty;
+    public string LastTeleopExportPath => m_teleopExporter != null ? m_teleopExporter.LastExportDirectory : string.Empty;
     public float MassInBucket => m_massVolumeCounter != null ? m_massVolumeCounter.MassInBucket : 0.0f;
     public float ExcavatedMass => m_massVolumeCounter != null ? m_massVolumeCounter.ExcavatedMass : 0.0f;
     public int AvailableSourceCount => m_availableSources != null ? m_availableSources.Length : 0;
@@ -116,16 +120,27 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       if ( m_machineController != null )
         m_machineController.ApplyActuationCommand( LastActuationCommand );
 
-      if ( IsEpisodeRunning && m_logger != null ) {
-        var hardwareDiagnostics = m_commandSource as IHardwareCommandDiagnostics;
-        m_logger.RecordFrame(
+      if ( IsEpisodeRunning ) {
+        var actDiagnostics = m_commandSource as IActCommandDiagnostics;
+        if ( m_logger != null ) {
+          var hardwareDiagnostics = m_commandSource as IHardwareCommandDiagnostics;
+          m_logger.RecordFrame(
+            Time.time,
+            LastRawCommand,
+            LastSimulatedCommand,
+            LastActuationCommand,
+            actDiagnostics,
+            hardwareDiagnostics,
+            m_machineController != null ? m_machineController.BucketReference : null,
+            m_massVolumeCounter );
+        }
+
+        m_teleopExporter?.RecordStep(
           Time.time,
           LastRawCommand,
           LastSimulatedCommand,
           LastActuationCommand,
-          hardwareDiagnostics,
-          m_machineController != null ? m_machineController.BucketReference : null,
-          m_massVolumeCounter );
+          actDiagnostics );
       }
     }
 
@@ -239,6 +254,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       }
 
       m_logger?.BeginEpisode( CurrentEpisodeIndex, CurrentSourceName );
+      m_teleopExporter?.BeginEpisode( CurrentEpisodeIndex, CurrentSourceName, CurrentControlLayout );
     }
 
     public void StopEpisode( string reason )
@@ -257,6 +273,9 @@ namespace AGXUnity_Excavator.Scripts.Experiment
 
       if ( m_logger != null && m_logger.IsRecording )
         m_logger.EndEpisode( reason );
+
+      if ( m_teleopExporter != null && m_teleopExporter.IsExporting )
+        m_teleopExporter.EndEpisode( reason );
     }
 
     public void ResetEpisode()
@@ -388,6 +407,9 @@ namespace AGXUnity_Excavator.Scripts.Experiment
 
       if ( m_logger == null )
         m_logger = GetComponent<ExperimentLogger>();
+
+      if ( m_teleopExporter == null )
+        m_teleopExporter = GetComponent<TeleopEpisodeExporter>();
 
       if ( m_massVolumeCounter == null && !m_massVolumeCounterResolved )
         m_massVolumeCounter = FindObjectOfType<global::MassVolumeCounter>();

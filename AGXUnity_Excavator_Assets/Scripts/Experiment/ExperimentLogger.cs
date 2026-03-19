@@ -23,7 +23,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     public void BeginEpisode( int episodeIndex, string sourceName )
     {
       m_rows.Clear();
-      m_rows.Add( "time,source,device_name,profile_name,binding_status,hardware_left_x,hardware_left_y,hardware_right_x,hardware_right_y,hardware_drive,hardware_steer,hardware_reset_button,hardware_start_button,hardware_stop_button,hardware_input_summary,raw_left_x,raw_left_y,raw_right_x,raw_right_y,raw_drive,raw_steer,sim_left_x,sim_left_y,sim_right_x,sim_right_y,sim_drive,sim_steer,boom,bucket,stick,swing,drive,steer,throttle,bucket_pos_x,bucket_pos_y,bucket_pos_z,bucket_rot_x,bucket_rot_y,bucket_rot_z,bucket_rot_w,mass_in_bucket,excavated_mass" );
+      m_rows.Add( "time,source,device_name,profile_name,binding_status,hardware_left_x,hardware_left_y,hardware_right_x,hardware_right_y,hardware_drive,hardware_steer,hardware_reset_button,hardware_start_button,hardware_stop_button,hardware_input_summary,act_backend_ready,act_timeout_fallback,act_response_seq,act_inference_time_ms,act_session_id,act_status,raw_left_x,raw_left_y,raw_right_x,raw_right_y,raw_drive,raw_steer,sim_left_x,sim_left_y,sim_right_x,sim_right_y,sim_drive,sim_steer,boom,bucket,stick,swing,drive,steer,throttle,bucket_pos_x,bucket_pos_y,bucket_pos_z,bucket_rot_x,bucket_rot_y,bucket_rot_z,bucket_rot_w,mass_in_bucket,excavated_mass" );
 
       m_episodeIndex = episodeIndex;
       m_sourceName = sourceName;
@@ -35,6 +35,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
                              OperatorCommand rawCommand,
                              OperatorCommand simulatedCommand,
                              ExcavatorActuationCommand actuationCommand,
+                             IActCommandDiagnostics actDiagnostics,
                              IHardwareCommandDiagnostics hardwareDiagnostics,
                              Transform bucketReference,
                              global::MassVolumeCounter massVolumeCounter )
@@ -51,6 +52,12 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       var profileName = hardwareDiagnostics != null ? hardwareDiagnostics.ProfileName : string.Empty;
       var bindingStatus = hardwareDiagnostics != null ? hardwareDiagnostics.BindingStatus : string.Empty;
       var rawInputSummary = hardwareDiagnostics != null ? hardwareDiagnostics.LastRawInputSummary : string.Empty;
+      var actBackendReady = actDiagnostics != null && actDiagnostics.IsBackendReady;
+      var actTimeoutFallback = actDiagnostics != null && actDiagnostics.IsCommandTimedOut;
+      var actResponseSequence = actDiagnostics != null ? actDiagnostics.LastResponseSequence : -1;
+      var actInferenceTimeMs = actDiagnostics != null ? actDiagnostics.LastInferenceTimeMs : 0.0f;
+      var actSessionId = actDiagnostics != null ? actDiagnostics.CurrentSessionId : string.Empty;
+      var actStatus = actDiagnostics != null ? actDiagnostics.LastBackendStatus : string.Empty;
 
       m_rows.Add(
         string.Join(
@@ -70,6 +77,12 @@ namespace AGXUnity_Excavator.Scripts.Experiment
           F( hardwareSnapshot.StartEpisodeButton ),
           F( hardwareSnapshot.StopEpisodeButton ),
           Csv( rawInputSummary ),
+          B( actBackendReady ),
+          B( actTimeoutFallback ),
+          actResponseSequence.ToString( CultureInfo.InvariantCulture ),
+          F( actInferenceTimeMs ),
+          Csv( actSessionId ),
+          Csv( actStatus ),
           F( rawCommand.LeftStickX ),
           F( rawCommand.LeftStickY ),
           F( rawCommand.RightStickX ),
@@ -128,6 +141,11 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     private static string F( float value )
     {
       return value.ToString( "0.######", CultureInfo.InvariantCulture );
+    }
+
+    private static string B( bool value )
+    {
+      return value ? "1" : "0";
     }
 
     private static string Csv( string value )

@@ -125,6 +125,8 @@ namespace AGXUnity_Excavator.Scripts.Presentation
         DrawCalibrationDebug();
       GUILayout.Space( 6.0f );
       GUILayout.Label( $"Last log: {m_episodeManager.LastSavedPath}", m_style );
+      if ( !string.IsNullOrWhiteSpace( m_episodeManager.LastTeleopExportPath ) )
+        GUILayout.Label( $"Last teleop export: {m_episodeManager.LastTeleopExportPath}", m_style );
       GUILayout.EndArea();
 
       if ( m_episodeManager.IsTransitionInputCutActive )
