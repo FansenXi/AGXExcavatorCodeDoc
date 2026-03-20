@@ -172,6 +172,7 @@ Current behavior:
 - `reset_applied = true` when `reset_terrain || reset_pose`
 - when `reset_pose = true` and `reset_terrain = false`, Unity resets pose / counters without forcing a terrain height reset
 - when both flags are true, Unity performs the full scene reset path
+- when `reset_terrain = true`, Unity rebuilds the deformable terrain native instance so dynamic soil mass/particles are cleared as part of reset, including particles that were still trapped in the bucket
 - for step-ack serving, a successful reset also re-arms the machine controller engine so subsequent `STEP_REQ` actions take effect immediately
 - Unity reset path prefers `SceneResetService.ResetScene(resetTerrain, resetPose)` and only falls back to `EpisodeManager.ResetEpisode(...)` for full resets
 - terrain reset is handled by `ResetTerrain` / `SceneResetService`; the excavation metrics component no longer mutates terrain heights during reset
