@@ -15,6 +15,12 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
     TwoButtonComposite
   }
 
+  public enum FarmStickControlModeSwitchBehavior
+  {
+    Toggle,
+    Hold
+  }
+
   [Serializable]
   public sealed class FarmStickAxisBinding
   {
@@ -148,11 +154,23 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
         m_controlPath = controlPath
       };
     }
+
+    public static FarmStickButtonBinding CreateDisabled( string displayName )
+    {
+      return new FarmStickButtonBinding
+      {
+        m_displayName = displayName,
+        m_enabled = false,
+        m_controlPath = string.Empty
+      };
+    }
   }
 
   [CreateAssetMenu( fileName = "FarmStickControlProfile", menuName = "AGX Excavator/Input/FarmStick Control Profile" )]
   public sealed class FarmStickControlProfile : ScriptableObject
   {
+    private const string DefaultResetEpisodeButtonPath = "base5";
+
     [SerializeField]
     private string m_displayName = "FarmStick Excavator Right Default";
 
@@ -170,31 +188,37 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
     private FarmStickHandedness m_handedness = FarmStickHandedness.Right;
 
     [SerializeField]
-    private FarmStickAxisBinding m_leftStickX = FarmStickAxisBinding.CreateSingleAxis( "Main Stick X", "stick/x" );
+    private FarmStickAxisBinding m_leftStickX = FarmStickAxisBinding.CreateSingleAxis( "Main Stick X", "Stick/x" );
 
     [SerializeField]
-    private FarmStickAxisBinding m_leftStickY = FarmStickAxisBinding.CreateSingleAxis( "Main Stick Y", "stick/y" );
+    private FarmStickAxisBinding m_leftStickY = FarmStickAxisBinding.CreateSingleAxis( "Main Stick Y", "Stick/y" );
 
     [SerializeField]
-    private FarmStickAxisBinding m_rightStickX = FarmStickAxisBinding.CreateSingleAxis( "Mini-stick X", "rx" );
+    private FarmStickAxisBinding m_rightStickX = FarmStickAxisBinding.CreateSingleAxis( "Mini-stick X", "RotateX" );
 
     [SerializeField]
-    private FarmStickAxisBinding m_rightStickY = FarmStickAxisBinding.CreateSingleAxis( "Mini-stick Y", "ry" );
+    private FarmStickAxisBinding m_rightStickY = FarmStickAxisBinding.CreateSingleAxis( "Mini-stick Y", "RotateY" );
 
     [SerializeField]
-    private FarmStickAxisBinding m_drive = FarmStickAxisBinding.CreateSingleAxis( "Hand Throttle", "throttle", false, 0.02f, -1.0f, 1.0f, 0.0f );
+    private FarmStickAxisBinding m_drive = FarmStickAxisBinding.CreateSingleAxis( "Drive / Left Rocker", "Throttle", false, 0.02f, -1.0f, 1.0f, 0.0f );
 
     [SerializeField]
-    private FarmStickAxisBinding m_steer = FarmStickAxisBinding.CreateSingleAxis( "Thumbwheel", "slider", false, 0.02f, -1.0f, 1.0f, 0.0f );
+    private FarmStickAxisBinding m_steer = FarmStickAxisBinding.CreateSingleAxis( "Steer / Right Rocker", "Rudder", false, 0.02f, -1.0f, 1.0f, 0.0f );
 
     [SerializeField]
-    private FarmStickButtonBinding m_resetEpisode = FarmStickButtonBinding.Create( "Reset Episode", "button1" );
+    private FarmStickButtonBinding m_controlModeSwitch = FarmStickButtonBinding.Create( "Stick Mode Switch", "Unknown" );
 
     [SerializeField]
-    private FarmStickButtonBinding m_startEpisode = FarmStickButtonBinding.Create( "Start Episode", "button2" );
+    private FarmStickControlModeSwitchBehavior m_controlModeSwitchBehavior = FarmStickControlModeSwitchBehavior.Toggle;
 
     [SerializeField]
-    private FarmStickButtonBinding m_stopEpisode = FarmStickButtonBinding.Create( "Stop Episode", "button3" );
+    private FarmStickButtonBinding m_resetEpisode = FarmStickButtonBinding.Create( "Reset Episode", DefaultResetEpisodeButtonPath );
+
+    [SerializeField]
+    private FarmStickButtonBinding m_startEpisode = FarmStickButtonBinding.CreateDisabled( "Start Episode" );
+
+    [SerializeField]
+    private FarmStickButtonBinding m_stopEpisode = FarmStickButtonBinding.CreateDisabled( "Stop Episode" );
 
     public string DisplayName => string.IsNullOrWhiteSpace( m_displayName ) ? name : m_displayName;
     public string SetupNotes => m_setupNotes;
@@ -207,6 +231,8 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
     public FarmStickAxisBinding RightStickY => m_rightStickY;
     public FarmStickAxisBinding Drive => m_drive;
     public FarmStickAxisBinding Steer => m_steer;
+    public FarmStickButtonBinding ControlModeSwitch => m_controlModeSwitch;
+    public FarmStickControlModeSwitchBehavior ControlModeSwitchBehavior => m_controlModeSwitchBehavior;
     public FarmStickButtonBinding ResetEpisode => m_resetEpisode;
     public FarmStickButtonBinding StartEpisode => m_startEpisode;
     public FarmStickButtonBinding StopEpisode => m_stopEpisode;
@@ -248,48 +274,57 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
                       "FarmStick Excavator Left Default";
       m_manufacturerContains = "Thrustmaster";
       m_productContains = "SimTask FarmStick";
-      m_leftStickX = FarmStickAxisBinding.CreateSingleAxis( "Main Stick X", "stick/x" );
-      m_leftStickY = FarmStickAxisBinding.CreateSingleAxis( "Main Stick Y", "stick/y" );
-      m_rightStickX = FarmStickAxisBinding.CreateSingleAxis( "Mini-stick X", "rx" );
-      m_rightStickY = FarmStickAxisBinding.CreateSingleAxis( "Mini-stick Y", "ry" );
-      m_drive = FarmStickAxisBinding.CreateSingleAxis( "Hand Throttle", "throttle", false, 0.02f, -1.0f, 1.0f, 0.0f );
-      m_steer = FarmStickAxisBinding.CreateSingleAxis( "Thumbwheel", "slider", false, 0.02f, -1.0f, 1.0f, 0.0f );
-      m_resetEpisode = FarmStickButtonBinding.Create( "Reset Episode", "button1" );
-      m_startEpisode = FarmStickButtonBinding.Create( "Start Episode", "button2" );
-      m_stopEpisode = FarmStickButtonBinding.Create( "Stop Episode", "button3" );
+      m_leftStickX = FarmStickAxisBinding.CreateSingleAxis( "Main Stick X", "Stick/x" );
+      m_leftStickY = FarmStickAxisBinding.CreateSingleAxis( "Main Stick Y", "Stick/y" );
+      m_rightStickX = FarmStickAxisBinding.CreateSingleAxis( "Mini-stick X", "RotateX" );
+      m_rightStickY = FarmStickAxisBinding.CreateSingleAxis( "Mini-stick Y", "RotateY" );
+      m_drive = FarmStickAxisBinding.CreateSingleAxis( "Drive / Left Rocker", "Throttle", false, 0.02f, -1.0f, 1.0f, 0.0f );
+      m_steer = FarmStickAxisBinding.CreateSingleAxis( "Steer / Right Rocker", "Rudder", false, 0.02f, -1.0f, 1.0f, 0.0f );
+      m_controlModeSwitch = FarmStickButtonBinding.Create( "Stick Mode Switch", "Unknown" );
+      m_controlModeSwitchBehavior = FarmStickControlModeSwitchBehavior.Toggle;
+      m_resetEpisode = FarmStickButtonBinding.Create( "Reset Episode", DefaultResetEpisodeButtonPath );
+      m_startEpisode = FarmStickButtonBinding.CreateDisabled( "Start Episode" );
+      m_stopEpisode = FarmStickButtonBinding.CreateDisabled( "Stop Episode" );
       SetDefaultSetupNotes();
     }
 
     private void EnsureFields()
     {
       if ( m_leftStickX == null )
-        m_leftStickX = FarmStickAxisBinding.CreateSingleAxis( "Main Stick X", "stick/x" );
+        m_leftStickX = FarmStickAxisBinding.CreateSingleAxis( "Main Stick X", "Stick/x" );
       if ( m_leftStickY == null )
-        m_leftStickY = FarmStickAxisBinding.CreateSingleAxis( "Main Stick Y", "stick/y" );
+        m_leftStickY = FarmStickAxisBinding.CreateSingleAxis( "Main Stick Y", "Stick/y" );
       if ( m_rightStickX == null )
-        m_rightStickX = FarmStickAxisBinding.CreateSingleAxis( "Mini-stick X", "rx" );
+        m_rightStickX = FarmStickAxisBinding.CreateSingleAxis( "Mini-stick X", "RotateX" );
       if ( m_rightStickY == null )
-        m_rightStickY = FarmStickAxisBinding.CreateSingleAxis( "Mini-stick Y", "ry" );
+        m_rightStickY = FarmStickAxisBinding.CreateSingleAxis( "Mini-stick Y", "RotateY" );
       if ( m_drive == null )
-        m_drive = FarmStickAxisBinding.CreateSingleAxis( "Hand Throttle", "throttle", false, 0.02f, -1.0f, 1.0f, 0.0f );
+        m_drive = FarmStickAxisBinding.CreateSingleAxis( "Drive / Left Rocker", "Throttle", false, 0.02f, -1.0f, 1.0f, 0.0f );
       if ( m_steer == null )
-        m_steer = FarmStickAxisBinding.CreateSingleAxis( "Thumbwheel", "slider", false, 0.02f, -1.0f, 1.0f, 0.0f );
+        m_steer = FarmStickAxisBinding.CreateSingleAxis( "Steer / Right Rocker", "Rudder", false, 0.02f, -1.0f, 1.0f, 0.0f );
+      if ( m_controlModeSwitch == null )
+        m_controlModeSwitch = FarmStickButtonBinding.Create( "Stick Mode Switch", "Unknown" );
       if ( m_resetEpisode == null )
-        m_resetEpisode = FarmStickButtonBinding.Create( "Reset Episode", "button1" );
+        m_resetEpisode = FarmStickButtonBinding.Create( "Reset Episode", DefaultResetEpisodeButtonPath );
       if ( m_startEpisode == null )
-        m_startEpisode = FarmStickButtonBinding.Create( "Start Episode", "button2" );
+        m_startEpisode = FarmStickButtonBinding.CreateDisabled( "Start Episode" );
       if ( m_stopEpisode == null )
-        m_stopEpisode = FarmStickButtonBinding.Create( "Stop Episode", "button3" );
+        m_stopEpisode = FarmStickButtonBinding.CreateDisabled( "Stop Episode" );
     }
 
     private void SetDefaultSetupNotes()
     {
       m_setupNotes =
         "Template profile for Thrustmaster SimTask FarmStick.\n" +
-        "Use Unity Input Debugger on the target machine to confirm the actual control paths exposed by the device.\n" +
-        "Defaults assume generic joystick naming for the main stick and common HID names for extra axes.\n" +
-        "If the thumbwheel is not exposed as a continuous axis, change Steer to TwoButtonComposite and bind the rocker pair instead.\n" +
-        "If mini-stick paths differ, update RightStickX/RightStickY without changing runtime code.\n" +
+        "Official hardware mapping exposes 33 buttons and 8 axes: Axis 1/2 main stick, Axis 3 twist, Axis 4/5 mini-stick, Axis 6/7/8 thumb controls.\n" +
+        "This Linux default profile uses the control names currently reported by Unity Input System: Stick/x, Stick/y, RotateX, RotateY, Throttle and Rudder.\n" +
+        "If your platform reports different control names, use the diagnostics menu to inspect the live controls and retarget the bindings.\n" +
+        "The default excavator travel mapping uses the two rocker axes in Work mode: Axis 7 (Throttle) for Drive and Axis 8 (Rudder) for Steer.\n" +
+        "Switch the FarmStick to Work mode if you want analog rocker axes; in Drive mode those controls become buttons 27-30 and Linux may not expose them individually.\n" +
+        "The FarmStick MODE button is official button 31. On Linux it may appear as an Unknown button or may not be exposed; this profile defaults the software stick-mode switch to Unknown so you can test that path quickly.\n" +
+        "When the stick-mode switch is active, the main stick and mini-stick roles are swapped so the main stick can drive boom/bucket instead of swing/stick.\n" +
+        $"Reset Episode defaults to '{DefaultResetEpisodeButtonPath}', which is intended to be a spare base button on the generic joystick layout. If your platform reports different button names, use the diagnostics menu to inspect the live controls and retarget the reset binding.\n" +
+        "Start/stop episode buttons stay disabled by default because Unity's Linux joystick layout does not expose the FarmStick's official button 19-33 numbering consistently across machines.\n" +
         "Run Thrustmaster hardware calibration first; use this profile only for residual deadzone, inversion and range tuning.";
     }
   }

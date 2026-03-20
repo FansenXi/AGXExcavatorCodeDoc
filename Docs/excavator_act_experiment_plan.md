@@ -32,7 +32,7 @@
 - `ExcavatorInputController` 负责从 Unity Input System 读取输入，并将输入转换为 AGX 约束的目标速度。
 - 工作装置控制已经有速度缩放和加速度限幅。
 - 场景中已有辅助实验脚本：
-  - `MassVolumeCounter.cs`：统计挖掘质量与体积。
+  - `ExcavationMassTracker.cs`：统计 bucket mass 与累计 excavated mass。
   - `ResetTerrain.cs`：重置地形。
   - `LinkCamera.cs`：联动相机视角。
 

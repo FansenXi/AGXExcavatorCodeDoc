@@ -38,14 +38,16 @@ public class FPSCamera : MonoBehaviour
   private bool moving = false;
   private bool togglePressed = false;
 
-   
   private void OnEnable()
   {
     if (cursorToggleAllowed)
-    {
-      Cursor.lockState = CursorLockMode.Locked;
-      Cursor.visible = false;
-    }
+      ApplyCursorCapture(false);
+  }
+
+  private void OnDisable()
+  {
+    if (cursorToggleAllowed)
+      ApplyCursorCapture(false);
   }
 
   private void Start()
@@ -107,7 +109,7 @@ public class FPSCamera : MonoBehaviour
         currentSpeed = 0f;
     }
 
-    if (allowRotation)
+    if (allowRotation && ShouldApplyRotation())
     {
       Vector3 eulerAngles = transform.eulerAngles;
 #if ENABLE_INPUT_SYSTEM
@@ -136,21 +138,14 @@ public class FPSCamera : MonoBehaviour
         if (!togglePressed)
         {
           togglePressed = true;
-          if (Cursor.lockState == CursorLockMode.Locked)
-            Cursor.lockState = CursorLockMode.Confined;
-          else
-            Cursor.lockState = CursorLockMode.Locked;
-          Cursor.visible = !Cursor.visible;
+          ApplyCursorCapture(Cursor.lockState != CursorLockMode.Locked);
         }
       }
       else
         togglePressed = false;
     }
     else
-    {
       togglePressed = false;
-      Cursor.visible = false;
-    }
   }
 
   //private void CheckMove(KeyCode keyCode, ref Vector3 deltaPosition, Vector3 directionVector)
@@ -161,5 +156,16 @@ public class FPSCamera : MonoBehaviour
       moving = true;
       deltaPosition += directionVector;
     }
+  }
+
+  private bool ShouldApplyRotation()
+  {
+    return !cursorToggleAllowed || Cursor.lockState == CursorLockMode.Locked;
+  }
+
+  private static void ApplyCursorCapture(bool capture)
+  {
+    Cursor.lockState = capture ? CursorLockMode.Locked : CursorLockMode.None;
+    Cursor.visible = !capture;
   }
 }

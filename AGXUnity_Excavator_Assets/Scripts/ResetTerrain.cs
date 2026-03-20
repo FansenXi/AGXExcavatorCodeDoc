@@ -21,6 +21,11 @@ public class ResetTerrain : MonoBehaviour
   // Start is called before the first frame update
   void Start()
   {
+    if ( m_listenForResetInput && HasCentralizedResetPath() ) {
+      m_listenForResetInput = false;
+      Debug.Log( "ResetTerrain: standalone reset input disabled because SceneResetService/EpisodeManager is present.", this );
+    }
+
 #if ENABLE_INPUT_SYSTEM
     if ( m_listenForResetInput ) {
       ResetAction = new InputAction("Reset", binding: "<Keyboard>/r");
@@ -48,6 +53,12 @@ public class ResetTerrain : MonoBehaviour
     {
       ResetTerrainHeights();
     }
+  }
+
+  private static bool HasCentralizedResetPath()
+  {
+    return FindObjectOfType<AGXUnity_Excavator.Scripts.Experiment.SceneResetService>() != null ||
+           FindObjectOfType<AGXUnity_Excavator.Scripts.Experiment.EpisodeManager>() != null;
   }
 }
 

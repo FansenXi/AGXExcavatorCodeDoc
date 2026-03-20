@@ -5,6 +5,11 @@ using AGXUnity_Excavator.Scripts.Control.Execution;
 using AGXUnity_Excavator.Scripts.Control.Simulation;
 using AGXUnity_Excavator.Scripts.Control.Sources;
 using UnityEngine;
+using UnityEngine.Serialization;
+
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
 
 namespace AGXUnity_Excavator.Scripts.Experiment
 {
@@ -15,6 +20,17 @@ namespace AGXUnity_Excavator.Scripts.Experiment
 
     [SerializeField]
     private bool m_autoRestartAfterReset = true;
+
+    [SerializeField]
+    private bool m_cutManualInputUntilNeutralAfterTransition = true;
+
+    [SerializeField]
+    [Range( 0.0f, 0.25f )]
+    private float m_inputNeutralThreshold = 0.05f;
+
+    [SerializeField]
+    [Range( 0.0f, 1.0f )]
+    private float m_inputNeutralHoldDurationSec = 0.2f;
 
     [SerializeField]
     private OperatorCommandSourceBehaviour m_commandSource = null;
@@ -32,14 +48,21 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     private ExperimentLogger m_logger = null;
 
     [SerializeField]
-    private global::MassVolumeCounter m_massVolumeCounter = null;
+    private TeleopEpisodeExporter m_teleopExporter = null;
+
+    [FormerlySerializedAs( "m_massVolumeCounter" )]
+    [SerializeField]
+    private global::ExcavationMassTracker m_massTracker = null;
 
     [SerializeField]
     private ExcavatorCommandInterpreter m_interpreter = new ExcavatorCommandInterpreter();
 
     private OperatorCommandSourceBehaviour[] m_availableSources = Array.Empty<OperatorCommandSourceBehaviour>();
     private int m_nextEpisodeIndex = 1;
-    private bool m_massVolumeCounterResolved = false;
+    [FormerlySerializedAs( "m_massVolumeCounterResolved" )]
+    private bool m_massTrackerResolved = false;
+    private bool m_inputCutActive = false;
+    private float m_inputNeutralSinceTime = -1.0f;
 
     public int CurrentEpisodeIndex { get; private set; }
     public bool IsEpisodeRunning { get; private set; }
@@ -48,12 +71,17 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     public ExcavatorActuationCommand LastActuationCommand { get; private set; }
 
     public string CurrentSourceName => m_commandSource != null ? m_commandSource.SourceName : "None";
+    public string CurrentControlLayout => m_interpreter != null ? m_interpreter.LayoutDescription : string.Empty;
     public string LastSavedPath => m_logger != null ? m_logger.LastSavedPath : string.Empty;
-    public float MassInBucket => m_massVolumeCounter != null ? m_massVolumeCounter.MassInBucket : 0.0f;
-    public float ExcavatedMass => m_massVolumeCounter != null ? m_massVolumeCounter.ExcavatedMass : 0.0f;
-    public float ExcavatedVolume => m_massVolumeCounter != null ? m_massVolumeCounter.ExcavatedVolume : 0.0f;
+    public string LastTeleopExportPath => m_teleopExporter != null ? m_teleopExporter.LastExportDirectory : string.Empty;
+    public float MassInBucket => m_massTracker != null ? m_massTracker.MassInBucket : 0.0f;
+    public float ExcavatedMass => m_massTracker != null ? m_massTracker.ExcavatedMass : 0.0f;
     public int AvailableSourceCount => m_availableSources != null ? m_availableSources.Length : 0;
     public int CurrentSourceIndex => GetSourceIndex( m_commandSource );
+    public bool IsTransitionInputCutActive => m_inputCutActive;
+    public string TransitionInputCutHint => CurrentSourceHasHardwareDiagnostics ?
+                                            "Release joystick and buttons to continue." :
+                                            "Release all control inputs to continue.";
 
     private void Awake()
     {
@@ -70,8 +98,10 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     private void Update()
     {
       ResolveReferences();
+      HandleSourceSwitchHotkeys();
 
-      LastRawCommand = m_commandSource != null ? m_commandSource.ReadCommand() : OperatorCommand.Zero;
+      var rawCommand = m_commandSource != null ? m_commandSource.ReadCommand() : OperatorCommand.Zero;
+      LastRawCommand = ApplyTransitionInputCut( rawCommand );
 
       if ( LastRawCommand.StartEpisodeRequested )
         StartEpisode();
@@ -93,16 +123,27 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       if ( m_machineController != null )
         m_machineController.ApplyActuationCommand( LastActuationCommand );
 
-      if ( IsEpisodeRunning && m_logger != null ) {
-        var hardwareDiagnostics = m_commandSource as IHardwareCommandDiagnostics;
-        m_logger.RecordFrame(
+      if ( IsEpisodeRunning ) {
+        var actDiagnostics = m_commandSource as IActCommandDiagnostics;
+        if ( m_logger != null ) {
+          var hardwareDiagnostics = m_commandSource as IHardwareCommandDiagnostics;
+          m_logger.RecordFrame(
+            Time.time,
+            LastRawCommand,
+            LastSimulatedCommand,
+            LastActuationCommand,
+            actDiagnostics,
+            hardwareDiagnostics,
+            m_machineController != null ? m_machineController.BucketReference : null,
+            m_massTracker );
+        }
+
+        m_teleopExporter?.RecordStep(
           Time.time,
           LastRawCommand,
           LastSimulatedCommand,
           LastActuationCommand,
-          hardwareDiagnostics,
-          m_machineController != null ? m_machineController.BucketReference : null,
-          m_massVolumeCounter );
+          actDiagnostics );
       }
     }
 
@@ -138,7 +179,9 @@ namespace AGXUnity_Excavator.Scripts.Experiment
         return;
       }
 
-      if ( m_commandSource == null || GetSourceIndex( m_commandSource ) < 0 )
+      if ( m_commandSource == null ||
+           GetSourceIndex( m_commandSource ) < 0 ||
+           ShouldPromotePreferredSource( m_commandSource, discoveredSources ) )
         m_commandSource = ChooseDefaultSource( discoveredSources );
 
       SyncSourceEnabledStates();
@@ -148,6 +191,18 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     {
       var source = GetAvailableSource( index );
       return SetCommandSource( source, restartEpisodeIfRunning );
+    }
+
+    public bool CycleCommandSource( int direction, bool restartEpisodeIfRunning = true )
+    {
+      ResolveReferences();
+      if ( AvailableSourceCount <= 1 )
+        return false;
+
+      var normalizedDirection = direction < 0 ? -1 : 1;
+      var currentIndex = CurrentSourceIndex >= 0 ? CurrentSourceIndex : 0;
+      var targetIndex = ( currentIndex + normalizedDirection + AvailableSourceCount ) % AvailableSourceCount;
+      return SetCommandSourceByIndex( targetIndex, restartEpisodeIfRunning );
     }
 
     public bool SetCommandSource( OperatorCommandSourceBehaviour source, bool restartEpisodeIfRunning = true )
@@ -185,11 +240,13 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     {
       ResolveReferences();
 
-      if ( IsEpisodeRunning )
+      if ( IsEpisodeRunning || ( m_logger != null && m_logger.IsRecording ) )
         StopEpisode( "restart" );
 
       CurrentEpisodeIndex = m_nextEpisodeIndex++;
       IsEpisodeRunning = true;
+      ArmInputCut();
+      m_machineController?.StartEngine();
       m_commandSimulator?.ResetState();
       if ( m_commandSource is IEpisodeLifecycleAware lifecycleAware ) {
         lifecycleAware.OnEpisodeStarted( new EpisodeCommandSourceContext
@@ -200,36 +257,142 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       }
 
       m_logger?.BeginEpisode( CurrentEpisodeIndex, CurrentSourceName );
+      m_teleopExporter?.BeginEpisode( CurrentEpisodeIndex, CurrentSourceName, CurrentControlLayout );
     }
 
     public void StopEpisode( string reason )
     {
-      if ( !IsEpisodeRunning ) {
-        m_machineController?.StopMotion();
-        LastSimulatedCommand = OperatorCommand.Zero;
-        LastActuationCommand = ExcavatorActuationCommand.Zero;
-        return;
-      }
-
+      var wasEpisodeRunning = IsEpisodeRunning;
       IsEpisodeRunning = false;
-      m_machineController?.StopMotion();
+      ArmInputCut();
+      m_machineController?.StopEngine();
       m_commandSimulator?.ResetState();
-      if ( m_commandSource is IEpisodeLifecycleAware lifecycleAware )
+      if ( wasEpisodeRunning && m_commandSource is IEpisodeLifecycleAware lifecycleAware )
         lifecycleAware.OnEpisodeStopped( reason );
 
+      LastRawCommand = OperatorCommand.Zero;
       LastSimulatedCommand = OperatorCommand.Zero;
       LastActuationCommand = ExcavatorActuationCommand.Zero;
-      m_logger?.EndEpisode( reason );
+
+      if ( m_logger != null && m_logger.IsRecording )
+        m_logger.EndEpisode( reason );
+
+      if ( m_teleopExporter != null && m_teleopExporter.IsExporting )
+        m_teleopExporter.EndEpisode( reason );
     }
 
     public void ResetEpisode()
     {
+      ResetEpisode( m_autoRestartAfterReset );
+    }
+
+    public void ResetEpisode( bool restartEpisode )
+    {
       StopEpisode( "reset" );
       m_sceneResetService?.ResetScene();
 
-      if ( m_autoRestartAfterReset )
+      if ( restartEpisode )
         StartEpisode();
     }
+
+    private void HandleSourceSwitchHotkeys()
+    {
+      if ( AvailableSourceCount <= 1 )
+        return;
+
+      var requestedIndex = GetRequestedSourceIndexHotkey();
+      if ( requestedIndex >= 0 && requestedIndex < AvailableSourceCount ) {
+        SetCommandSourceByIndex( requestedIndex );
+        return;
+      }
+
+      var cycleDirection = GetSourceCycleDirectionHotkey();
+      if ( cycleDirection != 0 )
+        CycleCommandSource( cycleDirection );
+    }
+
+    private static int GetSourceCycleDirectionHotkey()
+    {
+#if ENABLE_INPUT_SYSTEM
+      var keyboard = Keyboard.current;
+      if ( keyboard != null ) {
+        if ( keyboard.f6Key.wasPressedThisFrame )
+          return -1;
+
+        if ( keyboard.f7Key.wasPressedThisFrame )
+          return 1;
+
+        return 0;
+      }
+#endif
+
+      if ( Input.GetKeyDown( KeyCode.F6 ) )
+        return -1;
+
+      if ( Input.GetKeyDown( KeyCode.F7 ) )
+        return 1;
+
+      return 0;
+    }
+
+    private static int GetRequestedSourceIndexHotkey()
+    {
+#if ENABLE_INPUT_SYSTEM
+      var keyboard = Keyboard.current;
+      if ( keyboard != null )
+        return GetRequestedSourceIndexFromKeyboard( keyboard );
+#endif
+
+      if ( Input.GetKeyDown( KeyCode.Alpha1 ) )
+        return 0;
+      if ( Input.GetKeyDown( KeyCode.Alpha2 ) )
+        return 1;
+      if ( Input.GetKeyDown( KeyCode.Alpha3 ) )
+        return 2;
+      if ( Input.GetKeyDown( KeyCode.Alpha4 ) )
+        return 3;
+      if ( Input.GetKeyDown( KeyCode.Alpha5 ) )
+        return 4;
+      if ( Input.GetKeyDown( KeyCode.Alpha6 ) )
+        return 5;
+      if ( Input.GetKeyDown( KeyCode.Alpha7 ) )
+        return 6;
+      if ( Input.GetKeyDown( KeyCode.Alpha8 ) )
+        return 7;
+      if ( Input.GetKeyDown( KeyCode.Alpha9 ) )
+        return 8;
+
+      return -1;
+    }
+
+#if ENABLE_INPUT_SYSTEM
+    private static int GetRequestedSourceIndexFromKeyboard( Keyboard keyboard )
+    {
+      if ( keyboard == null )
+        return -1;
+
+      if ( keyboard.digit1Key.wasPressedThisFrame )
+        return 0;
+      if ( keyboard.digit2Key.wasPressedThisFrame )
+        return 1;
+      if ( keyboard.digit3Key.wasPressedThisFrame )
+        return 2;
+      if ( keyboard.digit4Key.wasPressedThisFrame )
+        return 3;
+      if ( keyboard.digit5Key.wasPressedThisFrame )
+        return 4;
+      if ( keyboard.digit6Key.wasPressedThisFrame )
+        return 5;
+      if ( keyboard.digit7Key.wasPressedThisFrame )
+        return 6;
+      if ( keyboard.digit8Key.wasPressedThisFrame )
+        return 7;
+      if ( keyboard.digit9Key.wasPressedThisFrame )
+        return 8;
+
+      return -1;
+    }
+#endif
 
     private void ResolveReferences()
     {
@@ -248,10 +411,13 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       if ( m_logger == null )
         m_logger = GetComponent<ExperimentLogger>();
 
-      if ( m_massVolumeCounter == null && !m_massVolumeCounterResolved )
-        m_massVolumeCounter = FindObjectOfType<global::MassVolumeCounter>();
+      if ( m_teleopExporter == null )
+        m_teleopExporter = GetComponent<TeleopEpisodeExporter>();
 
-      m_massVolumeCounterResolved = true;
+      if ( m_massTracker == null && !m_massTrackerResolved )
+        m_massTracker = FindObjectOfType<global::ExcavationMassTracker>();
+
+      m_massTrackerResolved = true;
     }
 
     private OperatorCommandSourceBehaviour[] DiscoverAvailableSources()
@@ -275,9 +441,18 @@ namespace AGXUnity_Excavator.Scripts.Experiment
           otherSources.Add( source );
       }
 
-      var selectedSources = sameRootSources.Count > 0 ? sameRootSources : otherSources;
-      selectedSources.Sort( CompareSources );
-      return selectedSources.ToArray();
+      sameRootSources.Sort( CompareSources );
+      otherSources.Sort( CompareSources );
+
+      if ( sameRootSources.Count == 0 )
+        return otherSources.ToArray();
+
+      if ( otherSources.Count == 0 )
+        return sameRootSources.ToArray();
+
+      // Keep local rig sources first, but do not discard valid sources on other roots.
+      sameRootSources.AddRange( otherSources );
+      return sameRootSources.ToArray();
     }
 
     private static int CompareSources( OperatorCommandSourceBehaviour left, OperatorCommandSourceBehaviour right )
@@ -305,11 +480,38 @@ namespace AGXUnity_Excavator.Scripts.Experiment
 
       for ( var sourceIndex = 0; sourceIndex < sources.Length; ++sourceIndex ) {
         var source = sources[ sourceIndex ];
+        if ( source is FarmStickOperatorCommandSource && source.enabled )
+          return source;
+      }
+
+      for ( var sourceIndex = 0; sourceIndex < sources.Length; ++sourceIndex ) {
+        var source = sources[ sourceIndex ];
         if ( source != null && source.enabled )
           return source;
       }
 
       return sources[ 0 ];
+    }
+
+    private static bool ShouldPromotePreferredSource( OperatorCommandSourceBehaviour currentSource,
+                                                      OperatorCommandSourceBehaviour[] sources )
+    {
+      if ( currentSource == null || sources == null || sources.Length == 0 )
+        return false;
+
+      if ( currentSource is FarmStickOperatorCommandSource )
+        return false;
+
+      if ( currentSource is not KeyboardOperatorCommandSource )
+        return false;
+
+      for ( var sourceIndex = 0; sourceIndex < sources.Length; ++sourceIndex ) {
+        var source = sources[ sourceIndex ];
+        if ( source is FarmStickOperatorCommandSource && source.enabled )
+          return true;
+      }
+
+      return false;
     }
 
     private void SyncSourceEnabledStates()
@@ -351,6 +553,44 @@ namespace AGXUnity_Excavator.Scripts.Experiment
           $"Disabled legacy ExcavatorInputController on '{legacyController.gameObject.name}' because EpisodeManager is using the new control chain.",
           legacyController );
       }
+    }
+
+    private void ArmInputCut()
+    {
+      m_inputCutActive = m_cutManualInputUntilNeutralAfterTransition && !( m_commandSource is IActCommandDiagnostics );
+      m_inputNeutralSinceTime = -1.0f;
+    }
+
+    private OperatorCommand ApplyTransitionInputCut( OperatorCommand rawCommand )
+    {
+      if ( !m_inputCutActive )
+        return rawCommand;
+
+      if ( IsNeutralCommand( rawCommand ) ) {
+        if ( m_inputNeutralSinceTime < 0.0f )
+          m_inputNeutralSinceTime = Time.unscaledTime;
+
+        if ( Time.unscaledTime - m_inputNeutralSinceTime >= m_inputNeutralHoldDurationSec )
+          m_inputCutActive = false;
+      }
+      else {
+        m_inputNeutralSinceTime = -1.0f;
+      }
+
+      return OperatorCommand.Zero;
+    }
+
+    private bool IsNeutralCommand( OperatorCommand command )
+    {
+      return Mathf.Abs( command.LeftStickX ) <= m_inputNeutralThreshold &&
+             Mathf.Abs( command.LeftStickY ) <= m_inputNeutralThreshold &&
+             Mathf.Abs( command.RightStickX ) <= m_inputNeutralThreshold &&
+             Mathf.Abs( command.RightStickY ) <= m_inputNeutralThreshold &&
+             Mathf.Abs( command.Drive ) <= m_inputNeutralThreshold &&
+             Mathf.Abs( command.Steer ) <= m_inputNeutralThreshold &&
+             !command.ResetRequested &&
+             !command.StartEpisodeRequested &&
+             !command.StopEpisodeRequested;
     }
 
     public bool CurrentSourceBackendReady => ( m_commandSource as IActCommandDiagnostics )?.IsBackendReady ?? false;

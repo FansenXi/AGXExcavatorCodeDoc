@@ -21,10 +21,11 @@
 3. `EpisodeManager` 已经泛化为 `OperatorCommandSourceBehaviour`，不再写死 `KeyboardOperatorCommandSource`。
 4. ACT 响应的有限值检查、去除 episode bool、clamp、最新有效命令缓存、超时回零、HUD 诊断都已经实现。
 5. 当前主要缺口已经不再是 Unity 控制链，而是：
-   - Python backend 服务端仍不在本仓库内
+   - ACT JSON Lines 推理服务端仍不在本仓库内
+   - 这与 Repo A 已实现的 binary step-ack simbackend 不是同一件事
    - observation 归一化范围需要按 prefab 校准
-   - CSV 日志还没有写入 ACT 专用诊断字段
-   - 场景 prefab 仍需要正确挂线和联调验证
+   - Unity 侧 teleop exporter 已实现，但它是 JSON/RGB sidecar，不是最终 HDF5
+   - 真实联调和运行时验收还没有完成
 
 一句话概括：
 
@@ -85,7 +86,11 @@
 - `close`
 - `step_result` 解析
 - 后台线程通信
+- TCP 对端断开检测
 - 自动重连
+- 重连后自动补发 `hello`
+- active episode 存在时自动补发当前 `reset`
+- 离线期间只保留最新一条待发送 `step`
 - 最近结果缓存
 
 因此 Unity 侧通信层也已经具备。
@@ -174,18 +179,29 @@ ACT backend 只响应生命周期消息，不负责发起生命周期决策。
 | 本地 TCP 协议 | 已实现 | `TcpJsonLinesActBackendClient` 已实现 JSON Lines 客户端 |
 | 响应清洗与超时保护 | 已实现 | finite check、clamp、latest valid、timeout fallback |
 | HUD 诊断 | 已实现 | backend/seq/inference/session/status 已显示 |
-| CSV ACT 诊断字段 | 未完成 | 目前日志未记录 session/seq/status/inference |
-| Python backend 服务端 | 仓库外依赖 | 当前 repo 内未发现实现 |
+| CSV ACT 诊断字段 | 已实现 | 当前日志已记录 backend_ready/timeout/seq/inference/session/status |
+| Python backend 服务端 | 分仓实现 | Repo A 已有 binary step-ack simbackend；ACT JSON Lines 推理服务仍不在本仓库内 |
 | observation 校准 | 部分完成 | 范围对象已实现，但默认值仍需校准 |
-| 场景配线验证 | 需要逐场景确认 | 组件是否完整挂到 rig 上需实机验证 |
+| Teleop episode exporter | 已实现 | 当前已支持 metadata.json + steps.jsonl + FPV raw RGB 帧导出 |
+| 主场景配线验证 | 部分完成 | 主场景已接入 exporter；仍需运行时 smoke 验证 |
 
 ---
 
 ## 6. 当前剩余的兼容缺口
 
-### 6.1 Python backend 不在仓库内
+### 6.1 ACT Python backend 与 Repo A simbackend 需要区分
 
-这是当前最主要的缺口。
+这里有两个不同概念，之前容易混淆：
+
+- Repo A 已经实现了 Unity step-ack binary protocol 的 Python client / backend，
+  用于 `GET_INFO / RESET / STEP` 联调、录制、训练与评估。
+- 但当前 `TcpJsonLinesActBackendClient` 对接的 ACT 推理服务端，仍然不在这个
+  Unity 仓库内。
+
+因此当前缺的不是“所有 Python 端都没有”，而是：
+
+- ACT JSON Lines 推理服务仍是仓外服务
+- Unity 与 Repo A / Repo C 的边界需要在文档中说清楚
 
 Unity 侧已经有：
 
@@ -194,7 +210,7 @@ Unity 侧已经有：
 - response 解析
 - fallback 逻辑
 
-但仓库内没有配套 Python 服务端，因此实际闭环仍依赖外部 backend。
+所以 ACT 闭环仍依赖外部推理 backend。
 
 ### 6.2 归一化范围还需要真实标定
 
@@ -220,9 +236,18 @@ Unity 侧已经有：
 
 这对第一版联调足够，但如果后续任务要求固定 observer frame、底盘 frame 或其他参考点，仍需进一步明确。
 
-### 6.4 CSV 日志对 ACT 还不够完整
+### 6.4 CSV 日志已经补上 ACT 诊断字段
 
-当前 `ExperimentLogger` 只记录：
+当前 `ExperimentLogger` 在原有字段基础上，已经补充记录：
+
+- `backend_ready`
+- `timeout_fallback`
+- `response_seq`
+- `inference_time_ms`
+- `session_id`
+- `status`
+
+它仍然保留原有记录内容：
 
 - source
 - raw command
@@ -231,25 +256,45 @@ Unity 侧已经有：
 - bucket pose
 - 质量 / 体积
 
-还没有记录：
+这使它更适合做 ACT backend 联调回放和问题定位。
 
-- `session_id`
-- `seq`
-- `backend_ready`
-- `status`
-- `inference_time_ms`
-- `timeout_fallback`
+### 6.5 首版 teleop exporter 已实现，但它不是最终 HDF5
 
-因此如果要做系统级联调回放，日志字段仍需扩展。
+当前 Unity 侧已经新增一个首版 `TeleopEpisodeExporter`。
 
-### 6.5 场景与 prefab 的组件挂线需要实机确认
+当前导出内容包括：
+
+- `metadata.json`
+- `steps.jsonl`
+- `frames/fpv/frame_XXXXXX.rgb24`
+
+每步目前会导出：
+
+- `action`
+- `qpos`
+- `qvel`
+- `env_state`
+- raw / simulated operator command
+- final actuation command
+- ACT 诊断字段
+- FPV 原始 RGB 图像路径与尺寸
+
+当前这一版更适合作为：
+
+- Unity 侧逐步对齐导出
+- Python 侧二次转换为 HDF5 的中间格式
+- 本地排查动作 / 观测 / 图像是否一致的 sidecar 证据
+
+它不是 Repo A / Repo C 共享契约里的最终 HDF5 写入器。
+
+### 6.6 主场景配线与运行时验收仍需实机确认
 
 虽然代码已经有完整接口，但每个实际场景仍需检查：
 
 - `EpisodeManager.m_commandSource` 是否指向 ACT source
 - `ActOperatorCommandSource` 是否拿到 collector 和 backend client
 - `ActObservationCollector` 是否解析到 `ExcavatorMachineController`
-- `MassVolumeCounter` 是否存在
+- `ExcavationMassTracker` 是否存在
 - bucket reference 是否有效
 
 这属于工程配置问题，不再是架构缺失问题。
@@ -283,10 +328,10 @@ Unity 侧已经有：
 
 按当前状态，建议优先级如下：
 
-1. 提供可用的 Python `step_result` 服务端
+1. 重新对当前 Unity worktree 跑一轮 Repo A <-> Repo B 联调 smoke
 2. 校准 `boom/stick/bucket` 归一化范围
 3. 逐场景检查 rig 组件挂线
-4. 扩展 `ExperimentLogger` 的 ACT 诊断字段
+4. 明确 Unity JSON/RGB exporter 与 Repo A HDF5 的边界和后续转换策略
 5. 如有需要，再细化 `base_pose_world` 的参考系定义
 
 ---

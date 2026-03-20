@@ -244,7 +244,7 @@ public struct ExcavatorActuationCommand
 可复用现有能力：
 
 - `ResetTerrain.cs`
-- `MassVolumeCounter.cs`
+- `ExcavationMassTracker.cs`
 
 ### 4.2 日志记录
 
@@ -304,6 +304,7 @@ public struct ExcavatorActuationCommand
 可复用现有能力：
 
 - `LinkCamera.cs`
+  当前版本支持运行时视角微调，并可在 Inspector 直接配置 FOV。
 
 建议至少展示：
 
@@ -360,11 +361,11 @@ Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/Scripts/
 
 - 继续把它当作主扩展入口
 
-### `MassVolumeCounter`
+### `ExcavationMassTracker`
 
 定位：
 
-- 当前任务指标统计器
+- 当前质量指标统计器
 
 后续建议：
 
@@ -386,6 +387,13 @@ Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/Scripts/
 定位：
 
 - 当前展示层辅助工具
+
+当前能力：
+
+- 仍然按目标物体的相对位置与基础前向做跟随
+- 默认锁定世界上方向，不继承目标物体 roll，避免相机出现额外 Z 轴翻转
+- 运行时按住鼠标右键可调整 yaw / pitch，改变跟随相机朝向
+- FOV 可在 `LinkCamera` 组件 Inspector 中直接修改，并同步到底层 `Camera`
 
 后续建议：
 

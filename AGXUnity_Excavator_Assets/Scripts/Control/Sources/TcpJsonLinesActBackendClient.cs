@@ -30,7 +30,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
 
     private readonly object m_queueLock = new object();
     private readonly object m_responseLock = new object();
-    private readonly Queue<string> m_outboundMessages = new Queue<string>();
+    private readonly Queue<string> m_controlMessages = new Queue<string>();
 
     private Thread m_workerThread = null;
     private volatile bool m_stopRequested = false;
@@ -39,7 +39,10 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
     private StreamWriter m_writer = null;
     private bool m_isReady = false;
     private bool m_hasFreshResponse = false;
-    private bool m_helloQueued = false;
+    private bool m_hasActiveEpisode = false;
+    private bool m_resetDirty = false;
+    private string m_activeResetMessage = null;
+    private string m_latestStepMessage = null;
     private ActStepResponse m_latestResponse;
 
     public override bool IsReady => m_isReady;
@@ -64,7 +67,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
     {
       StartWorker();
 
-      var message = new ActResetMessage
+      var resetMessage = new ActResetMessage
       {
         session_id = sessionId,
         seq = 0,
@@ -78,7 +81,13 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
         }
       };
 
-      EnqueueMessage( JsonUtility.ToJson( message ) );
+      lock ( m_queueLock ) {
+        m_hasActiveEpisode = true;
+        m_activeResetMessage = JsonUtility.ToJson( resetMessage );
+        m_latestStepMessage = null;
+        m_resetDirty = true;
+        m_controlMessages.Clear();
+      }
     }
 
     public override void EndEpisode( string reason, string sessionId, int seq )
@@ -96,7 +105,14 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
         }
       };
 
-      EnqueueMessage( JsonUtility.ToJson( message ) );
+      lock ( m_queueLock ) {
+        m_hasActiveEpisode = false;
+        m_activeResetMessage = null;
+        m_latestStepMessage = null;
+        m_resetDirty = false;
+        if ( m_isReady )
+          m_controlMessages.Enqueue( JsonUtility.ToJson( message ) );
+      }
     }
 
     public override void SubmitObservation( ActStepRequest request )
@@ -115,7 +131,9 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
         }
       };
 
-      EnqueueMessage( JsonUtility.ToJson( message ) );
+      lock ( m_queueLock ) {
+        m_latestStepMessage = JsonUtility.ToJson( message );
+      }
     }
 
     public override bool TryGetLatestResult( out ActStepResponse response )
@@ -186,7 +204,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
 
     private void EnsureConnected()
     {
-      if ( m_client != null && m_client.Connected )
+      if ( IsConnectionAlive() )
         return;
 
       Disconnect();
@@ -212,9 +230,11 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       };
       m_isReady = true;
 
-      if ( !m_helloQueued ) {
-        m_writer.WriteLine( JsonUtility.ToJson( new ActHelloMessage() ) );
-        m_helloQueued = true;
+      m_writer.WriteLine( JsonUtility.ToJson( new ActHelloMessage() ) );
+
+      lock ( m_queueLock ) {
+        if ( m_hasActiveEpisode && !string.IsNullOrEmpty( m_activeResetMessage ) )
+          m_resetDirty = true;
       }
     }
 
@@ -223,18 +243,9 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       if ( m_writer == null )
         return;
 
-      while ( true ) {
-        string line = null;
-        lock ( m_queueLock ) {
-          if ( m_outboundMessages.Count > 0 )
-            line = m_outboundMessages.Dequeue();
-        }
-
-        if ( string.IsNullOrEmpty( line ) )
-          break;
-
-        m_writer.WriteLine( line );
-      }
+      WritePendingReset();
+      WriteControlMessages();
+      WriteLatestStep();
     }
 
     private void ReadIncomingMessages()
@@ -243,6 +254,9 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
         return;
 
       var socket = m_client.Client;
+      if ( socket != null && socket.Poll( 0, SelectMode.SelectRead ) && socket.Available == 0 )
+        throw new IOException( "ACT backend closed the TCP connection." );
+
       while ( socket != null && socket.Available > 0 ) {
         var line = m_reader.ReadLine();
         if ( string.IsNullOrWhiteSpace( line ) )
@@ -279,20 +293,82 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       }
     }
 
-    private void EnqueueMessage( string message )
+    private void WritePendingReset()
     {
-      if ( string.IsNullOrWhiteSpace( message ) )
+      string line = null;
+      lock ( m_queueLock ) {
+        if ( m_resetDirty && !string.IsNullOrWhiteSpace( m_activeResetMessage ) )
+          line = m_activeResetMessage;
+      }
+
+      if ( string.IsNullOrWhiteSpace( line ) )
         return;
 
+      m_writer.WriteLine( line );
+
       lock ( m_queueLock ) {
-        m_outboundMessages.Enqueue( message );
+        if ( line == m_activeResetMessage )
+          m_resetDirty = false;
+      }
+    }
+
+    private void WriteControlMessages()
+    {
+      while ( true ) {
+        string line = null;
+        lock ( m_queueLock ) {
+          if ( m_controlMessages.Count > 0 )
+            line = m_controlMessages.Dequeue();
+        }
+
+        if ( string.IsNullOrWhiteSpace( line ) )
+          break;
+
+        m_writer.WriteLine( line );
+      }
+    }
+
+    private void WriteLatestStep()
+    {
+      string line = null;
+      lock ( m_queueLock ) {
+        line = m_latestStepMessage;
+      }
+
+      if ( string.IsNullOrWhiteSpace( line ) )
+        return;
+
+      m_writer.WriteLine( line );
+
+      lock ( m_queueLock ) {
+        if ( line == m_latestStepMessage )
+          m_latestStepMessage = null;
+      }
+    }
+
+    private bool IsConnectionAlive()
+    {
+      if ( m_client == null )
+        return false;
+
+      try {
+        var socket = m_client.Client;
+        if ( socket == null || !socket.Connected )
+          return false;
+
+        return !(socket.Poll( 0, SelectMode.SelectRead ) && socket.Available == 0);
+      }
+      catch ( SocketException ) {
+        return false;
+      }
+      catch ( ObjectDisposedException ) {
+        return false;
       }
     }
 
     private void Disconnect()
     {
       m_isReady = false;
-      m_helloQueued = false;
 
       try {
         m_reader?.Dispose();
@@ -315,6 +391,12 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       m_reader = null;
       m_writer = null;
       m_client = null;
+
+      lock ( m_queueLock ) {
+        m_controlMessages.Clear();
+        if ( m_hasActiveEpisode && !string.IsNullOrEmpty( m_activeResetMessage ) )
+          m_resetDirty = true;
+      }
     }
   }
 }

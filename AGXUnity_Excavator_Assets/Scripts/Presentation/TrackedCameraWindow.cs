@@ -54,9 +54,12 @@ namespace AGXUnity_Excavator.Scripts.Presentation
 
     private Camera m_camera = null;
     private RenderTexture m_renderTexture = null;
+    private Texture2D m_captureTexture = null;
     private Transform m_runtimeTarget = null;
 
     public string ViewName => string.IsNullOrWhiteSpace( m_viewName ) ? gameObject.name : m_viewName;
+    public int TextureWidth => m_renderTexture != null ? m_renderTexture.width : Mathf.Max( 128, m_textureWidth );
+    public int TextureHeight => m_renderTexture != null ? m_renderTexture.height : Mathf.Max( 72, m_textureHeight );
 
     public bool IsVisible
     {
@@ -110,6 +113,7 @@ namespace AGXUnity_Excavator.Scripts.Presentation
 
     private void OnDestroy()
     {
+      ReleaseCaptureTexture();
       ReleaseRenderTexture();
     }
 
@@ -207,6 +211,92 @@ namespace AGXUnity_Excavator.Scripts.Presentation
 
       Destroy( m_renderTexture );
       m_renderTexture = null;
+    }
+
+    public bool TryCaptureRgb24( out byte[] rgb24, out int width, out int height )
+    {
+      rgb24 = null;
+      width = 0;
+      height = 0;
+
+      ResolveReferences();
+      EnsureRenderTexture();
+      UpdateTrackingPose();
+
+      if ( m_camera == null || m_renderTexture == null || m_runtimeTarget == null )
+        return false;
+
+      EnsureCaptureTexture();
+
+      var previousActive = RenderTexture.active;
+      var previousTarget = m_camera.targetTexture;
+      var wasEnabled = m_camera.enabled;
+
+      try {
+        m_camera.enabled = false;
+        m_camera.targetTexture = m_renderTexture;
+        m_camera.Render();
+
+        RenderTexture.active = m_renderTexture;
+        m_captureTexture.ReadPixels( new Rect( 0.0f, 0.0f, m_renderTexture.width, m_renderTexture.height ), 0, 0, false );
+        m_captureTexture.Apply( false, false );
+
+        var pixels = m_captureTexture.GetPixels32();
+        width = m_renderTexture.width;
+        height = m_renderTexture.height;
+        rgb24 = ConvertPixelsToTopDownRgb24( pixels, width, height );
+        return true;
+      }
+      finally {
+        RenderTexture.active = previousActive;
+        m_camera.targetTexture = previousTarget == null ? m_renderTexture : previousTarget;
+        m_camera.enabled = wasEnabled;
+      }
+    }
+
+    private void EnsureCaptureTexture()
+    {
+      var width = TextureWidth;
+      var height = TextureHeight;
+      if ( m_captureTexture != null &&
+           m_captureTexture.width == width &&
+           m_captureTexture.height == height )
+        return;
+
+      ReleaseCaptureTexture();
+      m_captureTexture = new Texture2D( width, height, TextureFormat.RGB24, false, false )
+      {
+        name = $"{name}_{ViewName}_Capture"
+      };
+    }
+
+    private void ReleaseCaptureTexture()
+    {
+      if ( m_captureTexture == null )
+        return;
+
+      Destroy( m_captureTexture );
+      m_captureTexture = null;
+    }
+
+    private static byte[] ConvertPixelsToTopDownRgb24( Color32[] pixels, int width, int height )
+    {
+      if ( pixels == null || pixels.Length == 0 || width <= 0 || height <= 0 )
+        return System.Array.Empty<byte>();
+
+      var rgb24 = new byte[ width * height * 3 ];
+      for ( var outputY = 0; outputY < height; ++outputY ) {
+        var sourceY = height - 1 - outputY;
+        for ( var x = 0; x < width; ++x ) {
+          var pixel = pixels[ sourceY * width + x ];
+          var destinationIndex = ( outputY * width + x ) * 3;
+          rgb24[ destinationIndex + 0 ] = pixel.r;
+          rgb24[ destinationIndex + 1 ] = pixel.g;
+          rgb24[ destinationIndex + 2 ] = pixel.b;
+        }
+      }
+
+      return rgb24;
     }
 
     private void UpdateCameraState()

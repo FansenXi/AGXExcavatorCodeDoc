@@ -1,5 +1,8 @@
 using System;
+using AGXUnity_Excavator.Scripts.Control.Core;
+using AGXUnity_Excavator.Scripts.Control.Sources;
 using AGXUnity_Excavator.Scripts.Experiment;
+using AGXUnity_Excavator.Scripts.SimulationBridge;
 using UnityEngine;
 
 namespace AGXUnity_Excavator.Scripts.Presentation
@@ -10,12 +13,26 @@ namespace AGXUnity_Excavator.Scripts.Presentation
     private EpisodeManager m_episodeManager = null;
 
     [SerializeField]
-    private Rect m_rect = new Rect( 16.0f, 16.0f, 460.0f, 380.0f );
+    private ActObservationCollector m_observationCollector = null;
+
+    [SerializeField]
+    private AgxSimStepAckServer m_stepAckServer = null;
+
+    [SerializeField]
+    private Rect m_rect = new Rect( 16.0f, 16.0f, 520.0f, 520.0f );
 
     [SerializeField]
     private bool m_showRuntimeConfig = true;
 
+    [SerializeField]
+    private bool m_showStepAckDebug = true;
+
+    [SerializeField]
+    private bool m_showCalibrationDebug = true;
+
     private GUIStyle m_style = null;
+    private GUIStyle m_popupTitleStyle = null;
+    private GUIStyle m_popupBodyStyle = null;
     private TrackedCameraWindow[] m_cameraWindows = Array.Empty<TrackedCameraWindow>();
     private float m_nextRuntimeRefreshTime = 0.0f;
 
@@ -48,6 +65,23 @@ namespace AGXUnity_Excavator.Scripts.Presentation
           richText = true,
           wordWrap = true
         };
+
+        m_popupTitleStyle = new GUIStyle( GUI.skin.label )
+        {
+          alignment = TextAnchor.MiddleCenter,
+          fontStyle = FontStyle.Bold,
+          fontSize = 18,
+          richText = true,
+          wordWrap = true
+        };
+
+        m_popupBodyStyle = new GUIStyle( GUI.skin.label )
+        {
+          alignment = TextAnchor.MiddleCenter,
+          fontSize = 14,
+          richText = true,
+          wordWrap = true
+        };
       }
 
       GUILayout.BeginArea( m_rect, GUI.skin.box );
@@ -58,7 +92,9 @@ namespace AGXUnity_Excavator.Scripts.Presentation
       GUILayout.EndHorizontal();
       GUILayout.Label( $"Episode: {m_episodeManager.CurrentEpisodeIndex}    Running: {m_episodeManager.IsEpisodeRunning}", m_style );
       GUILayout.Label( $"Source: {m_episodeManager.CurrentSourceName}", m_style );
-      GUILayout.Label( "Controls: R reset, Enter start, Backspace stop", m_style );
+      if ( !string.IsNullOrWhiteSpace( m_episodeManager.CurrentControlLayout ) )
+        GUILayout.Label( $"Layout: {m_episodeManager.CurrentControlLayout}", m_style );
+      GUILayout.Label( "Controls: R reset, Enter start, Backspace stop, F6/F7 switch source, 1-9 select source", m_style );
       if ( m_showRuntimeConfig )
         DrawRuntimeConfig();
 
@@ -83,11 +119,18 @@ namespace AGXUnity_Excavator.Scripts.Presentation
       GUILayout.Label( $"Act: {m_episodeManager.LastActuationCommand.ToCompactString()}", m_style );
       GUILayout.Space( 6.0f );
       GUILayout.Label( $"Mass in bucket: {m_episodeManager.MassInBucket:0.00} kg", m_style );
-      GUILayout.Label( $"Excavated mass: {m_episodeManager.ExcavatedMass:0.00} kg", m_style );
-      GUILayout.Label( $"Excavated volume: {m_episodeManager.ExcavatedVolume:0.000} m^3", m_style );
+      if ( m_showStepAckDebug )
+        DrawStepAckDebug();
+      if ( m_showCalibrationDebug )
+        DrawCalibrationDebug();
       GUILayout.Space( 6.0f );
       GUILayout.Label( $"Last log: {m_episodeManager.LastSavedPath}", m_style );
+      if ( !string.IsNullOrWhiteSpace( m_episodeManager.LastTeleopExportPath ) )
+        GUILayout.Label( $"Last teleop export: {m_episodeManager.LastTeleopExportPath}", m_style );
       GUILayout.EndArea();
+
+      if ( m_episodeManager.IsTransitionInputCutActive )
+        DrawReleaseInputPopup();
     }
 
     private void DrawRuntimeConfig()
@@ -96,12 +139,14 @@ namespace AGXUnity_Excavator.Scripts.Presentation
       GUILayout.Label( "<b>Runtime Config</b>", m_style );
 
       if ( m_episodeManager.AvailableSourceCount > 0 ) {
-        GUILayout.Label( "Control source (switching restarts the active episode):", m_style );
+        GUILayout.Label( "Control source (F6/F7 cycle, 1-9 select, switching restarts the active episode):", m_style );
         for ( var sourceIndex = 0; sourceIndex < m_episodeManager.AvailableSourceCount; ++sourceIndex ) {
           var isCurrentSource = sourceIndex == m_episodeManager.CurrentSourceIndex;
+          var sourceDisplayName = m_episodeManager.GetAvailableSourceDisplayName( sourceIndex );
+          var hotkeyPrefix = GetSourceHotkeyLabel( sourceIndex );
           var buttonLabel = isCurrentSource ?
-                            $"[{m_episodeManager.GetAvailableSourceDisplayName( sourceIndex )}] Active" :
-                            m_episodeManager.GetAvailableSourceDisplayName( sourceIndex );
+                            $"{hotkeyPrefix}{sourceDisplayName} Active" :
+                            $"{hotkeyPrefix}{sourceDisplayName}";
 
           GUI.enabled = !isCurrentSource;
           if ( GUILayout.Button( buttonLabel ) )
@@ -131,7 +176,10 @@ namespace AGXUnity_Excavator.Scripts.Presentation
     private void RefreshRuntimeTargets()
     {
       if ( m_episodeManager == null )
-        m_episodeManager = GetComponent<EpisodeManager>();
+        m_episodeManager = ExcavatorRigLocator.ResolveComponent( this, m_episodeManager );
+
+      m_observationCollector = ExcavatorRigLocator.ResolveComponent( this, m_observationCollector );
+      m_stepAckServer = ExcavatorRigLocator.ResolveComponent( this, m_stepAckServer );
 
       m_episodeManager?.RefreshAvailableSources();
 
@@ -139,6 +187,48 @@ namespace AGXUnity_Excavator.Scripts.Presentation
         FindObjectsInactive.Include,
         FindObjectsSortMode.None );
       Array.Sort( m_cameraWindows, CompareCameraWindows );
+    }
+
+    private void DrawStepAckDebug()
+    {
+      if ( m_stepAckServer == null )
+        return;
+
+      GUILayout.Space( 6.0f );
+      GUILayout.Label( "<b>AGX Step-Ack</b>", m_style );
+      GUILayout.Label( $"Listening: {m_stepAckServer.IsListening}    Last msg: {m_stepAckServer.LastRequestTypeName}    Step: {m_stepAckServer.LastRequestStepId}", m_style );
+      GUILayout.Label( $"Success: {m_stepAckServer.LastResponseSuccess}    Reset applied: {m_stepAckServer.LastResetApplied}", m_style );
+      GUILayout.Label( $"FPV: {m_stepAckServer.LastImageWidth}x{m_stepAckServer.LastImageHeight}    Payload: {m_stepAckServer.LastImagePayloadBytes} bytes", m_style );
+      GUILayout.Label( $"Warnings: {m_stepAckServer.LastWarningsSummary}", m_style );
+      if ( !string.IsNullOrWhiteSpace( m_stepAckServer.LastError ) )
+        GUILayout.Label( $"Error: {m_stepAckServer.LastError}", m_style );
+    }
+
+    private void DrawCalibrationDebug()
+    {
+      if ( m_observationCollector == null )
+        return;
+
+      GUILayout.Space( 6.0f );
+      GUILayout.Label( "<b>Actuator Calibration</b>", m_style );
+      var debugLines = m_observationCollector.GetCalibrationDebugLines();
+      if ( debugLines == null || debugLines.Length == 0 ) {
+        GUILayout.Label( "No actuator calibration samples yet.", m_style );
+        return;
+      }
+
+      for ( var lineIndex = 0; lineIndex < debugLines.Length; ++lineIndex ) {
+        var debugLine = debugLines[ lineIndex ];
+        if ( string.IsNullOrWhiteSpace( debugLine ) )
+          continue;
+
+        GUILayout.Label( debugLine, m_style );
+      }
+    }
+
+    private static string GetSourceHotkeyLabel( int sourceIndex )
+    {
+      return sourceIndex >= 0 && sourceIndex < 9 ? $"[{sourceIndex + 1}] " : string.Empty;
     }
 
     private static int CompareCameraWindows( TrackedCameraWindow left, TrackedCameraWindow right )
@@ -153,6 +243,27 @@ namespace AGXUnity_Excavator.Scripts.Presentation
         return -1;
 
       return string.Compare( left.ViewName, right.ViewName, StringComparison.Ordinal );
+    }
+
+    private void DrawReleaseInputPopup()
+    {
+      var popupWidth = Mathf.Min( 460.0f, Screen.width - 32.0f );
+      var popupHeight = 140.0f;
+      var popupRect = new Rect(
+        0.5f * ( Screen.width - popupWidth ),
+        Mathf.Max( 24.0f, 0.18f * Screen.height ),
+        popupWidth,
+        popupHeight );
+
+      GUILayout.BeginArea( popupRect, GUI.skin.window );
+      GUILayout.FlexibleSpace();
+      GUILayout.Label( "Release Controls", m_popupTitleStyle );
+      GUILayout.Space( 8.0f );
+      GUILayout.Label( m_episodeManager.TransitionInputCutHint, m_popupBodyStyle );
+      GUILayout.Space( 4.0f );
+      GUILayout.Label( "The next episode will accept input after all axes return to neutral.", m_popupBodyStyle );
+      GUILayout.FlexibleSpace();
+      GUILayout.EndArea();
     }
   }
 }
