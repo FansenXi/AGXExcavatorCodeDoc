@@ -49,6 +49,27 @@
 - 当前 `reward` 字段仍为 `0.0`，任务成功由 Repo A / Repo C 基于
   `env_state[0] = mass_in_bucket_kg` 做 post-hoc evaluator 判定
 
+## 2.2 当前联调 / 运行命令
+
+Repo A 当前主线命令是：
+
+```bash
+conda activate aloha
+python scripts/agx_smoke.py --host 127.0.0.1 --port 5057 --steps 500 --strict
+tb-record-teleop --config testbed/configs/teleop_v0.yaml --input joystick --num-episodes 5
+tb-replay --episode data/agx_teleop/episode_0.hdf5 --config testbed/configs/teleop_v0.yaml --save-video
+tb-train --config testbed/configs/act_agx_v0.yaml
+tb-eval --config testbed/configs/eval_agx_v0.yaml
+```
+
+命令边界：
+
+- `tb-record-teleop` / `tb-replay` / `tb-eval` 都需要 Unity 主场景运行并监听
+  step-ack 端口
+- `tb-train` 是离线训练，不需要 Unity 在线
+- 最终 canonical dataset 仍由 Repo A 写 HDF5；Unity 导出的
+  `metadata.json` / `steps.jsonl` / raw RGB 是本地 sidecar，不是共享主数据格式
+
 ## 3. 顶层目录
 
 ```text

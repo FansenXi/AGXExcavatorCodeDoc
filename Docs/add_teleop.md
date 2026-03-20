@@ -49,9 +49,10 @@ FPV camera
   Unity scene:
   Python joystick input -> binary `STEP_REQ` -> Unity -> HDF5 episode output
 - The current V0 success rule is now closed as:
-  - `mass_in_bucket_kg >= 2.0` for `hold_steps = 25`
-  - rationale: current March 19 Unity exports showed sub-kg noise below that
-    and the smallest clear scoop at about `2.10775 kg`
+  - `mass_in_bucket_kg >= 2.0` at any point within the `500`-step episode
+  - rationale: this matches the current MVP operator constraint better than a
+    0.5s hold requirement, while still keeping the threshold above observed
+    sub-kg noise
 - The current V0 task scope is fixed-position / stationary digging:
   - step-ack action space remains 4D arm control only
   - drive / steer / track motion are intentionally excluded for V0
@@ -113,6 +114,28 @@ be parity-complete
   explicitly scope it out as a non-parity scene
 7. After the end-to-end smoke passes, clean up or archive the stale V0 sections
   in this file to avoid future drift
+
+### Current Repo A runbook
+
+The current primary operator flow is:
+
+```bash
+conda activate aloha
+python scripts/agx_smoke.py --host 127.0.0.1 --port 5057 --steps 500 --strict
+tb-record-teleop --config testbed/configs/teleop_v0.yaml --input joystick --num-episodes 5
+tb-replay --episode data/agx_teleop/episode_0.hdf5 --config testbed/configs/teleop_v0.yaml --save-video
+tb-train --config testbed/configs/act_agx_v0.yaml
+tb-eval --config testbed/configs/eval_agx_v0.yaml
+```
+
+Boundary reminder:
+
+- `tb-record-teleop` and `tb-eval` are live Repo A <-> Repo B commands and
+  require this Unity scene to be running in Play mode with the step-ack server
+  listening
+- `tb-train` is offline and only reads Repo A HDF5 episodes
+- Unity-local `metadata.json` / `steps.jsonl` / `.rgb24` exports remain sidecar
+  artifacts, not the canonical training dataset
 
 ## Implementation Status Update (2026-03-18)
 
@@ -358,10 +381,10 @@ We will define success in Python evaluator (backend-agnostic) using signals in o
 
 Success if:
 
-- `mass_in_bucket >= M_thresh` for at least `hold_steps` consecutive steps  
+- `mass_in_bucket >= M_thresh` at any point within the episode budget
 Example defaults:
 - `M_thresh = team_defined` (units from AGX)
-- `hold_steps = 25` (0.5s @ 50Hz)
+- `hold_steps = 1` (threshold reached within the 500-step rollout)
 
 Fallback if mass_in_bucket unavailable:
 
@@ -685,7 +708,7 @@ Primary metric: success_rate.
 
 Recommended V0 success rule:
 
-- success if `mass_in_bucket >= M_thresh` for `hold_steps=25` consecutive steps (0.5s @ 50Hz)
+- success if `mass_in_bucket >= M_thresh` at any point within the `500`-step episode
 
 Fallback if mass_in_bucket unavailable:
 
@@ -932,12 +955,12 @@ Exit criteria:
 ### Joint decision (fast)
 
 - Define env_state index for mass_in_bucket
-- Pick initial M_thresh and hold_steps=25
+- Pick initial M_thresh and set `hold_steps=1` for the MVP rule
 
 ### Python/testbed team
 
 - Implement evaluator rule:
-  - success if mass_in_bucket >= M_thresh for 25 consecutive steps
+  - success if mass_in_bucket >= M_thresh at any point within the episode
 - Fixed eval suite:
   - fixed reset mode
   - fixed scenario list (even 3 seeds is enough for V0)
