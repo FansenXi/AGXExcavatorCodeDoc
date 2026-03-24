@@ -222,8 +222,15 @@ Current Unity values:
 Reward note:
 - for the current V0 stationary digging pipeline, `reward` is a placeholder
   transport field and is not the primary task signal
-- Repo A / Repo C currently determine success post-hoc from
-  `env_state[0] = mass_in_bucket_kg`
+- Repo A / the Python testbed currently compute excavation mission reward
+  locally from `env_state`
+- current testbed reward sub-targets are:
+  - meaningful bucket load acquisition
+  - approaching the active target while loaded
+  - increasing retained mass inside the active target
+  - holding retained target mass above the configured success threshold
+- current default testbed success signal is
+  `deposited_mass_in_target_box_kg >= 100.0 kg` for `25` consecutive steps
 
 Target note:
 - `env_state[2]` and `env_state[3]` report the active target selected by Unity runtime target routing

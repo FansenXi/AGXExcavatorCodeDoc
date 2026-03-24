@@ -46,13 +46,16 @@
 
 - Repo A 当前通过二进制 step-ack 录制的 HDF5 数据集，是站位固定的挖掘演示数据
 - 履带移动如果需要，属于回合外人工 reposition，或未来 V1 再扩 action space
-- 当前 `reward` 字段仍为 `0.0`
+- Unity `reward` 字段当前仍为 `0.0`，但 Repo A / testbed 已经基于导出的
+  `env_state` 本地计算 excavation mission reward
 - 当前 step-ack `env_state` 顺序是：
   `[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m]`
 - `mass_in_target_box_kg` 当前表示“运行时选中的接料目标”
   当前主场景支持 `ContainerBox` 和 `TruckBed`
 - `min_distance_to_target_m` 当前表示 bucket 量测体到当前激活目标量测体的近似最小距离
-- 当前默认 evaluator 仍使用 `env_state[0] = mass_in_bucket_kg` 做 post-hoc 成功判定
+- 当前默认 evaluator / mission success 使用
+  `deposited_mass_in_target_box_kg` 作为最终成功信号，默认阈值为
+  `100 kg` 且需保持 `25` 个 control step
 
 ## 2.2 当前联调 / 运行命令
 

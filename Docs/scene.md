@@ -152,17 +152,39 @@ Current default AGX success rule in the testbed:
 
 These are current defaults, not final tuned values. They are expected to be refined after pilot target-mass runs.
 
-The testbed also now computes AGX reward locally from exported `env_state` instead of using Unity's placeholder `reward = 0.0`.
+The testbed computes AGX reward locally from exported `env_state` instead of
+using Unity's placeholder `reward = 0.0`.
 
-Current reward phases are:
+The mission is still treated as one continuous objective. The testbed does not
+require Unity to export explicit stage IDs. Reward is attached to observable
+sub-targets inside that single mission:
 
-- `0.0` idle
-- `1.0` loaded
-- `2.0` approach
-- `3.0` depositing
-- `4.0` retained
+1. `loading`
+   The bucket starts gaining meaningful soil mass.
+   Signals: `mass_in_bucket_kg`, `excavated_mass_kg`
+2. `approaching_target`
+   A loaded bucket moves closer to the currently active target.
+   Signals: `mass_in_bucket_kg`, `min_distance_to_target_m`
+3. `depositing`
+   Retained mass in the active target starts increasing.
+   Signals: `mass_in_target_box_kg`, `deposited_mass_in_target_box_kg`
+4. `retained_success`
+   Net retained mass in the active target stays above the configured success
+   threshold long enough to count as task success.
+   Signal: `deposited_mass_in_target_box_kg`
 
-This reward is testbed-defined mission shaping. It is useful for recording, evaluation overlays, and analysis, but the mission success decision still comes from the configured target-mass signal and threshold.
+Current reward range:
+
+- `0.0` idle / no meaningful progress yet
+- `0.0 - 1.0` loading progress
+- `1.0 - 2.0` loaded and moving toward the target
+- `2.0 - 3.0` depositing into the target
+- `4.0` retained success held
+
+The tracker also emits optional per-step success/fail logs such as
+`load_progress`, `approach_progress`, `deposit_progress`,
+`spill_before_target`, and `unsafe_target_distance` for debugging. These logs
+are testbed-side diagnostics; they are not part of the Unity wire protocol.
 
 ## 6. Operational Flow
 
