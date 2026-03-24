@@ -2,6 +2,8 @@
 !/.gitignore
 !/Docs/
 !/Docs/**
+!/skill/
+!/skill/**
 !/AGXUnity_Excavator_Assets/
 /AGXUnity_Excavator_Assets/*
 !/AGXUnity_Excavator_Assets/Scripts/
