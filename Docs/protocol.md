@@ -1,12 +1,14 @@
 # AGXUnity Step-Ack Binary Protocol
 
 **Status:** current implementation truth source for Unity side  
-**Last updated:** 2026-03-19  
+**Last updated:** 2026-03-24  
 **Implementation files:**
 - `AGXUnity_Excavator_Assets/Scripts/SimulationBridge/AgxSimProtocol.cs`
 - `AGXUnity_Excavator_Assets/Scripts/SimulationBridge/AgxSimStepAckServer.cs`
 - `AGXUnity_Excavator_Assets/Scripts/Presentation/TrackedCameraWindow.cs`
 - `AGXUnity_Excavator_Assets/Scripts/Control/Sources/ActObservationCollector.cs`
+- `AGXUnity_Excavator_Assets/Scripts/Experiment/SwitchableTargetMassSensor.cs`
+- `AGXUnity_Excavator_Assets/Scripts/Experiment/TruckBedMassSensor.cs`
 
 This document describes the protocol that is currently implemented in the Unity repo.
 If older draft documents conflict with this file, this file and the code win.
@@ -33,7 +35,17 @@ Current control semantics:
 Current observation semantics:
 - qpos order: `[swing_position_norm, boom_position_norm, stick_position_norm, bucket_position_norm]`
 - qvel order: `[swing_speed, boom_speed, stick_speed, bucket_speed]`
-- env_state order: `[mass_in_bucket_kg]`
+- env_state order:
+  `[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg]`
+
+`mass_in_target_box_kg` semantics:
+- this field always refers to the **currently active Unity dump target**
+- the current main scene can switch between `ContainerBox` and `TruckBed`
+- field names stay stable for V0 compatibility even when the active target changes
+
+`deposited_mass_in_target_box_kg` semantics:
+- this field is the net retained mass inside the active target since the latest reset
+- Unity computes it as current measured target mass minus the reset baseline, clamped to zero
 
 ## 2. Byte Order and Primitive Encoding
 
@@ -171,7 +183,7 @@ After the common response prefix, fields are written in this order:
 Current behavior:
 - `reset_applied = true` when `reset_terrain || reset_pose`
 - when `reset_pose = true` and `reset_terrain = false`, Unity resets pose / counters without forcing a terrain height reset
-- when both flags are true, Unity performs the full scene reset path
+- when both flags are true, Unity performs the full scene reset path, including truck rigid bodies and truck bed/drivetrain constraints
 - when `reset_terrain = true`, Unity rebuilds the deformable terrain native instance so dynamic soil mass/particles are cleared as part of reset, including particles that were still trapped in the bucket
 - for step-ack serving, a successful reset also re-arms the machine controller engine so subsequent `STEP_REQ` actions take effect immediately
 - Unity reset path prefers `SceneResetService.ResetScene(resetTerrain, resetPose)` and only falls back to `EpisodeManager.ResetEpisode(...)` for full resets
@@ -196,7 +208,7 @@ After the common response prefix, fields are written in this order:
 Current Unity values:
 - `qpos.len = 4`
 - `qvel.len = 4`
-- `env_state.len = 1`
+- `env_state.len = 4`
 - `reward = 0.0`
 - `image_format = "raw_rgb"` when FPV capture succeeds
 - `image_w = 0`, `image_h = 0`, `image_payload = empty` when no FPV frame is available
@@ -206,6 +218,11 @@ Reward note:
   transport field and is not the primary task signal
 - Repo A / Repo C currently determine success post-hoc from
   `env_state[0] = mass_in_bucket_kg`
+
+Target note:
+- `env_state[2]` and `env_state[3]` report the active target selected by Unity runtime target routing
+- Unity local CSV logs now include `target_name` for debugging
+- the binary `STEP_RESP` payload does **not** yet carry `target_name`; clients should treat target identity as scene/runtime configuration for now
 
 Image payload rules:
 - layout is row-major
@@ -235,6 +252,7 @@ Compared with older drafts in this repo, the current Unity implementation has th
 - FPV export now uses raw RGB bytes, not base64-wrapped JSON payloads.
 - `GET_INFO_RESP` now advertises camera metadata directly from the running FPV camera.
 - `reset_pose` is supported through the current reset path.
+- target mass routing can now switch between multiple Unity dump targets while keeping the same env_state layout.
 
 ## 12. Known Limits
 
@@ -243,3 +261,4 @@ The current Unity implementation still has some limits that clients should know 
 - the boom position/speed still uses `BoomPrismatics[0]`
 - transport has CRC32 and framing; the server now drops stale dead TCP clients, but it is still a single-client sequential protocol
 - this document describes Unity-side implementation only; Python client must mirror the same field order exactly
+- active target identity is not yet serialized in `GET_INFO_RESP` / `STEP_RESP`; use scene config or Unity-side logs/HUD when switching targets

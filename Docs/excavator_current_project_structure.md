@@ -1,6 +1,6 @@
 # AGXUnity Excavator Current Project Structure
 
-更新时间：2026-03-19
+更新时间：2026-03-24
 
 ## 1. 文档目的
 
@@ -46,8 +46,12 @@
 
 - Repo A 当前通过二进制 step-ack 录制的 HDF5 数据集，是站位固定的挖掘演示数据
 - 履带移动如果需要，属于回合外人工 reposition，或未来 V1 再扩 action space
-- 当前 `reward` 字段仍为 `0.0`，任务成功由 Repo A / Repo C 基于
-  `env_state[0] = mass_in_bucket_kg` 做 post-hoc evaluator 判定
+- 当前 `reward` 字段仍为 `0.0`
+- 当前 step-ack `env_state` 顺序是：
+  `[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg]`
+- `mass_in_target_box_kg` 当前表示“运行时选中的接料目标”
+  当前主场景支持 `ContainerBox` 和 `TruckBed`
+- 当前默认 evaluator 仍使用 `env_state[0] = mass_in_bucket_kg` 做 post-hoc 成功判定
 
 ## 2.2 当前联调 / 运行命令
 
@@ -67,8 +71,8 @@ tb-eval --config testbed/configs/eval_agx_v0.yaml
 - `tb-record-teleop` / `tb-replay` / `tb-eval` 都需要 Unity 主场景运行并监听
   step-ack 端口
 - `tb-train` 是离线训练，不需要 Unity 在线
-- 最终 canonical dataset 仍由 Repo A 写 HDF5；Unity 导出的
-  `metadata.json` / `steps.jsonl` / raw RGB 是本地 sidecar，不是共享主数据格式
+- 最终 canonical dataset 由 Repo A 直接写 HDF5
+- 当前主场景不再挂 Unity 本地 `metadata.json` / `steps.jsonl` / raw RGB sidecar exporter
 
 ## 3. 顶层目录
 
@@ -114,7 +118,7 @@ flowchart TB
       Sources["Control/Sources<br/>键盘 / 手柄 / FarmStick / ACT"]
       Sim["Control/Simulation<br/>输入仿真与平滑"]
       Exec["Control/Execution<br/>命令解释与 AGX 执行"]
-      Exp["Experiment<br/>Episode / Logger / Exporter"]
+      Exp["Experiment<br/>Episode / Logger / Reset / Sensor"]
       Present["Presentation<br/>HUD / Camera Window"]
       Bridge["SimulationBridge<br/>Binary Step-Ack Server"]
     end
@@ -216,18 +220,30 @@ flowchart TB
 - `EpisodeManager.cs`
 - `SceneResetService.cs`
 - `ExperimentLogger.cs`
-- `TeleopEpisodeExporter.cs`
+- `TerrainParticleBoxMassSensor.cs`
+- `TruckBedMassSensor.cs`
+- `SwitchableTargetMassSensor.cs`
+- `TargetMassSensorBase.cs`
+
+补充说明：
+
+- 历史上存在过 Unity 本地 sidecar 导出路径
+- 但相关 `TeleopEpisodeExporter` 脚本和主场景挂载都已从当前主线移除，因此不再作为当前主线输出路径说明对象
 
 职责划分：
 
 - `EpisodeManager`
   负责回合开始、结束、重置、输入源切换，以及主控制链驱动
 - `SceneResetService`
-  负责场景重置
+  负责场景重置；当前会对全场景刚体与约束做快照/恢复，所以 `BedTruck` 的车体姿态和 bed 相关约束状态也会随 reset 一起回到初始基线
 - `ExperimentLogger`
   负责导出逐帧 CSV 日志
-- `TeleopEpisodeExporter`
-  负责导出 teleop 数据目录，包含 `metadata.json`、`steps.jsonl` 和可选 FPV 原始帧
+- `TerrainParticleBoxMassSensor`
+  负责把场景里的目标箱体/接料面当成“接料质量传感区域”，统计当前箱内质量与 reset 以来的净沉积质量，来源同时包含 terrain soil particles 和 `HandleAsParticle` 动态刚体（例如 `Dynamic Rock`）
+- `TruckBedMassSensor`
+  负责把 `BedTruck` 的 `Bed` / trunk 区域当成接料质量传感区域，优先按 `Bed` 子树中的 AGX `Box` 碰撞几何合成局部包围盒并加顶部余量，统计当前质量和 reset 以来的净沉积质量；统计时会聚合所有活跃 `DeformableTerrain`，避免 truck bed support terrain 让粒子质量漏计
+- `SwitchableTargetMassSensor`
+  负责在多个目标传感器之间做运行时切换，并把当前激活目标统一暴露给 `EpisodeManager`、`ActObservationCollector`、HUD 和 reset 链路
 
 ### 4.6 `Presentation`
 
@@ -240,7 +256,8 @@ flowchart TB
 
 职责：
 
-- `ExperimentHUD` 展示运行时状态、输入源、ACT 状态、step-ack 状态、导出路径
+- `ExperimentHUD` 展示运行时状态、输入源、ACT 状态、step-ack 状态和质量统计
+- HUD 现在同时展示当前激活的接料目标，并支持通过 `F8/F9` 在不同 target 间切换
 - `TrackedCameraWindow` 提供场景内相机窗口和原始 RGB 抓帧能力
 
 ### 4.7 `SimulationBridge`
@@ -272,8 +289,6 @@ flowchart LR
     SIM --> INT["ExcavatorCommandInterpreter"]
     INT --> MACH["ExcavatorMachineController"]
     MACH --> LOG["ExperimentLogger"]
-    MACH --> EXP["TeleopEpisodeExporter"]
-    EXP --> HUD["ExperimentHUD"]
     LOG --> HUD
   end
 
@@ -310,7 +325,7 @@ OperatorCommandSourceBehaviour
   -> OperatorCommandSimulator
   -> ExcavatorCommandInterpreter
   -> ExcavatorMachineController
-  -> ExperimentLogger / TeleopEpisodeExporter
+  -> ExperimentLogger
   -> ExperimentHUD
 ```
 
@@ -328,7 +343,7 @@ OperatorCommandSourceBehaviour
 3. 通过 `OperatorCommandSimulator` 做输入仿真
 4. 通过 `ExcavatorCommandInterpreter` 转成执行命令
 5. 通过 `ExcavatorMachineController` 应用到 AGX 挖机
-6. 在回合运行时记录 CSV 日志和 teleop 导出
+6. 在回合运行时记录 CSV 日志
 
 ### 5.2 ACT 在线推理链
 
@@ -386,12 +401,12 @@ Python client
 - `OperatorCommandSimulator`
 - `ExcavatorMachineController`
 - `ExperimentLogger`
-- `TeleopEpisodeExporter`
 - `ExperimentHUD`
 - `ActObservationCollector`
 - `ActOperatorCommandSource`
 - `TcpJsonLinesActBackendClient`
 - `AgxSimStepAckServer`
+- `TerrainParticleBoxMassSensor`（场景中的 `SubmergedBox` 挂载）
 
 可以把它理解成一个“实验控制中枢”：
 
@@ -401,7 +416,7 @@ Python client
 
 ## 7. 当前数据输出
 
-当前项目已经有两类主要输出：
+当前项目主线有一类主要输出，另有一类历史 sidecar 目录格式说明：
 
 ### 7.1 CSV 实验日志
 
@@ -416,16 +431,37 @@ Python client
 - 执行命令
 - bucket 位姿
 - 任务质量统计
+- 目标箱体当前质量与 reset 以来净沉积质量
 - 硬件输入快照
 - ACT 诊断字段
 
-### 7.2 Teleop 回合导出
+当前主场景里新增了一条“目标箱体粒子质量统计”支线：
+
+- 场景对象 `SubmergedBox` 挂 `TerrainParticleBoxMassSensor`
+- `SubmergedBox` 根节点保留一个 AGX `Box` 作为传感器 footprint / 底板
+- `SubmergedBox` 四个墙子物体现在各自挂 AGX `Box`，作为静态几何体参与 AGX 碰撞
+- 传感器直接遍历所有活跃 `DeformableTerrainBase` 当前 soil particles，包含 truck bed 使用的 `MovableTerrain`
+- 同时遍历场景里 `HandleAsParticle` 且仍为 `DYNAMICS` 的刚体，例如 `Dynamic Rock`
+- 在 `SubmergedBox` 上方的定向盒体体积内累加 soil particle 质量与上述动态刚体质量
+- `TruckBedMassSensor` 会在 AGX 初始化前禁用 truck 的 `BedTerrain` 子物体、重新启用 `Bed` 现有支撑 `Box` 碰撞，并优先用这些 `Box` 碰撞几何加顶部 headroom 构造 truck 测量体积，以本次 reset 时的质量为基线输出 truck target 质量，避免 truck 的 `MovableTerrain` merge 成高度场后漏计、底板穿透或只统计到床斗底部一层
+- `SceneResetService.ResetScene(resetTerrain: true, ...)` 后，terrain native 会清掉动态粒子，传感器计数同步归零
+- 这条质量数据当前进入 `ExperimentHUD`、`ExperimentLogger` 和 `ActObservation.task_state.*`
+- 二进制 `STEP_RESP.env_state` 当前顺序是：
+  `[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg]`
+
+`ExcavationMassTracker` 当前也不再只依赖 `terrain.getDynamicMass(shovel)`：
+
+- bucket 内质量仍保留 terrain 对 shovel 的动态质量统计
+- 另外会在 bucket 局部测量体积里额外统计 `HandleAsParticle` 动态刚体的质量
+- 这使 `MassInBucket` / `ExcavatedMass` 可以覆盖 `Dynamic Rock` 这类被当成粒子处理的动态石块
+
+### 7.2 历史 Sidecar 导出
 
 默认目录：
 
 - `TeleopExports/`
 
-由 `TeleopEpisodeExporter` 负责，当前目录结构是：
+历史 sidecar 导出目录结构曾经是：
 
 ```text
 episode_xxx_timestamp_source/
@@ -437,7 +473,7 @@ episode_xxx_timestamp_source/
       ...
 ```
 
-这套导出更接近后续 Python 侧数据转换入口，而不是单纯调试日志。
+当前主场景不再生成这套 sidecar，Python 主线也不消费它；当前 canonical 数据集路径仍然是 Repo A 直接写 HDF5。
 
 ## 8. 当前结构上的关键区分
 
@@ -462,8 +498,8 @@ episode_xxx_timestamp_source/
 2. `AGXUnity_Excavator_Assets/Scripts/Experiment/EpisodeManager.cs`
 3. `AGXUnity_Excavator_Assets/Scripts/Control/Sources/ActOperatorCommandSource.cs`
 4. `AGXUnity_Excavator_Assets/Scripts/SimulationBridge/AgxSimStepAckServer.cs`
-5. `AGXUnity_Excavator_Assets/Scripts/Experiment/TeleopEpisodeExporter.cs`
-6. `AGXUnity_Excavator_Assets/Scripts/Presentation/ExperimentHUD.cs`
+5. `AGXUnity_Excavator_Assets/Scripts/Presentation/ExperimentHUD.cs`
+6. `AGXUnity_Excavator_Assets/Scripts/TerrainParticleBoxMassSensor.cs`
 
 ## 10. 当前状态总结
 

@@ -73,6 +73,8 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
   {
     public float mass_in_bucket_kg = 0.0f;
     public float excavated_mass_kg = 0.0f;
+    public float mass_in_target_box_kg = 0.0f;
+    public float deposited_mass_in_target_box_kg = 0.0f;
   }
 
   [Serializable]

@@ -247,8 +247,17 @@ public interface IActBackendClient
 | `bucket_pose_world` | `ExcavatorMachineController.BucketReference` |
 | `actuator_state.*_speed` | 对应 AGX 约束的 `GetCurrentSpeed()` |
 | `actuator_state.*_position_norm` | 对应 AGX 约束值经过可配置范围归一化 |
-| `task_state.*` | `ExcavationMassTracker` |
+| `task_state.mass_in_bucket_kg` | `ExcavationMassTracker.MassInBucket` |
+| `task_state.excavated_mass_kg` | `ExcavationMassTracker.ExcavatedMass` |
+| `task_state.mass_in_target_box_kg` | `TerrainParticleBoxMassSensor.MassInBox` |
+| `task_state.deposited_mass_in_target_box_kg` | `TerrainParticleBoxMassSensor.DepositedMass` |
 | `previous_operator_command` | 最近一次有效的 `OperatorCommand`，去除 episode bool 后序列化 |
+
+补充说明：
+
+- `task_state.mass_in_bucket_kg` / `task_state.excavated_mass_kg` 现在不仅包含 deformable terrain 返给 shovel 的动态土体质量，也会额外包含 bucket 测量体积内、被标记为 `HandleAsParticle` 的动态刚体质量
+- `task_state.mass_in_target_box_kg` / `task_state.deposited_mass_in_target_box_kg` 同样同时覆盖 soil particles 与 `HandleAsParticle` 动态刚体，例如 `Dynamic Rock`
+- `task_state.deposited_mass_in_target_box_kg` 现在表示“相对最新 reset 基线的净沉积质量”，不是历史累计正向流入量
 
 当前有三个归一化配置：
 
@@ -401,7 +410,9 @@ public class ActEpisodeConfig
   },
   "task_state": {
     "mass_in_bucket_kg": 132.4,
-    "excavated_mass_kg": 210.3
+    "excavated_mass_kg": 210.3,
+    "mass_in_target_box_kg": 58.7,
+    "deposited_mass_in_target_box_kg": 56.4
   },
   "previous_operator_command": {
     "left_stick_x": 0.10,

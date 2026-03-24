@@ -24,7 +24,7 @@
    - ACT JSON Lines 推理服务端仍不在本仓库内
    - 这与 Repo A 已实现的 binary step-ack simbackend 不是同一件事
    - observation 归一化范围需要按 prefab 校准
-   - Unity 侧 teleop exporter 已实现，但它是 JSON/RGB sidecar，不是最终 HDF5
+   - Unity 侧 teleop sidecar exporter 曾经实现过，但已从当前主线移除；它从来不是最终 HDF5
    - 真实联调和运行时验收还没有完成
 
 一句话概括：
@@ -182,8 +182,8 @@ ACT backend 只响应生命周期消息，不负责发起生命周期决策。
 | CSV ACT 诊断字段 | 已实现 | 当前日志已记录 backend_ready/timeout/seq/inference/session/status |
 | Python backend 服务端 | 分仓实现 | Repo A 已有 binary step-ack simbackend；ACT JSON Lines 推理服务仍不在本仓库内 |
 | observation 校准 | 部分完成 | 范围对象已实现，但默认值仍需校准 |
-| Teleop episode exporter | 已实现 | 当前已支持 metadata.json + steps.jsonl + FPV raw RGB 帧导出 |
-| 主场景配线验证 | 部分完成 | 主场景已接入 exporter；仍需运行时 smoke 验证 |
+| Teleop episode exporter | 历史已实现 | 旧版曾支持 metadata.json + steps.jsonl + FPV raw RGB 帧导出，但当前主线已移除 |
+| 主场景配线验证 | 部分完成 | 主场景已接入 ACT / step-ack / 质量测量链；仍需运行时 smoke 验证 |
 
 ---
 
@@ -258,17 +258,17 @@ Unity 侧已经有：
 
 这使它更适合做 ACT backend 联调回放和问题定位。
 
-### 6.5 首版 teleop exporter 已实现，但它不是最终 HDF5
+### 6.5 历史 teleop sidecar exporter 不是最终 HDF5
 
-当前 Unity 侧已经新增一个首版 `TeleopEpisodeExporter`。
+Unity 侧曾经有一个首版 teleop sidecar exporter，但它已经从当前主线移除。
 
-当前导出内容包括：
+它当时导出的内容包括：
 
 - `metadata.json`
 - `steps.jsonl`
 - `frames/fpv/frame_XXXXXX.rgb24`
 
-每步目前会导出：
+每步当时会导出：
 
 - `action`
 - `qpos`
@@ -279,13 +279,13 @@ Unity 侧已经有：
 - ACT 诊断字段
 - FPV 原始 RGB 图像路径与尺寸
 
-当前这一版更适合作为：
+这一路径当时更适合作为：
 
 - Unity 侧逐步对齐导出
 - Python 侧二次转换为 HDF5 的中间格式
 - 本地排查动作 / 观测 / 图像是否一致的 sidecar 证据
 
-它不是 Repo A / Repo C 共享契约里的最终 HDF5 写入器。
+它从来不是 Repo A / Repo C 共享契约里的最终 HDF5 写入器；当前 canonical 数据集仍由 Repo A 直接写 HDF5。
 
 ### 6.6 主场景配线与运行时验收仍需实机确认
 
@@ -331,7 +331,7 @@ Unity 侧已经有：
 1. 重新对当前 Unity worktree 跑一轮 Repo A <-> Repo B 联调 smoke
 2. 校准 `boom/stick/bucket` 归一化范围
 3. 逐场景检查 rig 组件挂线
-4. 明确 Unity JSON/RGB exporter 与 Repo A HDF5 的边界和后续转换策略
+4. 明确历史 Unity JSON/RGB sidecar 与 Repo A HDF5 的边界；如未来恢复该路径，再单独定义转换策略
 5. 如有需要，再细化 `base_pose_world` 的参考系定义
 
 ---

@@ -113,6 +113,10 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
     [SerializeField]
     private global::ExcavationMassTracker m_massTracker = null;
 
+    [FormerlySerializedAs( "m_targetBoxMassSensor" )]
+    [SerializeField]
+    private global::SwitchableTargetMassSensor m_targetMassSensor = null;
+
     [SerializeField]
     private ActuatorNormalizationRange m_boomRange = new ActuatorNormalizationRange();
 
@@ -227,6 +231,11 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
         observation.task_state.excavated_mass_kg = m_massTracker.ExcavatedMass;
       }
 
+      if ( m_targetMassSensor != null ) {
+        observation.task_state.mass_in_target_box_kg = m_targetMassSensor.MassInBox;
+        observation.task_state.deposited_mass_in_target_box_kg = m_targetMassSensor.DepositedMass;
+      }
+
       return observation;
     }
 
@@ -267,6 +276,8 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       m_machineController = ExcavatorRigLocator.ResolveComponent( this, m_machineController );
       m_excavator = ExcavatorRigLocator.ResolveComponent( this, m_excavator );
       m_massTracker = ExcavatorRigLocator.ResolveComponent( this, m_massTracker );
+      m_targetMassSensor = ExcavatorRigLocator.ResolveComponent( this, m_targetMassSensor );
+      m_targetMassSensor?.RefreshTargets();
     }
 
     private void UpdateBaseVelocity( Transform baseTransform )

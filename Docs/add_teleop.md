@@ -37,9 +37,9 @@ background reconnect, and latest-result polling
 - `TrackedCameraWindow` already exposes an explicit `TryCaptureRgb24(...)` API
 for FPV capture
 - `reset_pose` is supported through the current reset path
-- A Unity-native teleop exporter now exists:
-`TeleopEpisodeExporter` writes `metadata.json`, `steps.jsonl`, and FPV
-`rgb24` sidecar frames for local inspection and conversion
+- A Unity-local teleop sidecar export path existed during earlier bring-up:
+it wrote `metadata.json`, `steps.jsonl`, and FPV `rgb24` sidecar frames for
+local inspection and conversion
 - `ExperimentLogger` now records ACT/backend diagnostics including
 `session_id`, `seq`, backend status, and inference time
 - The main scene `AGXUnity_Excavator.unity` is wired for this stack, including
@@ -73,9 +73,9 @@ not be used as the implementation truth source
   - `reset_pose` is not implemented
 - Earlier statements that assume teleop logging is already a fixed-step dataset
 export path are also stale:
-current `ExperimentLogger` is still a diagnostics-oriented CSV logger, while
-`TeleopEpisodeExporter` is a Unity-local JSON/RGB sidecar exporter; neither is
-the canonical Repo A HDF5 writer
+current `ExperimentLogger` is still a diagnostics-oriented CSV logger, and the
+old Unity-local JSON/RGB sidecar export path has been removed from the current
+mainline; canonical dataset writing remains in Repo A as HDF5
 
 ### Current gaps still open
 
@@ -86,9 +86,9 @@ Unity worktree, including strict reset/response checks
   exact start pose / terrain setup / success episode packaging still need a
   final written V0 task spec, even though the mass-based success rule itself is
   already fixed
-- Unity-side episode export now exists, but it is intentionally a
-`metadata.json` / `steps.jsonl` / raw RGB sidecar format, not the canonical
-Repo A / Repo C HDF5 dataset artifact
+- Unity-side sidecar export existed during bring-up, but it is not part of the
+current mainline and was never the canonical Repo A / Repo C HDF5 dataset
+artifact
 - `AGXUnity_Excavator_measurements.unity` is not wired to the same ACT /
 observation / step-ack stack as the main scene and should not be assumed to
 be parity-complete
@@ -104,9 +104,8 @@ be parity-complete
   as historical context plus planning notes
 2. Rerun Repo A <-> Repo B live smoke on the latest Unity worktree:
   `GET_INFO -> RESET -> STEP x 500`, preferably with Repo A strict smoke checks
-3. Keep `TeleopEpisodeExporter` as a Unity-local JSON/RGB sidecar exporter and
-  keep canonical HDF5 writing in Repo A unless a deliberate conversion path is
-  added later
+3. Keep canonical HDF5 writing in Repo A unless a deliberate Unity-side
+  conversion/export path is reintroduced later
 4. For V0, treat the task as stationary digging and do not expand the step-ack
   action space with drive / steer yet
 5. Finish scene/prefab qpos normalization calibration
@@ -134,8 +133,8 @@ Boundary reminder:
   require this Unity scene to be running in Play mode with the step-ack server
   listening
 - `tb-train` is offline and only reads Repo A HDF5 episodes
-- Unity-local `metadata.json` / `steps.jsonl` / `.rgb24` exports remain sidecar
-  artifacts, not the canonical training dataset
+- Unity-local `metadata.json` / `steps.jsonl` / `.rgb24` sidecar exports are
+  historical only and are not part of the current canonical training dataset
 
 ## Implementation Status Update (2026-03-18)
 
@@ -1092,7 +1091,8 @@ Since the previous code-based note, these Unity-side items have now landed:
   - `inference_time_ms`
   - `session_id`
   - `status`
-- A first-pass `TeleopEpisodeExporter` now exists on the Unity side
+- A first-pass Unity-side teleop sidecar exporter existed during bring-up, but
+  it has since been removed from the current mainline
 - The current exporter is wired into the main experiment rig scene
 - The current exporter output is:
   - `metadata.json`

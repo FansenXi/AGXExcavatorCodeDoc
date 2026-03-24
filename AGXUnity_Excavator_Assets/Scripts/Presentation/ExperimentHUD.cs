@@ -92,9 +92,10 @@ namespace AGXUnity_Excavator.Scripts.Presentation
       GUILayout.EndHorizontal();
       GUILayout.Label( $"Episode: {m_episodeManager.CurrentEpisodeIndex}    Running: {m_episodeManager.IsEpisodeRunning}", m_style );
       GUILayout.Label( $"Source: {m_episodeManager.CurrentSourceName}", m_style );
+      GUILayout.Label( $"Target: {m_episodeManager.CurrentTargetName}", m_style );
       if ( !string.IsNullOrWhiteSpace( m_episodeManager.CurrentControlLayout ) )
         GUILayout.Label( $"Layout: {m_episodeManager.CurrentControlLayout}", m_style );
-      GUILayout.Label( "Controls: R reset, Enter start, Backspace stop, F6/F7 switch source, 1-9 select source", m_style );
+      GUILayout.Label( "Controls: R reset, Enter start, Backspace stop, F6/F7 switch source, 1-9 select source, F8/F9 switch target", m_style );
       if ( m_showRuntimeConfig )
         DrawRuntimeConfig();
 
@@ -119,14 +120,14 @@ namespace AGXUnity_Excavator.Scripts.Presentation
       GUILayout.Label( $"Act: {m_episodeManager.LastActuationCommand.ToCompactString()}", m_style );
       GUILayout.Space( 6.0f );
       GUILayout.Label( $"Mass in bucket: {m_episodeManager.MassInBucket:0.00} kg", m_style );
+      GUILayout.Label( $"Mass in target box: {m_episodeManager.MassInTargetBox:0.00} kg", m_style );
+      GUILayout.Label( $"Deposited in target box: {m_episodeManager.DepositedMassInTargetBox:0.00} kg", m_style );
       if ( m_showStepAckDebug )
         DrawStepAckDebug();
       if ( m_showCalibrationDebug )
         DrawCalibrationDebug();
       GUILayout.Space( 6.0f );
       GUILayout.Label( $"Last log: {m_episodeManager.LastSavedPath}", m_style );
-      if ( !string.IsNullOrWhiteSpace( m_episodeManager.LastTeleopExportPath ) )
-        GUILayout.Label( $"Last teleop export: {m_episodeManager.LastTeleopExportPath}", m_style );
       GUILayout.EndArea();
 
       if ( m_episodeManager.IsTransitionInputCutActive )
@@ -156,6 +157,23 @@ namespace AGXUnity_Excavator.Scripts.Presentation
       }
       else {
         GUILayout.Label( "No operator command sources found in the current rig.", m_style );
+      }
+
+      if ( m_episodeManager.AvailableTargetCount > 0 ) {
+        GUILayout.Space( 4.0f );
+        GUILayout.Label( "Measurement target (F8/F9 cycle, switching does not reset the episode):", m_style );
+        for ( var targetIndex = 0; targetIndex < m_episodeManager.AvailableTargetCount; ++targetIndex ) {
+          var isCurrentTarget = targetIndex == m_episodeManager.CurrentTargetIndex;
+          var targetDisplayName = m_episodeManager.GetAvailableTargetDisplayName( targetIndex );
+          var buttonLabel = isCurrentTarget ?
+                            $"{targetDisplayName} Active" :
+                            targetDisplayName;
+
+          GUI.enabled = !isCurrentTarget;
+          if ( GUILayout.Button( buttonLabel ) )
+            m_episodeManager.SetTargetByIndex( targetIndex );
+          GUI.enabled = true;
+        }
       }
 
       if ( m_cameraWindows.Length > 0 ) {

@@ -70,6 +70,10 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     [SerializeField]
     private global::ExcavationMassTracker[] m_massTrackers = null;
 
+    [FormerlySerializedAs( "m_boxMassSensors" )]
+    [SerializeField]
+    private global::SwitchableTargetMassSensor[] m_targetMassSensors = null;
+
     [SerializeField]
     private global::ResetTerrain[] m_resetTerrains = null;
 
@@ -275,6 +279,14 @@ namespace AGXUnity_Excavator.Scripts.Experiment
         if ( tracker != null )
           tracker.ResetMeasurements();
       }
+
+      if ( m_targetMassSensors == null )
+        return;
+
+      foreach ( var sensor in m_targetMassSensors ) {
+        if ( sensor != null )
+          sensor.ResetMeasurements();
+      }
     }
 
     private void RestoreRigidBodiesFromSnapshot()
@@ -437,6 +449,11 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     private IEnumerable<Constraint> EnumerateConstraintsToReset()
     {
       var constraints = new HashSet<Constraint>();
+      foreach ( var constraint in EnumerateConstraints() ) {
+        if ( constraint != null )
+          constraints.Add( constraint );
+      }
+
       if ( m_excavator != null ) {
         foreach ( var sprocketHinge in m_excavator.SprocketHinges ) {
           if ( sprocketHinge != null )
@@ -460,10 +477,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
         }
       }
 
-      if ( constraints.Count > 0 )
-        return constraints;
-
-      return EnumerateConstraints();
+      return constraints;
     }
 
     private IEnumerable<AGXUnity.Model.Track> EnumerateTracksToReset()
@@ -502,6 +516,9 @@ namespace AGXUnity_Excavator.Scripts.Experiment
 
       if ( !HasAssignedEntries( m_massTrackers ) )
         m_massTrackers = FindObjectsOfType<global::ExcavationMassTracker>();
+
+      if ( !HasAssignedEntries( m_targetMassSensors ) )
+        m_targetMassSensors = FindObjectsOfType<global::SwitchableTargetMassSensor>();
 
       if ( !HasAssignedEntries( m_resetTerrains ) )
         m_resetTerrains = FindObjectsOfType<global::ResetTerrain>();

@@ -264,7 +264,13 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
       payload.action_order = new[] { "swing_speed_cmd", "boom_speed_cmd", "stick_speed_cmd", "bucket_speed_cmd" };
       payload.qpos_order = new[] { "swing_position_norm", "boom_position_norm", "stick_position_norm", "bucket_position_norm" };
       payload.qvel_order = new[] { "swing_speed", "boom_speed", "stick_speed", "bucket_speed" };
-      payload.env_state_order = new[] { "mass_in_bucket_kg" };
+      payload.env_state_order = new[]
+      {
+        "mass_in_bucket_kg",
+        "excavated_mass_kg",
+        "mass_in_target_box_kg",
+        "deposited_mass_in_target_box_kg"
+      };
       payload.cameras = CreateCameraDescriptors();
       payload.camera_names = Array.ConvertAll( payload.cameras, camera => camera.name );
       payload.supports_images = payload.cameras.Length > 0;
@@ -357,7 +363,10 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
       };
       payload.env_state = new[]
       {
-        observation.task_state != null ? observation.task_state.mass_in_bucket_kg : 0.0f
+        observation.task_state != null ? observation.task_state.mass_in_bucket_kg : 0.0f,
+        observation.task_state != null ? observation.task_state.excavated_mass_kg : 0.0f,
+        observation.task_state != null ? observation.task_state.mass_in_target_box_kg : 0.0f,
+        observation.task_state != null ? observation.task_state.deposited_mass_in_target_box_kg : 0.0f
       };
       payload.reward = 0.0f;
       payload.sim_time_ns = observation != null ? (long)Math.Round( observation.sim_time_sec * 1000000000.0 ) : -1;

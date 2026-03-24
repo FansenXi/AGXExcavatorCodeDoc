@@ -47,12 +47,13 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     [SerializeField]
     private ExperimentLogger m_logger = null;
 
-    [SerializeField]
-    private TeleopEpisodeExporter m_teleopExporter = null;
-
     [FormerlySerializedAs( "m_massVolumeCounter" )]
     [SerializeField]
     private global::ExcavationMassTracker m_massTracker = null;
+
+    [FormerlySerializedAs( "m_targetBoxMassSensor" )]
+    [SerializeField]
+    private global::SwitchableTargetMassSensor m_targetMassSensor = null;
 
     [SerializeField]
     private ExcavatorCommandInterpreter m_interpreter = new ExcavatorCommandInterpreter();
@@ -61,6 +62,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     private int m_nextEpisodeIndex = 1;
     [FormerlySerializedAs( "m_massVolumeCounterResolved" )]
     private bool m_massTrackerResolved = false;
+    private bool m_targetMassSensorResolved = false;
     private bool m_inputCutActive = false;
     private float m_inputNeutralSinceTime = -1.0f;
 
@@ -72,12 +74,16 @@ namespace AGXUnity_Excavator.Scripts.Experiment
 
     public string CurrentSourceName => m_commandSource != null ? m_commandSource.SourceName : "None";
     public string CurrentControlLayout => m_interpreter != null ? m_interpreter.LayoutDescription : string.Empty;
+    public string CurrentTargetName => m_targetMassSensor != null ? m_targetMassSensor.CurrentTargetName : "None";
     public string LastSavedPath => m_logger != null ? m_logger.LastSavedPath : string.Empty;
-    public string LastTeleopExportPath => m_teleopExporter != null ? m_teleopExporter.LastExportDirectory : string.Empty;
     public float MassInBucket => m_massTracker != null ? m_massTracker.MassInBucket : 0.0f;
     public float ExcavatedMass => m_massTracker != null ? m_massTracker.ExcavatedMass : 0.0f;
+    public float MassInTargetBox => m_targetMassSensor != null ? m_targetMassSensor.MassInBox : 0.0f;
+    public float DepositedMassInTargetBox => m_targetMassSensor != null ? m_targetMassSensor.DepositedMass : 0.0f;
     public int AvailableSourceCount => m_availableSources != null ? m_availableSources.Length : 0;
     public int CurrentSourceIndex => GetSourceIndex( m_commandSource );
+    public int AvailableTargetCount => m_targetMassSensor != null ? m_targetMassSensor.AvailableTargetCount : 0;
+    public int CurrentTargetIndex => m_targetMassSensor != null ? m_targetMassSensor.CurrentTargetIndex : -1;
     public bool IsTransitionInputCutActive => m_inputCutActive;
     public string TransitionInputCutHint => CurrentSourceHasHardwareDiagnostics ?
                                             "Release joystick and buttons to continue." :
@@ -135,15 +141,9 @@ namespace AGXUnity_Excavator.Scripts.Experiment
             actDiagnostics,
             hardwareDiagnostics,
             m_machineController != null ? m_machineController.BucketReference : null,
-            m_massTracker );
+            m_massTracker,
+            m_targetMassSensor );
         }
-
-        m_teleopExporter?.RecordStep(
-          Time.time,
-          LastRawCommand,
-          LastSimulatedCommand,
-          LastActuationCommand,
-          actDiagnostics );
       }
     }
 
@@ -167,6 +167,12 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       }
 
       return duplicateCount > 1 ? $"{source.SourceName} ({source.gameObject.name})" : source.SourceName;
+    }
+
+    public string GetAvailableTargetDisplayName( int index )
+    {
+      ResolveReferences();
+      return m_targetMassSensor != null ? m_targetMassSensor.GetAvailableTargetDisplayName( index ) : string.Empty;
     }
 
     public void RefreshAvailableSources()
@@ -203,6 +209,18 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       var currentIndex = CurrentSourceIndex >= 0 ? CurrentSourceIndex : 0;
       var targetIndex = ( currentIndex + normalizedDirection + AvailableSourceCount ) % AvailableSourceCount;
       return SetCommandSourceByIndex( targetIndex, restartEpisodeIfRunning );
+    }
+
+    public bool SetTargetByIndex( int index )
+    {
+      ResolveReferences();
+      return m_targetMassSensor != null && m_targetMassSensor.SetActiveTargetByIndex( index );
+    }
+
+    public bool CycleTarget( int direction )
+    {
+      ResolveReferences();
+      return m_targetMassSensor != null && m_targetMassSensor.CycleTarget( direction );
     }
 
     public bool SetCommandSource( OperatorCommandSourceBehaviour source, bool restartEpisodeIfRunning = true )
@@ -257,7 +275,6 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       }
 
       m_logger?.BeginEpisode( CurrentEpisodeIndex, CurrentSourceName );
-      m_teleopExporter?.BeginEpisode( CurrentEpisodeIndex, CurrentSourceName, CurrentControlLayout );
     }
 
     public void StopEpisode( string reason )
@@ -276,9 +293,6 @@ namespace AGXUnity_Excavator.Scripts.Experiment
 
       if ( m_logger != null && m_logger.IsRecording )
         m_logger.EndEpisode( reason );
-
-      if ( m_teleopExporter != null && m_teleopExporter.IsExporting )
-        m_teleopExporter.EndEpisode( reason );
     }
 
     public void ResetEpisode()
@@ -411,13 +425,16 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       if ( m_logger == null )
         m_logger = GetComponent<ExperimentLogger>();
 
-      if ( m_teleopExporter == null )
-        m_teleopExporter = GetComponent<TeleopEpisodeExporter>();
-
       if ( m_massTracker == null && !m_massTrackerResolved )
-        m_massTracker = FindObjectOfType<global::ExcavationMassTracker>();
+        m_massTracker = ExcavatorRigLocator.ResolveComponent( this, m_massTracker );
+
+      if ( m_targetMassSensor == null && !m_targetMassSensorResolved )
+        m_targetMassSensor = ExcavatorRigLocator.ResolveComponent( this, m_targetMassSensor );
 
       m_massTrackerResolved = true;
+      m_targetMassSensorResolved = true;
+
+      m_targetMassSensor?.RefreshTargets();
     }
 
     private OperatorCommandSourceBehaviour[] DiscoverAvailableSources()
