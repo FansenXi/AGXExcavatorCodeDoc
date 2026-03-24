@@ -245,6 +245,90 @@ flowchart TB
 - `SwitchableTargetMassSensor`
   负责在多个目标传感器之间做运行时切换，并把当前激活目标统一暴露给 `EpisodeManager`、`ActObservationCollector`、HUD 和 reset 链路
 
+### 4.5.1 当前质量统计支线
+
+当前主场景里，和“目标箱体 / 接料目标质量统计”相关的实现已经明确分成两类：场景目标箱体统计，以及 truck bed 统计。
+
+#### A. `SubmergedBox` 目标箱体统计
+
+主场景中的 `SubmergedBox` 当前挂载的是 `TerrainParticleBoxMassSensor`。
+
+它的场景结构约束是：
+
+- `SubmergedBox` 根节点保留一个 AGX `Box`，作为传感器 footprint / 底板
+- `SubmergedBox` 的四个墙体子物体分别挂各自的 AGX `Box`
+- 这四个墙体 `Box` 作为静态几何体参与 AGX 碰撞
+
+它的统计方式是：
+
+- 直接遍历场景中所有活跃 `DeformableTerrainBase` 的当前 soil particles
+- 这里包含 truck bed 使用的 `MovableTerrain`
+- 同时遍历场景里 `HandleAsParticle = true` 且当前仍为 `DYNAMICS` 的刚体，例如 `Dynamic Rock`
+- 只对位于 `SubmergedBox` 上方定向盒体测量体积内的对象累加质量
+
+因此，`SubmergedBox` 当前统计到的是两部分质量之和：
+
+- 测量体积内的 terrain soil particle 质量
+- 测量体积内、被当成粒子处理的动态刚体质量
+
+#### B. `TruckBedMassSensor` 统计
+
+`TruckBedMassSensor` 的目标是稳定统计 `BedTruck` 接料区域内的质量，并避免 truck 自带 terrain/碰撞结构导致漏计。
+
+当前行为是：
+
+- 在 AGX 初始化前，临时禁用 truck 的 `BedTerrain` 子物体
+- 重新启用 `Bed` 现有的支撑 `Box` 碰撞
+- 优先使用这些 `Box` 碰撞几何，再加顶部 headroom，构造 truck 的测量体积
+- 以本次 reset 时测得的质量作为基线，输出 truck target 当前质量和净沉积质量
+
+这样做的直接目的，是避免以下几类问题：
+
+- truck 的 `MovableTerrain` merge 成高度场后漏计
+- 底板穿透导致统计不稳定
+- 只统计到床斗底部一层质量
+
+#### C. reset 后的质量行为
+
+在执行 `SceneResetService.ResetScene(resetTerrain: true, ...)` 之后：
+
+- terrain native 层会清掉动态粒子
+- 各质量传感器的当前计数会同步归零
+- truck target 的净沉积质量基线也会按本次 reset 重新建立
+
+#### D. 当前数据出口
+
+这条质量统计数据当前已经进入以下几个出口：
+
+- `ExperimentHUD`
+- `ExperimentLogger`
+- `ActObservation.task_state.*`
+
+当前二进制 `STEP_RESP.env_state` 的顺序是：
+
+`[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg]`
+
+其中：
+
+- `mass_in_target_box_kg` 表示当前激活接料目标内的实时质量
+- `deposited_mass_in_target_box_kg` 表示相对本次 reset 基线的净沉积质量
+
+#### E. `ExcavationMassTracker` 的 bucket 统计补充
+
+`ExcavationMassTracker` 当前不再只依赖 `terrain.getDynamicMass(shovel)`。
+
+当前 bucket 质量统计分成两部分：
+
+- bucket 内 terrain 对 shovel 的动态质量统计仍然保留
+- 同时会在 bucket 的局部测量体积内，额外统计 `HandleAsParticle` 的动态刚体质量
+
+这意味着：
+
+- `MassInBucket`
+- `ExcavatedMass`
+
+现在都可以覆盖 `Dynamic Rock` 这类“以刚体形式存在、但按粒子语义处理”的动态石块。
+
 ### 4.6 `Presentation`
 
 这一层负责调试和可视化。
