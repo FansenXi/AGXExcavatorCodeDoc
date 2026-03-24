@@ -215,15 +215,21 @@ Current Unity values:
 - `qpos.len = 4`
 - `qvel.len = 4`
 - `env_state.len = 5`
-- `reward = 0.0`
+- `reward = deposited_mass_in_target_box_kg`
 - `image_format = "raw_rgb"` when FPV capture succeeds
 - `image_w = 0`, `image_h = 0`, `image_payload = empty` when no FPV frame is available
 
 Reward note:
-- for the current V0 stationary digging pipeline, `reward` is a placeholder
-  transport field and is not the primary task signal
+- for the current V0 stationary digging pipeline, `reward` is a Unity-side
+  backup success proxy and is not the primary task reward
+- Unity currently writes the reset-relative retained target-mass signal into
+  this field:
+  `reward = deposited_mass_in_target_box_kg`
 - Repo A / the Python testbed currently compute excavation mission reward
   locally from `env_state`
+- clients that need the source-of-truth scalar should still prefer
+  `env_state[3]` / `deposited_mass_in_target_box_kg`; the `reward` field is a
+  convenience mirror of that signal on the wire
 - current testbed reward sub-targets are:
   - meaningful bucket load acquisition
   - approaching the active target while loaded

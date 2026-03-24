@@ -152,8 +152,16 @@ Current default AGX success rule in the testbed:
 
 These are current defaults, not final tuned values. They are expected to be refined after pilot target-mass runs.
 
-The testbed computes AGX reward locally from exported `env_state` instead of
-using Unity's placeholder `reward = 0.0`.
+The testbed computes the primary AGX mission reward locally from exported
+`env_state`.
+
+Unity now also mirrors the main target-retention success signal into
+`STEP_RESP.reward` as a backup transport field:
+
+- `STEP_RESP.reward = deposited_mass_in_target_box_kg`
+
+This Unity-side `reward` is a backup success proxy, not the main shaped mission
+reward used by the testbed.
 
 The mission is still treated as one continuous objective. The testbed does not
 require Unity to export explicit stage IDs. Reward is attached to observable
