@@ -122,7 +122,7 @@ public class TruckBedMassSensor : TargetMassSensorBase
     if ( !m_drawSensorBoundsGizmo )
       return;
 
-    if ( !TryGetMeasurement( out var measurementFrame, out var measurementCenterLocal, out var measurementHalfExtents ) )
+    if ( !TryGetMeasurementVolume( out var measurementFrame, out var measurementCenterLocal, out var measurementHalfExtents ) )
       return;
 
     var previousColor = Gizmos.color;
@@ -144,7 +144,7 @@ public class TruckBedMassSensor : TargetMassSensorBase
 
   private float ReadRawMassInBox()
   {
-    if ( !TryGetMeasurement( out var measurementFrame, out var measurementCenterLocal, out var measurementHalfExtents ) )
+    if ( !TryGetMeasurementVolume( out var measurementFrame, out var measurementCenterLocal, out var measurementHalfExtents ) )
       return 0.0f;
 
     // Disable the bed MovableTerrain before AGX initialization so dumped soil
@@ -170,9 +170,9 @@ public class TruckBedMassSensor : TargetMassSensorBase
     return Mathf.Max( 0.0f, rawMassInBox - m_resetBaselineMassInBox );
   }
 
-  private bool TryGetMeasurement( out Transform measurementFrame,
-                                  out Vector3 measurementCenterLocal,
-                                  out Vector3 measurementHalfExtents )
+  public override bool TryGetMeasurementVolume( out Transform measurementFrame,
+                                                out Vector3 measurementCenterLocal,
+                                                out Vector3 measurementHalfExtents )
   {
     measurementFrame = null;
     measurementCenterLocal = Vector3.zero;

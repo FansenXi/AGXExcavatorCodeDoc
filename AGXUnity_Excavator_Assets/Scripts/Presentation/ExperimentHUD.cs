@@ -122,6 +122,10 @@ namespace AGXUnity_Excavator.Scripts.Presentation
       GUILayout.Label( $"Mass in bucket: {m_episodeManager.MassInBucket:0.00} kg", m_style );
       GUILayout.Label( $"Mass in target box: {m_episodeManager.MassInTargetBox:0.00} kg", m_style );
       GUILayout.Label( $"Deposited in target box: {m_episodeManager.DepositedMassInTargetBox:0.00} kg", m_style );
+      GUILayout.Label( m_episodeManager.MinDistanceToTarget >= 0.0f ?
+                         $"Min distance to target: {m_episodeManager.MinDistanceToTarget:0.000} m" :
+                         "Min distance to target: n/a",
+                       m_style );
       if ( m_showStepAckDebug )
         DrawStepAckDebug();
       if ( m_showCalibrationDebug )

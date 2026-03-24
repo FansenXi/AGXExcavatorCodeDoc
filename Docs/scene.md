@@ -1,255 +1,223 @@
-# AGXUnity Excavator Task Scenario — V0 Design Spec
-**Goal:** Design and implement a *reproducible, measurable* excavation task in AGXUnity that plugs into our Python testbed pipeline:
-> teleop expert demos → HDF5 dataset → train (ACT) → eval (success_rate) → weekly videos
+# AGXUnity Excavator Task Scene - Current V0 Reference
 
-**Current status:**  
-- ✅ Joystick teleop excavator control works in AGXUnity  
-- ✅ Testbed pipeline (record/train/eval/video) already smoke-tested  
-- ✅ AGXUnity bridge supports manual stepping (`DoStep`) and binary step-ack
+**Status:** current English source of truth for the Unity/AGX side  
+**Last updated:** 2026-03-24  
+**Companion translation:** `Docs/scene.zh-CN.md` is a reading-only mirror; if the two files ever diverge, this English file wins.
 
----
+This document is no longer an implementation plan. It describes the scene and task contract that are currently implemented across the Unity repo and the linked Python testbed workflow.
 
-## 0) Why this V0 scenario?
-We need a scenario that is:
-1) **Easy to implement** in AGXUnity (low art/asset dependency)
-2) **Automatically measurable** (no manual labeling)
-3) **Reproducible** (stable reset)
-4) **Supports weekly iteration** (success_rate increases + better videos)
+If this file conflicts with older drafts, prefer:
 
-We choose **Level-2 style “Rigid container truck-box”** as V0:
-- Dig from a soil pile
-- Dump into a rigid open-top target (static / infinite mass)
-- Measure “how much material ends in the currently selected dump target” + basic collision safety
+1. this file
+2. `Docs/protocol.md`
+3. the current code and scene assets
 
-> Note: container mass measurement is now implemented in Unity.
-> The remaining uncertain capability for V0 is collision/contact export.
+## 1. Scope
 
----
+The current V0 scene is a fixed-reset excavator digging task with:
 
-## 1) V0 Scenario Overview
-### 1.1 Layout (fixed for V0)
-- **Excavator start pose:** fixed (no randomization in V0)
-- **Soil pile (Dig Zone):** fixed location, fixed pile shape
-- **Rigid dump target:** fixed location + fixed height (open top)
-  - current scene supports both `ContainerBox` and `BedTruck` bed as selectable targets
-- **Safety region:** keep-out area around container (for collision metrics)
+- one excavator in a fixed initial pose
+- one fixed soil pile
+- one active dump target selected at runtime
+- 4D arm control only: `swing / boom / stick / bucket`
+- FPV image export
+- mass-based task signals
+- distance-based target-approach / near-collision signal
 
-### 1.2 Phases (informal; V0 does NOT require explicit phase router)
-- DIG/SCOOP: get material into bucket
-- SWING/LIFT: move toward container
-- DUMP: dump into container
+The current step-ack contract intentionally excludes:
 
-V0 evaluation can be **phase-agnostic**; we only need success metrics.
+- `drive / steer / track` from the action space
+- explicit phase labels
+- collision/contact export as a required V0 feature
 
----
+## 2. Task Definition
 
-## 2) Success Metric (V0)
-Primary metric: **success_rate**.
+The current task is:
 
-### 2.1 Preferred success definition (container-based)
-Success if:
-- `mass_in_container >= M_thresh` for `hold_steps` consecutive steps  
-Default:
-- `hold_steps = 25`  (0.5s at 50Hz)
-- `M_thresh` chosen after we inspect typical values (initially set from a small pilot run)
+> In a fixed reset scene, control the excavator using only
+> `swing / boom / stick / bucket`
+> to execute one or more
+> scoop -> transport -> dump -> retain
+> cycles, and leave enough material stably retained inside the currently active dump target.
 
-Implementation note:
-- Unity now routes `mass_in_container` / `mass_in_target_box` through the active dump target selector
-- For the current main scene, the selectable targets are `ContainerBox` and `TruckBed`
+The active target can currently be:
 
-### 2.2 Fallback success definition (bucket-based)
-If container mass measurement is not available, we use:
-Success if:
-- `mass_in_bucket >= M_bucket_thresh` for `hold_steps` steps  
-This validates “digging” behavior first, then we upgrade to container-based success once available.
+- `ContainerBox`
+- `TruckBed`
 
----
+This task definition is target-centric, not bucket-centric. Bucket mass is still exported and still useful for analysis, but the current mission is defined by retained mass in the selected target.
 
-## 3) Required Outputs (AGXUnity → Python Testbed)
-We standardize obs into:
-- `images["fpv"]`: first-person RGB
-- `qpos`: swing/boom/stick/bucket normalized position (len=4)
-- `qvel`: swing/boom/stick/bucket speed (len=4)
-- `env_state`: extra metrics used for success + debugging
+## 3. What Is Implemented
 
-### 3.1 Minimum env_state fields for V0
-We will export at least:
-- `mass_in_bucket` (float)
-- `excavated_mass` (float)
-- `mass_in_container` (float)
-- `deposited_mass_in_container` (float, net deposited mass since latest reset)
-- (optional) collision/contact counters:
-  - `collisions_with_container`
-  - `collisions_total`
+### 3.1 Scene and Targets
 
-If collision export is not available, we will approximate collision risk via distance checks (see §6).
+The current main scene provides:
 
----
+- fixed excavator pose
+- fixed soil pile / dig zone
+- FPV camera for step-ack export
+- a static rigid `ContainerBox` target
+- a `BedTruck` target with runtime target switching
 
-## 4) Reset & Reproducibility (V0)
-We do NOT require perfect seeded determinism in V0, but we MUST have a stable baseline reset:
-- Excavator pose reset
-- Truck pose / bed constraint reset
-- Terrain reset to baseline pile state
-- Bucket emptied / counters reset
-- Container reset (static)
+Runtime target routing is implemented, so the same exported field names continue to refer to the **currently active target**.
 
-**Metadata required in every episode:**
-- scenario_id = "agx_excavator_container_v0"
-- control_hz = 50, dt = 0.02
-- action_semantics = "actuator_speed_cmd"
-- camera resolution + image format
+### 3.2 Target Mass Measurement
 
----
+The current Unity implementation already supports:
 
-## 5) Implementation Checklist — Unity/AGXUnity Side (Repo: agxunity-sim)
-### 5.1 Scene objects
-Create / configure:
-- `SoilPile` (dig zone): terrain + initial pile
-- `ContainerBox` (dump target option A):
-  - open-top rigid collider
-  - set to static/kinematic/infinite mass (must not move when hit)
-  - define inner volume bounds (for “inside container” test)
-- `BedTruck` (dump target option B):
-  - use truck `Bed` / trunk volume as the measurement region
-  - keep the truck rigid/static for V0 unless truck dynamics are explicitly needed
-- `KeepOutZone` around container (optional trigger collider)
+- target mass measurement inside the active target measurement volume
+- reset-relative net deposited mass
+- runtime switching between `ContainerBox` and `TruckBed`
+- aggregation across all active `DeformableTerrainBase` instances
+- inclusion of `HandleAsParticle` dynamic rigid bodies such as `Dynamic Rock`
 
-### 5.2 FPV camera
-- Attach camera to driver position (cab view)
-- Output RenderTexture
-- Export to bytes (V0 raw RGB)
+Truck-specific handling is also implemented:
 
-### 5.3 Measurement instrumentation
+- the truck bed `MovableTerrain` helper object is disabled before AGX initialization so dumped soil stays as dynamic particles
+- existing truck bed support `Box` collisions are re-enabled
+- the truck measurement volume is derived from truck bed support `Box` geometry plus configurable top headroom
 
-**A) Container mass measurement (preferred)**
-Goal: compute `mass_in_container` per step.
-Current Unity implementation:
-- count deformable-terrain particles whose position falls inside the active dump-target measurement volume
-- aggregate across all active `DeformableTerrainBase` instances, including `MovableTerrain`, so particles are still counted if AGX splits/supports them onto a secondary terrain (for example the truck bed terrain)
-- also include `HandleAsParticle` dynamic rigid bodies such as `Dynamic Rock`
-- expose both current target mass and reset-relative net deposited target mass
-- allow runtime switching between target volumes without changing protocol field names
-- for the truck target specifically, disable the bed `MovableTerrain` object before AGX initialization so dumped soil remains dynamic particles; re-enable the existing bed support `Box` collisions; and derive the measurement bounds from the bed collision `Box` geometry plus top headroom so piled material above the floor is still counted
+### 3.3 Distance Export
 
-**B) Collision/contact events**
-Goal: export contact counts or impulses per step.
-If AGX provides contact callbacks:
-- count contacts between excavator links and container colliders
+The current V0 contract now exports:
 
-### 5.4 Bridge output (step-ack)
-Each `STEP_RESP(step_id)` returns:
-- qpos (4), qvel (4)
-- fpv RGB bytes
-- env_state:
-  - `mass_in_bucket`
-  - `excavated_mass`
-  - `mass_in_container`
-  - `deposited_mass_in_container`
-  - optional collisions later
+- `min_distance_to_target_m`
 
----
+This is the approximate minimum distance between:
 
-## 6) Implementation Checklist — Python/Testbed Side (Repo: excavator_testbed)
-### 6.1 Backend
-- `AGXSimBackend` uses step-ack socket calls:
-  - STEP_REQ(step_id, action)
-  - STEP_RESP(step_id, obs)
-- Assemble `raw_obs = {qpos, qvel, images, env_state}`
+- the current bucket body measurement volume
+- the currently active target measurement volume
 
-### 6.2 StateConverter
-- Map raw_obs → StructuredState
-- Ensure ordering matches protocol constants
+Current behavior:
 
-### 6.3 Recorder / HDF5 schema v1.1
-Record:
-- images/fpv (raw RGB)
-- qpos/qvel
-- action (4D)
-- env_state
-- timestamps/step_id
-- metadata (scenario_id, control_hz, dt, action_semantics)
+- it is distance-based, not collision-based
+- it is exported alongside mass signals in `env_state`
+- it returns `-1.0` when the distance cannot be evaluated
 
-### 6.4 Evaluator (V0)
-Compute:
-- success_rate using:
-  - container-based success if env_state has mass_in_container
-  - else bucket-based success (fallback)
-Also output:
-- metrics.json
-- summary.csv
-- videos/
+### 3.4 Reset
 
-### 6.5 Optional collision risk fallback
-If collision events are missing, approximate risk:
-- use min distance between bucket tip (or key points) and container
-- define `min_distance_to_container` and threshold for “near collision”
-(This requires Unity to export container pose or key points, OR Python to know fixed container pose in scenario config.)
+The current reset path already restores:
 
----
+- excavator pose and arm state
+- truck rigid-body / constraint state
+- terrain state
+- target mass counters
+- bucket / target measurement baselines
 
-## 7) Verification Plan (What we must test first)
-Before full implementation, run these short tests:
+The current reset goal is stable baseline reproducibility, not strict seeded determinism.
 
-### Test A — Can we compute container mass?
-1) Dump soil into container via manual teleop
-2) Observe `mass_in_container` and `deposited_mass_in_container` time series
-3) Print time series (per step) and validate it tracks retained material in the target after dumping
+### 3.5 Step-Ack Bridge
 
-Pass criteria:
-- metric exists and drops back down if material leaves the target volume
-- stable enough to threshold
+The current Unity bridge already supports:
 
-### Test B — Can we export contact/collision info?
-1) Drive bucket into container wall intentionally
-2) Check if AGX contact callbacks or Unity collision events fire
-3) Export a counter `collisions_with_container`
+- manual stepping via `DoStep()`
+- binary framed TCP step-ack transport
+- FPV raw RGB export
+- 4D `qpos`
+- 4D `qvel`
+- 5D `env_state`
 
-Pass criteria:
-- collision counter increases when contact occurs
+## 4. Current Export Contract
 
-### Decision after tests:
-- A is already implemented; tune threshold stability from pilot runs
-- If B fails → use distance-based “near collision” metric for V0
+The current exported observation is:
 
----
+- `images["fpv"]`
+- `qpos`
+- `qvel`
+- `env_state`
 
-## 8) V0 Parameter Defaults (To be tuned after pilot)
-- control_hz = 50 (dt=0.02)
-- hold_steps = 25
-- M_thresh (container): TBD after pilot stats
-- M_bucket_thresh: TBD after pilot stats
-- episode_len = 500 to 1500 steps (10–30s) depending on teleop duration
-- fpv resolution: start 640×480 (reduce bandwidth), later increase
+Current `env_state` order:
 
----
+`[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m]`
 
-## 9) Deliverables (What “done” looks like)
-### Unity/AGX side
-- Scene `agx_excavator_container_v0`
-- Exports: fpv RGB, qpos/qvel, env_state (mass_in_bucket + excavated_mass + mass_in_container + deposited_mass_in_container + optional collisions)
-- Reset to baseline pose/state
-- Main-scene target selection currently supports `ContainerBox` and `TruckBed`
+Field semantics:
 
-### Python/testbed side
-- record_teleop produces HDF5 v1.1 episodes for this scenario
-- replay works
-- eval produces success_rate + videos
-- first ACT training run completes end-to-end
+- `mass_in_bucket_kg`: current bucket-contained dynamic material estimate
+- `excavated_mass_kg`: current excavation progress signal from the bucket-side tracker
+- `mass_in_target_box_kg`: current mass retained in the active dump target
+- `deposited_mass_in_target_box_kg`: reset-relative net retained mass in the active dump target
+- `min_distance_to_target_m`: approximate minimum bucket-to-active-target distance
 
----
+For precise wire details, use `Docs/protocol.md`.
 
-## 10) Open Items (Track explicitly)
-- [ ] Confirm collision/contact export method
-- [ ] Confirm fpv export performance (raw now, H.264 later)
-- [ ] Confirm reset baseline consistency
+## 5. Current Success and Reward Semantics in the Testbed
 
----
+The linked Python testbed is now aligned to the target-based mission.
 
-## 11) Notes
-- V0 goal is **measurable progress**, not perfect realism.
-- Start fixed, then add randomization in V1:
-  - container pose noise
-  - pile pose noise
-  - lighting/camera noise
-- Keep protocol/schema as single source of truth (sim-protocol repo).
+Current default AGX success rule in the testbed:
+
+- signal: `deposited_mass_in_target_box_kg`
+- threshold: `100.0 kg`
+- hold time: `25` control steps
+
+These are current defaults, not final tuned values. They are expected to be refined after pilot target-mass runs.
+
+The testbed also now computes AGX reward locally from exported `env_state` instead of using Unity's placeholder `reward = 0.0`.
+
+Current reward phases are:
+
+- `0.0` idle
+- `1.0` loaded
+- `2.0` approach
+- `3.0` depositing
+- `4.0` retained
+
+This reward is testbed-defined mission shaping. It is useful for recording, evaluation overlays, and analysis, but the mission success decision still comes from the configured target-mass signal and threshold.
+
+## 6. Operational Flow
+
+The intended episode flow is now:
+
+1. reset the scene
+2. confirm or set the active dump target
+3. scoop material from the soil pile
+4. transport the load toward the selected target
+5. dump material into the target
+6. wait for settling / retained-mass confirmation
+7. either terminate on success or continue with another scoop cycle
+
+The task does **not** require Unity to export explicit stage IDs. Stage interpretation should be inferred from:
+
+- `mass_in_bucket_kg`
+- `mass_in_target_box_kg`
+- `deposited_mass_in_target_box_kg`
+- `min_distance_to_target_m`
+- arm pose and FPV image
+
+## 7. What Has Been Finished
+
+The following items that used to be planned are now complete enough to be treated as current scene behavior:
+
+- fixed V0 scene layout
+- binary step-ack export
+- FPV export
+- target mass export
+- reset-relative deposited-mass export
+- truck target integration
+- runtime target switching
+- truck-inclusive reset
+- distance export
+- testbed-side AGX mission reward
+- testbed-side named-signal success configuration
+
+Because these items are implemented, this file no longer keeps the old implementation checklist / validation-plan structure.
+
+## 8. Open Items and Non-Goals
+
+The following are still intentionally open or out of scope for the current V0 contract:
+
+- collision/contact export is not yet a required or implemented primary signal
+- `drive / steer / track` are not part of the current step-ack action space
+- explicit phase labels are not exported
+- success threshold tuning still needs pilot-data calibration
+- exact geometric collision risk is not exported; only the current approximate distance signal is
+
+## 9. Working Rule for Future Updates
+
+Future scene/task decisions should be written into this English file first.
+
+The Chinese mirror:
+
+- is for reading convenience only
+- must stay up to date with this file
+- must not become the decision authority if wording diverges

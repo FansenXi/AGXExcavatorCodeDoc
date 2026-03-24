@@ -48,9 +48,10 @@
 - 履带移动如果需要，属于回合外人工 reposition，或未来 V1 再扩 action space
 - 当前 `reward` 字段仍为 `0.0`
 - 当前 step-ack `env_state` 顺序是：
-  `[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg]`
+  `[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m]`
 - `mass_in_target_box_kg` 当前表示“运行时选中的接料目标”
   当前主场景支持 `ContainerBox` 和 `TruckBed`
+- `min_distance_to_target_m` 当前表示 bucket 量测体到当前激活目标量测体的近似最小距离
 - 当前默认 evaluator 仍使用 `env_state[0] = mass_in_bucket_kg` 做 post-hoc 成功判定
 
 ## 2.2 当前联调 / 运行命令
@@ -306,12 +307,13 @@ flowchart TB
 
 当前二进制 `STEP_RESP.env_state` 的顺序是：
 
-`[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg]`
+`[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m]`
 
 其中：
 
 - `mass_in_target_box_kg` 表示当前激活接料目标内的实时质量
 - `deposited_mass_in_target_box_kg` 表示相对本次 reset 基线的净沉积质量
+- `min_distance_to_target_m` 表示 bucket 量测体到当前激活目标量测体的近似最小距离；不可计算时为 `-1`
 
 #### E. `ExcavationMassTracker` 的 bucket 统计补充
 
@@ -471,6 +473,7 @@ Python client
 - `RESET` 和 `STEP` 前会确保 `Simulation.AutoSteppingMode = Disabled`
 - `STEP_REQ` 会应用 4 维 action，然后调用一次 `DoStep()`
 - `STEP_RESP` 返回 4D `qpos`、4D `qvel`、`env_state`、`reward`、`sim_time_ns` 和 FPV 原始图像
+- `env_state` 现在是在原 4 个质量字段后追加 `min_distance_to_target_m`，以保持既有质量索引不变
 - server 在 serving 时可以暂时禁用 `EpisodeManager`，避免常规实验链和手动步进同时驱动仿真
 
 ## 6. 主场景中的当前集成角色
@@ -516,6 +519,7 @@ Python client
 - bucket 位姿
 - 任务质量统计
 - 目标箱体当前质量与 reset 以来净沉积质量
+- bucket 到当前目标的最小距离
 - 硬件输入快照
 - ACT 诊断字段
 
@@ -528,10 +532,11 @@ Python client
 - 同时遍历场景里 `HandleAsParticle` 且仍为 `DYNAMICS` 的刚体，例如 `Dynamic Rock`
 - 在 `SubmergedBox` 上方的定向盒体体积内累加 soil particle 质量与上述动态刚体质量
 - `TruckBedMassSensor` 会在 AGX 初始化前禁用 truck 的 `BedTerrain` 子物体、重新启用 `Bed` 现有支撑 `Box` 碰撞，并优先用这些 `Box` 碰撞几何加顶部 headroom 构造 truck 测量体积，以本次 reset 时的质量为基线输出 truck target 质量，避免 truck 的 `MovableTerrain` merge 成高度场后漏计、底板穿透或只统计到床斗底部一层
+- `BucketTargetDistanceMeasurementUtility` 会基于 bucket 本体的局部包围盒和当前激活目标的测量体积，输出近似最小距离
 - `SceneResetService.ResetScene(resetTerrain: true, ...)` 后，terrain native 会清掉动态粒子，传感器计数同步归零
 - 这条质量数据当前进入 `ExperimentHUD`、`ExperimentLogger` 和 `ActObservation.task_state.*`
 - 二进制 `STEP_RESP.env_state` 当前顺序是：
-  `[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg]`
+  `[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m]`
 
 `ExcavationMassTracker` 当前也不再只依赖 `terrain.getDynamicMass(shovel)`：
 

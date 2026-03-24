@@ -36,7 +36,7 @@ Current observation semantics:
 - qpos order: `[swing_position_norm, boom_position_norm, stick_position_norm, bucket_position_norm]`
 - qvel order: `[swing_speed, boom_speed, stick_speed, bucket_speed]`
 - env_state order:
-  `[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg]`
+  `[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m]`
 
 `mass_in_target_box_kg` semantics:
 - this field always refers to the **currently active Unity dump target**
@@ -46,6 +46,12 @@ Current observation semantics:
 `deposited_mass_in_target_box_kg` semantics:
 - this field is the net retained mass inside the active target since the latest reset
 - Unity computes it as current measured target mass minus the reset baseline, clamped to zero
+
+`min_distance_to_target_m` semantics:
+- this field is the approximate minimum distance between the current bucket body volume and the currently active Unity target measurement volume
+- the current implementation is distance-based and does not require collision/contact export
+- Unity appends this field after the four existing mass fields to preserve V0 mass index compatibility
+- `-1.0` means the distance could not be evaluated for the current frame
 
 ## 2. Byte Order and Primitive Encoding
 
@@ -208,7 +214,7 @@ After the common response prefix, fields are written in this order:
 Current Unity values:
 - `qpos.len = 4`
 - `qvel.len = 4`
-- `env_state.len = 4`
+- `env_state.len = 5`
 - `reward = 0.0`
 - `image_format = "raw_rgb"` when FPV capture succeeds
 - `image_w = 0`, `image_h = 0`, `image_payload = empty` when no FPV frame is available
@@ -221,6 +227,7 @@ Reward note:
 
 Target note:
 - `env_state[2]` and `env_state[3]` report the active target selected by Unity runtime target routing
+- `env_state[4]` reports the approximate minimum bucket-to-target distance in meters
 - Unity local CSV logs now include `target_name` for debugging
 - the binary `STEP_RESP` payload does **not** yet carry `target_name`; clients should treat target identity as scene/runtime configuration for now
 
@@ -253,6 +260,7 @@ Compared with older drafts in this repo, the current Unity implementation has th
 - `GET_INFO_RESP` now advertises camera metadata directly from the running FPV camera.
 - `reset_pose` is supported through the current reset path.
 - target mass routing can now switch between multiple Unity dump targets while keeping the same env_state layout.
+- Unity now exports an approximate distance-to-active-target scalar alongside the existing mass metrics.
 
 ## 12. Known Limits
 

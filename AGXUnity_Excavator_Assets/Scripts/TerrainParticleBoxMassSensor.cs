@@ -49,6 +49,22 @@ public class TerrainParticleBoxMassSensor : TargetMassSensorBase
   public override float MassInBox => m_massInBox;
   public override float DepositedMass => m_depositedMass;
 
+  public override bool TryGetMeasurementVolume( out Transform measurementFrame,
+                                                out Vector3 measurementCenterLocal,
+                                                out Vector3 measurementHalfExtents )
+  {
+    ResolveReferences();
+
+    measurementFrame = transform;
+    measurementCenterLocal = GetMeasurementCenterLocal();
+    measurementHalfExtents = GetMeasurementHalfExtents();
+
+    return measurementFrame != null &&
+           measurementHalfExtents.x > 0.0f &&
+           measurementHalfExtents.y > 0.0f &&
+           measurementHalfExtents.z > 0.0f;
+  }
+
   protected override bool Initialize()
   {
     ResolveReferences();
@@ -86,12 +102,15 @@ public class TerrainParticleBoxMassSensor : TargetMassSensorBase
 
     ResolveReferences();
 
+    if ( !TryGetMeasurementVolume( out var measurementFrame, out var measurementCenterLocal, out var measurementHalfExtents ) )
+      return;
+
     var previousColor = Gizmos.color;
     var previousMatrix = Gizmos.matrix;
 
     Gizmos.color = new Color( 0.95f, 0.78f, 0.15f, 1.0f );
-    Gizmos.matrix = transform.localToWorldMatrix;
-    Gizmos.DrawWireCube( GetMeasurementCenterLocal(), 2.0f * GetMeasurementHalfExtents() );
+    Gizmos.matrix = measurementFrame.localToWorldMatrix;
+    Gizmos.DrawWireCube( measurementCenterLocal, 2.0f * measurementHalfExtents );
 
     Gizmos.matrix = previousMatrix;
     Gizmos.color = previousColor;

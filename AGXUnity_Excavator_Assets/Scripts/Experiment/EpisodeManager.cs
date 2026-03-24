@@ -80,6 +80,12 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     public float ExcavatedMass => m_massTracker != null ? m_massTracker.ExcavatedMass : 0.0f;
     public float MassInTargetBox => m_targetMassSensor != null ? m_targetMassSensor.MassInBox : 0.0f;
     public float DepositedMassInTargetBox => m_targetMassSensor != null ? m_targetMassSensor.DepositedMass : 0.0f;
+    public float MinDistanceToTarget =>
+      m_targetMassSensor != null &&
+      m_targetMassSensor.TryMeasureBucketDistance( m_machineController != null ? m_machineController.BucketReference : null,
+                                                   out var minDistanceMeters ) ?
+        minDistanceMeters :
+        -1.0f;
     public int AvailableSourceCount => m_availableSources != null ? m_availableSources.Length : 0;
     public int CurrentSourceIndex => GetSourceIndex( m_commandSource );
     public int AvailableTargetCount => m_targetMassSensor != null ? m_targetMassSensor.AvailableTargetCount : 0;

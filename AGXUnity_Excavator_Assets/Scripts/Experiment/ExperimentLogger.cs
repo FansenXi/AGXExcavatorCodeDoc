@@ -23,7 +23,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     public void BeginEpisode( int episodeIndex, string sourceName )
     {
       m_rows.Clear();
-      m_rows.Add( "time,source,device_name,profile_name,binding_status,hardware_left_x,hardware_left_y,hardware_right_x,hardware_right_y,hardware_drive,hardware_steer,hardware_reset_button,hardware_start_button,hardware_stop_button,hardware_input_summary,act_backend_ready,act_timeout_fallback,act_response_seq,act_inference_time_ms,act_session_id,act_status,raw_left_x,raw_left_y,raw_right_x,raw_right_y,raw_drive,raw_steer,sim_left_x,sim_left_y,sim_right_x,sim_right_y,sim_drive,sim_steer,boom,bucket,stick,swing,drive,steer,throttle,bucket_pos_x,bucket_pos_y,bucket_pos_z,bucket_rot_x,bucket_rot_y,bucket_rot_z,bucket_rot_w,target_name,mass_in_bucket,excavated_mass,mass_in_target_box,deposited_mass_in_target_box" );
+      m_rows.Add( "time,source,device_name,profile_name,binding_status,hardware_left_x,hardware_left_y,hardware_right_x,hardware_right_y,hardware_drive,hardware_steer,hardware_reset_button,hardware_start_button,hardware_stop_button,hardware_input_summary,act_backend_ready,act_timeout_fallback,act_response_seq,act_inference_time_ms,act_session_id,act_status,raw_left_x,raw_left_y,raw_right_x,raw_right_y,raw_drive,raw_steer,sim_left_x,sim_left_y,sim_right_x,sim_right_y,sim_drive,sim_steer,boom,bucket,stick,swing,drive,steer,throttle,bucket_pos_x,bucket_pos_y,bucket_pos_z,bucket_rot_x,bucket_rot_y,bucket_rot_z,bucket_rot_w,target_name,mass_in_bucket,excavated_mass,mass_in_target_box,deposited_mass_in_target_box,min_distance_to_target_m" );
 
       m_episodeIndex = episodeIndex;
       m_sourceName = sourceName;
@@ -51,6 +51,10 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       var excavatedMass = massTracker != null ? massTracker.ExcavatedMass : 0.0f;
       var massInTargetBox = targetMassSensor != null ? targetMassSensor.MassInBox : 0.0f;
       var depositedMassInTargetBox = targetMassSensor != null ? targetMassSensor.DepositedMass : 0.0f;
+      var minDistanceToTargetMeters =
+        targetMassSensor != null && targetMassSensor.TryMeasureBucketDistance( bucketReference, out var measuredDistanceMeters ) ?
+          measuredDistanceMeters :
+          -1.0f;
       var hardwareSnapshot = hardwareDiagnostics != null ? hardwareDiagnostics.LastRawInputSnapshot : HardwareInputSnapshot.Zero;
       var deviceName = hardwareDiagnostics != null ? hardwareDiagnostics.DeviceDisplayName : string.Empty;
       var profileName = hardwareDiagnostics != null ? hardwareDiagnostics.ProfileName : string.Empty;
@@ -117,7 +121,8 @@ namespace AGXUnity_Excavator.Scripts.Experiment
           F( massInBucket ),
           F( excavatedMass ),
           F( massInTargetBox ),
-          F( depositedMassInTargetBox ) ) );
+          F( depositedMassInTargetBox ),
+          F( minDistanceToTargetMeters ) ) );
     }
 
     public string EndEpisode( string reason )

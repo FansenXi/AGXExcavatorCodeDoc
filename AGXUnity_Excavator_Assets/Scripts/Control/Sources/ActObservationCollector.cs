@@ -236,6 +236,12 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
         observation.task_state.deposited_mass_in_target_box_kg = m_targetMassSensor.DepositedMass;
       }
 
+      observation.task_state.min_distance_to_target_m =
+        m_targetMassSensor != null &&
+        m_targetMassSensor.TryMeasureBucketDistance( bucketReference, out var minDistanceToTargetMeters ) ?
+          minDistanceToTargetMeters :
+          -1.0f;
+
       return observation;
     }
 

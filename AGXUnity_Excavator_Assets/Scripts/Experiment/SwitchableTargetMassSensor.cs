@@ -112,6 +112,30 @@ public class SwitchableTargetMassSensor : MonoBehaviour
     }
   }
 
+  public bool TryGetCurrentMeasurementVolume( out Transform measurementFrame,
+                                              out Vector3 measurementCenterLocal,
+                                              out Vector3 measurementHalfExtents )
+  {
+    RefreshTargets();
+    var currentTarget = CurrentTarget;
+    if ( currentTarget == null ) {
+      measurementFrame = null;
+      measurementCenterLocal = Vector3.zero;
+      measurementHalfExtents = Vector3.zero;
+      return false;
+    }
+
+    return currentTarget.TryGetMeasurementVolume( out measurementFrame,
+                                                  out measurementCenterLocal,
+                                                  out measurementHalfExtents );
+  }
+
+  public bool TryMeasureBucketDistance( Transform bucketReference, out float minDistanceMeters )
+  {
+    RefreshTargets();
+    return BucketTargetDistanceMeasurementUtility.TryMeasureDistance( bucketReference, CurrentTarget, out minDistanceMeters );
+  }
+
   private TargetMassSensorBase[] BuildRuntimeTargetList()
   {
     if ( HasAssignedEntries( m_targetSensors ) )
