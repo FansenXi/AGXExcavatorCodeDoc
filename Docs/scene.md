@@ -89,12 +89,23 @@ The current V0 contract now exports:
 
 This is the approximate minimum distance between:
 
-- the current bucket body measurement volume
-- the currently active target measurement volume
+- the current bucket target-distance proxy volume
+- the currently active target distance geometry
 
 Current behavior:
 
 - it is distance-based, not collision-based
+- the current scene defaults to a dedicated, editor-configurable bucket proxy
+  volume exposed on `ExcavationMassTracker`
+- the target side now prefers the active target's hard box shapes and only
+  falls back to a target distance volume when those shapes are unavailable
+- for `TruckBed`, this means the distance is measured against truck hard-body
+  box geometry rather than the bed mass-measurement headroom volume
+- for `TruckBed`, helper `*FailureVolume` shapes such as the dump/top failure
+  volumes are excluded from both distance geometry and hard-collision shape
+  filtering
+- if no dedicated proxy configuration is available, Unity falls back to older
+  bucket measurement geometry sources
 - it is exported alongside mass signals in `env_state`
 - it returns `-1.0` when the distance cannot be evaluated
 
@@ -161,15 +172,17 @@ Field semantics:
 - `excavated_mass_kg`: current excavation progress signal from the bucket-side tracker
 - `mass_in_target_box_kg`: current mass retained in the active dump target
 - `deposited_mass_in_target_box_kg`: reset-relative net retained mass in the active dump target
-- `min_distance_to_target_m`: approximate minimum bucket-to-active-target distance
+- `min_distance_to_target_m`: approximate minimum bucket-proxy-to-active-target distance
 - `target_hard_collision_count`: cumulative episode count of monitored excavator-vs-active-target hard collisions
 - `target_contact_max_normal_force_n`: per-step maximum monitored excavator-vs-active-target solved normal force in Newtons
 - `min_distance_to_dig_area_m`: approximate minimum bucket-measurement-volume distance to the scene `DigArea`
 - `bucket_depth_below_dig_area_plane_m`: `max(0, dig_plane_y - bucket_world_min_y)` for the current bucket measurement volume
 
-The DigArea fields continue to use the configured bucket measurement volume that
-`ExcavationMassTracker` uses for bucket-mass estimation when that configuration
-is available in the scene.
+The target-distance field now prefers the dedicated bucket target-distance
+proxy volume configured on `ExcavationMassTracker`, and compares it against the
+active target's distance geometry. The DigArea fields continue to use the
+bucket measurement volume that `ExcavationMassTracker` uses for bucket-mass
+estimation.
 
 For precise wire details, use `Docs/protocol.md`.
 

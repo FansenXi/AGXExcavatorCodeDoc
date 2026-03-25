@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using AGXUnity_Excavator.Scripts.Control.Core;
 using AGXUnity_Excavator.Scripts.Control.Execution;
 using AGXUnity_Excavator.Scripts.Control.Simulation;
@@ -266,6 +267,33 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     {
       ResolveReferences();
       return m_targetMassSensor != null && m_targetMassSensor.CycleTarget( direction );
+    }
+
+    [ContextMenu( "Log Current Target Distance Diagnostic" )]
+    private void LogCurrentTargetDistanceDiagnostic()
+    {
+      ResolveReferences();
+      LogTargetDistanceDiagnosticForCurrentTarget();
+    }
+
+    [ContextMenu( "Log All Target Distance Diagnostics" )]
+    private void LogAllTargetDistanceDiagnostics()
+    {
+      ResolveReferences();
+
+      if ( m_targetMassSensor == null || m_targetMassSensor.AvailableTargetCount <= 0 ) {
+        Debug.LogWarning( "Target distance diagnostic skipped because no active target sensor is available.", this );
+        return;
+      }
+
+      var originalTargetIndex = m_targetMassSensor.CurrentTargetIndex;
+      for ( var targetIndex = 0; targetIndex < m_targetMassSensor.AvailableTargetCount; ++targetIndex ) {
+        m_targetMassSensor.SetActiveTargetByIndex( targetIndex );
+        LogTargetDistanceDiagnosticForCurrentTarget();
+      }
+
+      if ( originalTargetIndex >= 0 )
+        m_targetMassSensor.SetActiveTargetByIndex( originalTargetIndex );
     }
 
     public bool SetCommandSource( OperatorCommandSourceBehaviour source, bool restartEpisodeIfRunning = true )
@@ -547,6 +575,122 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       m_goodDigStartThisFrame = false;
       m_previousMassInBucketSample = MassInBucket;
       m_previousExcavatedMassSample = ExcavatedMass;
+    }
+
+    private void LogTargetDistanceDiagnosticForCurrentTarget()
+    {
+      var bucketReference = m_machineController != null ? m_machineController.BucketReference : null;
+      var currentTarget = m_targetMassSensor != null ? m_targetMassSensor.CurrentTarget : null;
+      if ( bucketReference == null || currentTarget == null ) {
+        Debug.LogWarning( "Target distance diagnostic skipped because bucket reference or active target is missing.", this );
+        return;
+      }
+
+      if ( !BucketTargetDistanceMeasurementUtility.TryDiagnoseDistance( bucketReference,
+                                                                        currentTarget,
+                                                                        out var diagnostic ) ) {
+        Debug.LogWarning(
+          $"Target distance diagnostic failed for target '{currentTarget.TargetName}'.",
+          this );
+        return;
+      }
+
+      var reportLines = new List<string>
+      {
+        "Configured min_distance_to_target_m diagnostic",
+        $"target={currentTarget.TargetName}",
+        $"approximate_min_distance_m={FormatFloat( diagnostic.ApproximateDistanceMeters )}",
+        $"bucket_proxy_source={diagnostic.BucketBoxSource}",
+        $"target_geometry_source={diagnostic.TargetGeometrySource}",
+        DescribeMeasurementBox( "bucket_proxy_volume", diagnostic.BucketBox ),
+        DescribeMeasurementBox( "target_distance_geometry", diagnostic.TargetBox ),
+        DescribeClosestSample( diagnostic.ClosestSample )
+      };
+
+      if ( diagnostic.ClosestSample.IsValid && diagnostic.ClosestSample.DistanceMeters <= 1.0e-4f ) {
+        var sourceLabel = diagnostic.ClosestSample.SourceIsBucket ? "bucket" : "target";
+        var otherLabel = diagnostic.ClosestSample.SourceIsBucket ? "target" : "bucket";
+        reportLines.Add(
+          $"zero_distance_interpretation={sourceLabel} sample point at normalized local {FormatVector3( diagnostic.ClosestSample.NormalizedSourcePoint )} is already inside the {otherLabel} distance geometry, so the configured proxy distance drops to 0 before the hard surfaces necessarily meet." );
+      }
+
+      Debug.Log( string.Join( "\n", reportLines ), this );
+    }
+
+    private static string DescribeMeasurementBox( string label, OrientedMeasurementBox measurementBox )
+    {
+      var worldCenter = measurementBox.Frame != null ?
+                        measurementBox.Frame.TransformPoint( measurementBox.CenterLocal ) :
+                        measurementBox.CenterLocal;
+      var localSize = 2.0f * measurementBox.HalfExtents;
+      if ( !TryGetWorldAabb( measurementBox, out var worldMin, out var worldMax ) ) {
+        return $"{label}: frame={DescribeTransform( measurementBox.Frame )}, world_center={FormatVector3( worldCenter )}, local_size={FormatVector3( localSize )}, world_aabb=unavailable";
+      }
+
+      return
+        $"{label}: frame={DescribeTransform( measurementBox.Frame )}, world_center={FormatVector3( worldCenter )}, local_size={FormatVector3( localSize )}, world_aabb_min={FormatVector3( worldMin )}, world_aabb_max={FormatVector3( worldMax )}, world_aabb_size={FormatVector3( worldMax - worldMin )}";
+    }
+
+    private static string DescribeClosestSample( MeasurementBoxClosestSample closestSample )
+    {
+      if ( !closestSample.IsValid )
+        return "closest_sample=unavailable";
+
+      var sourceLabel = closestSample.SourceIsBucket ? "bucket" : "target";
+      var otherLabel = closestSample.SourceIsBucket ? "target" : "bucket";
+      return
+        $"closest_sample: source={sourceLabel}, sample_local_normalized={FormatVector3( closestSample.NormalizedSourcePoint )}, sample_world={FormatVector3( closestSample.SourcePointWorld )}, closest_point_on_{otherLabel}={FormatVector3( closestSample.ClosestPointWorld )}, sample_distance_m={FormatFloat( closestSample.DistanceMeters )}";
+    }
+
+    private static bool TryGetWorldAabb( OrientedMeasurementBox measurementBox, out Vector3 worldMin, out Vector3 worldMax )
+    {
+      worldMin = Vector3.positiveInfinity;
+      worldMax = Vector3.negativeInfinity;
+      if ( measurementBox.Frame == null || !measurementBox.IsValid )
+        return false;
+
+      for ( var xSign = -1; xSign <= 1; xSign += 2 ) {
+        for ( var ySign = -1; ySign <= 1; ySign += 2 ) {
+          for ( var zSign = -1; zSign <= 1; zSign += 2 ) {
+            var worldCorner = measurementBox.CornerWorld( xSign, ySign, zSign );
+            worldMin = Vector3.Min( worldMin, worldCorner );
+            worldMax = Vector3.Max( worldMax, worldCorner );
+          }
+        }
+      }
+
+      return true;
+    }
+
+    private static string DescribeTransform( Transform transformValue )
+    {
+      if ( transformValue == null )
+        return "none";
+
+      var pathSegments = new List<string>();
+      var current = transformValue;
+      while ( current != null ) {
+        pathSegments.Add( current.name );
+        current = current.parent;
+      }
+
+      pathSegments.Reverse();
+      return string.Join( "/", pathSegments );
+    }
+
+    private static string FormatVector3( Vector3 value )
+    {
+      return string.Format(
+        CultureInfo.InvariantCulture,
+        "({0:0.###}, {1:0.###}, {2:0.###})",
+        value.x,
+        value.y,
+        value.z );
+    }
+
+    private static string FormatFloat( float value )
+    {
+      return value.ToString( "0.####", CultureInfo.InvariantCulture );
     }
 
     private OperatorCommandSourceBehaviour[] DiscoverAvailableSources()

@@ -53,7 +53,7 @@
   `[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n, min_distance_to_dig_area_m, bucket_depth_below_dig_area_plane_m]`
 - `mass_in_target_box_kg` 当前表示“运行时选中的接料目标”
   当前主场景支持 `ContainerBox` 和 `TruckBed`
-- `min_distance_to_target_m` 当前表示 bucket 量测体到当前激活目标量测体的近似最小距离
+- `min_distance_to_target_m` 当前表示 bucket target-distance proxy 到当前激活目标 distance geometry 的近似最小距离
 - `target_hard_collision_count` / `target_contact_max_normal_force_n` 当前表示
   excavator 与当前激活目标硬表面的每步硬碰撞摘要信号
 - `min_distance_to_dig_area_m` / `bucket_depth_below_dig_area_plane_m` 当前表示
@@ -323,13 +323,13 @@ flowchart TB
 
 - `mass_in_target_box_kg` 表示当前激活接料目标内的实时质量
 - `deposited_mass_in_target_box_kg` 表示相对本次 reset 基线的净沉积质量
-- `min_distance_to_target_m` 表示 bucket 量测体到当前激活目标量测体的近似最小距离；不可计算时为 `-1`
+- `min_distance_to_target_m` 表示 bucket target-distance proxy 到当前激活目标 distance geometry 的近似最小距离；不可计算时为 `-1`
 - `target_hard_collision_count` 表示当前 episode 内累计的监控 excavator-vs-active-target 硬碰撞次数
 - 同一段连续接触期间，这个累计值最多只增加一次；必须先离开目标，下一次接触才会再次增加
 - `target_contact_max_normal_force_n` 表示当前这一步中，监控 excavator-vs-active-target 接触的最大法向力
 - `min_distance_to_dig_area_m` 表示 bucket 量测体到场景 `DigArea` 薄 box 的近似最小距离；不可计算时为 `-1`
 - `bucket_depth_below_dig_area_plane_m` 表示当前 bucket 量测体最低点低于 DigArea 平面的深度；未低于平面时为 `0`
-- 当前这些距离字段在 bucket 侧优先复用 `ExcavationMassTracker` 已配置的 measurement frame / volume，这样 bucket 质量统计和距离统计使用同一套量测几何
+- `min_distance_to_target_m` 在 bucket 侧现在优先使用 `ExcavationMassTracker` 上单独配置的 target-distance proxy volume；DigArea 两个几何字段仍继续复用 bucket 质量统计那套 measurement frame / volume
 
 #### E. `ExcavationMassTracker` 的 bucket 统计补充
 

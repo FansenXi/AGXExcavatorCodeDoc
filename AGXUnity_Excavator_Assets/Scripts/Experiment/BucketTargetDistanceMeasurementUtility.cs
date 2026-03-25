@@ -61,6 +61,41 @@ internal struct OrientedMeasurementBox
   }
 }
 
+internal struct MeasurementBoxClosestSample
+{
+  public bool IsValid;
+  public bool SourceIsBucket;
+  public Vector3 NormalizedSourcePoint;
+  public Vector3 SourcePointWorld;
+  public Vector3 ClosestPointWorld;
+  public float DistanceMeters;
+}
+
+internal enum BucketTargetDistanceBoxSource
+{
+  None = 0,
+  ConfiguredProxy = 1,
+  BucketMeasurement = 2,
+  LegacyCompositeBounds = 3
+}
+
+internal enum TargetDistanceGeometrySource
+{
+  None = 0,
+  TargetShapeBoxes = 1,
+  TargetDistanceVolume = 2
+}
+
+internal struct TargetDistanceDiagnostic
+{
+  public OrientedMeasurementBox BucketBox;
+  public OrientedMeasurementBox TargetBox;
+  public MeasurementBoxClosestSample ClosestSample;
+  public float ApproximateDistanceMeters;
+  public BucketTargetDistanceBoxSource BucketBoxSource;
+  public TargetDistanceGeometrySource TargetGeometrySource;
+}
+
 internal static class BucketTargetDistanceMeasurementUtility
 {
   private static readonly float[] SampleCoordinates = { -1.0f, 0.0f, 1.0f };
@@ -73,24 +108,50 @@ internal static class BucketTargetDistanceMeasurementUtility
     if ( bucketReference == null || targetSensor == null )
       return false;
 
-    if ( !TryGetLegacyMeasurementBox( bucketReference, out var bucketBox ) )
+    if ( !TryGetTargetDistanceBucketBox( bucketReference, out var bucketBox, out _ ) )
       return false;
 
-    if ( !targetSensor.TryGetMeasurementVolume( out var targetFrame, out var targetCenterLocal, out var targetHalfExtents ) )
+    if ( !TryGetTargetDistanceGeometry( targetSensor,
+                                        bucketBox,
+                                        out var targetBox,
+                                        out _,
+                                        out var minDistanceMetersCandidate ) )
       return false;
 
-    var targetBox = new OrientedMeasurementBox
+    minDistanceMeters = minDistanceMetersCandidate;
+    return true;
+  }
+
+  internal static bool TryDiagnoseDistance( Transform bucketReference,
+                                            TargetMassSensorBase targetSensor,
+                                            out TargetDistanceDiagnostic diagnostic )
+  {
+    diagnostic = default;
+    if ( bucketReference == null || targetSensor == null )
+      return false;
+
+    if ( !TryGetTargetDistanceBucketBox( bucketReference, out var bucketBox, out var bucketBoxSource ) )
+      return false;
+
+    if ( !TryGetTargetDistanceGeometry( targetSensor,
+                                        bucketBox,
+                                        out var targetBox,
+                                        out var targetGeometrySource,
+                                        out var approximateDistanceMeters,
+                                        out var closestSample ) )
+      return false;
+
+    diagnostic = new TargetDistanceDiagnostic
     {
-      Frame = targetFrame,
-      CenterLocal = targetCenterLocal,
-      HalfExtents = targetHalfExtents
+      BucketBox = bucketBox,
+      TargetBox = targetBox,
+      ApproximateDistanceMeters = approximateDistanceMeters,
+      ClosestSample = closestSample,
+      BucketBoxSource = bucketBoxSource,
+      TargetGeometrySource = targetGeometrySource
     };
 
-    if ( !targetBox.IsValid )
-      return false;
-
-    minDistanceMeters = MeasureApproximateDistance( bucketBox, targetBox );
-    return true;
+    return diagnostic.ApproximateDistanceMeters >= 0.0f;
   }
 
   internal static bool TryGetMeasurementBox( Transform reference, out OrientedMeasurementBox measurementBox )
@@ -129,11 +190,214 @@ internal static class BucketTargetDistanceMeasurementUtility
 
   internal static float MeasureApproximateDistance( OrientedMeasurementBox left, OrientedMeasurementBox right )
   {
-    var minDistanceSq = float.PositiveInfinity;
-    SampleBoxAgainstOther( left, right, ref minDistanceSq );
-    SampleBoxAgainstOther( right, left, ref minDistanceSq );
+    return MeasureApproximateDistance( left, right, out _ );
+  }
 
-    return float.IsPositiveInfinity( minDistanceSq ) ? -1.0f : Mathf.Sqrt( Mathf.Max( 0.0f, minDistanceSq ) );
+  internal static float MeasureApproximateDistance( OrientedMeasurementBox left,
+                                                    OrientedMeasurementBox right,
+                                                    out MeasurementBoxClosestSample closestSample )
+  {
+    var minDistanceSq = float.PositiveInfinity;
+    closestSample = default;
+    SampleBoxAgainstOther( left, right, true, ref minDistanceSq, ref closestSample );
+    SampleBoxAgainstOther( right, left, false, ref minDistanceSq, ref closestSample );
+
+    if ( float.IsPositiveInfinity( minDistanceSq ) )
+      return -1.0f;
+
+    closestSample.DistanceMeters = Mathf.Sqrt( Mathf.Max( 0.0f, minDistanceSq ) );
+    return closestSample.DistanceMeters;
+  }
+
+  private static bool TryGetTargetDistanceBucketBox( Transform reference,
+                                                     out OrientedMeasurementBox measurementBox,
+                                                     out BucketTargetDistanceBoxSource measurementSource )
+  {
+    measurementSource = BucketTargetDistanceBoxSource.None;
+    measurementBox = default;
+    if ( reference == null )
+      return false;
+
+    if ( TryCreateMeasurementBox( reference,
+                                  ExcavationMassTracker.TryGetTargetDistanceProxyVolumeForFrame,
+                                  out measurementBox ) ) {
+      measurementSource = BucketTargetDistanceBoxSource.ConfiguredProxy;
+      return true;
+    }
+
+    if ( TryCreateMeasurementBox( reference,
+                                  ExcavationMassTracker.TryGetBucketMeasurementVolumeForFrame,
+                                  out measurementBox ) ) {
+      measurementSource = BucketTargetDistanceBoxSource.BucketMeasurement;
+      return true;
+    }
+
+    if ( TryGetLegacyMeasurementBox( reference, out measurementBox ) ) {
+      measurementSource = BucketTargetDistanceBoxSource.LegacyCompositeBounds;
+      return true;
+    }
+
+    return false;
+  }
+
+  private static bool TryGetTargetDistanceGeometry( TargetMassSensorBase targetSensor,
+                                                    OrientedMeasurementBox bucketBox,
+                                                    out OrientedMeasurementBox targetBox,
+                                                    out TargetDistanceGeometrySource targetGeometrySource,
+                                                    out float minDistanceMeters )
+  {
+    return TryGetTargetDistanceGeometry( targetSensor,
+                                         bucketBox,
+                                         out targetBox,
+                                         out targetGeometrySource,
+                                         out minDistanceMeters,
+                                         out _ );
+  }
+
+  private static bool TryGetTargetDistanceGeometry( TargetMassSensorBase targetSensor,
+                                                    OrientedMeasurementBox bucketBox,
+                                                    out OrientedMeasurementBox targetBox,
+                                                    out TargetDistanceGeometrySource targetGeometrySource,
+                                                    out float minDistanceMeters,
+                                                    out MeasurementBoxClosestSample closestSample )
+  {
+    targetBox = default;
+    targetGeometrySource = TargetDistanceGeometrySource.None;
+    minDistanceMeters = -1.0f;
+    closestSample = default;
+
+    if ( targetSensor == null )
+      return false;
+
+    if ( TryGetTargetShapeBoxes( targetSensor, out var targetBoxes ) &&
+         TryMeasureDistanceToTargetBoxes( bucketBox,
+                                          targetBoxes,
+                                          out targetBox,
+                                          out minDistanceMeters,
+                                          out closestSample ) ) {
+      targetGeometrySource = TargetDistanceGeometrySource.TargetShapeBoxes;
+      return true;
+    }
+
+    if ( !targetSensor.TryGetTargetDistanceVolume( out var targetFrame, out var targetCenterLocal, out var targetHalfExtents ) )
+      return false;
+
+    targetBox = new OrientedMeasurementBox
+    {
+      Frame = targetFrame,
+      CenterLocal = targetCenterLocal,
+      HalfExtents = targetHalfExtents
+    };
+
+    if ( !targetBox.IsValid )
+      return false;
+
+    minDistanceMeters = MeasureApproximateDistance( bucketBox, targetBox, out closestSample );
+    if ( minDistanceMeters < 0.0f )
+      return false;
+
+    targetGeometrySource = TargetDistanceGeometrySource.TargetDistanceVolume;
+    return true;
+  }
+
+  private static bool TryGetTargetShapeBoxes( TargetMassSensorBase targetSensor,
+                                              out OrientedMeasurementBox[] targetBoxes )
+  {
+    targetBoxes = null;
+    if ( targetSensor == null )
+      return false;
+
+    var collisionShapes = targetSensor.GetCollisionShapes();
+    if ( collisionShapes == null || collisionShapes.Length == 0 )
+      return false;
+
+    var collectedBoxes = new System.Collections.Generic.List<OrientedMeasurementBox>( collisionShapes.Length );
+    foreach ( var collisionShape in collisionShapes ) {
+      if ( collisionShape is not Box targetBoxShape )
+        continue;
+
+      var halfExtents = targetBoxShape.HalfExtents;
+      if ( halfExtents.x <= 0.0f || halfExtents.y <= 0.0f || halfExtents.z <= 0.0f )
+        continue;
+
+      var targetBox = new OrientedMeasurementBox
+      {
+        Frame = targetBoxShape.transform,
+        CenterLocal = Vector3.zero,
+        HalfExtents = halfExtents
+      };
+
+      if ( targetBox.IsValid )
+        collectedBoxes.Add( targetBox );
+    }
+
+    if ( collectedBoxes.Count == 0 )
+      return false;
+
+    targetBoxes = collectedBoxes.ToArray();
+    return true;
+  }
+
+  private static bool TryMeasureDistanceToTargetBoxes( OrientedMeasurementBox bucketBox,
+                                                       OrientedMeasurementBox[] targetBoxes,
+                                                       out OrientedMeasurementBox closestTargetBox,
+                                                       out float minDistanceMeters,
+                                                       out MeasurementBoxClosestSample closestSample )
+  {
+    closestTargetBox = default;
+    minDistanceMeters = -1.0f;
+    closestSample = default;
+    if ( targetBoxes == null || targetBoxes.Length == 0 )
+      return false;
+
+    var found = false;
+    var bestDistanceMeters = float.PositiveInfinity;
+
+    foreach ( var targetBox in targetBoxes ) {
+      if ( !targetBox.IsValid )
+        continue;
+
+      var candidateDistanceMeters = MeasureApproximateDistance( bucketBox, targetBox, out var candidateClosestSample );
+      if ( candidateDistanceMeters < 0.0f )
+        continue;
+
+      if ( !found || candidateDistanceMeters < bestDistanceMeters ) {
+        found = true;
+        bestDistanceMeters = candidateDistanceMeters;
+        closestTargetBox = targetBox;
+        closestSample = candidateClosestSample;
+      }
+    }
+
+    if ( !found )
+      return false;
+
+    minDistanceMeters = bestDistanceMeters;
+    return true;
+  }
+
+  private delegate bool FrameMeasurementVolumeProvider( Transform measurementFrame,
+                                                        out Vector3 measurementCenter,
+                                                        out Vector3 measurementHalfExtents );
+
+  private static bool TryCreateMeasurementBox( Transform reference,
+                                               FrameMeasurementVolumeProvider measurementProvider,
+                                               out OrientedMeasurementBox measurementBox )
+  {
+    measurementBox = default;
+    if ( reference == null || measurementProvider == null )
+      return false;
+
+    if ( !measurementProvider( reference, out var measurementCenter, out var measurementHalfExtents ) )
+      return false;
+
+    measurementBox = new OrientedMeasurementBox
+    {
+      Frame = reference,
+      CenterLocal = measurementCenter,
+      HalfExtents = measurementHalfExtents
+    };
+    return measurementBox.IsValid;
   }
 
   private static bool TryGetLegacyMeasurementBox( Transform reference, out OrientedMeasurementBox measurementBox )
@@ -160,18 +424,32 @@ internal static class BucketTargetDistanceMeasurementUtility
 
   private static void SampleBoxAgainstOther( OrientedMeasurementBox source,
                                              OrientedMeasurementBox target,
-                                             ref float minDistanceSq )
+                                             bool sourceIsBucket,
+                                             ref float minDistanceSq,
+                                             ref MeasurementBoxClosestSample closestSample )
   {
     for ( var xIndex = 0; xIndex < SampleCoordinates.Length; ++xIndex ) {
       for ( var yIndex = 0; yIndex < SampleCoordinates.Length; ++yIndex ) {
         for ( var zIndex = 0; zIndex < SampleCoordinates.Length; ++zIndex ) {
-          var samplePointWorld = source.SamplePointWorld( SampleCoordinates[xIndex],
-                                                          SampleCoordinates[yIndex],
-                                                          SampleCoordinates[zIndex] );
+          var normalizedSourcePoint = new Vector3( SampleCoordinates[xIndex],
+                                                   SampleCoordinates[yIndex],
+                                                   SampleCoordinates[zIndex] );
+          var samplePointWorld = source.SamplePointWorld( normalizedSourcePoint.x,
+                                                          normalizedSourcePoint.y,
+                                                          normalizedSourcePoint.z );
           var closestPointWorld = target.ClosestPointWorld( samplePointWorld );
           var distanceSq = ( samplePointWorld - closestPointWorld ).sqrMagnitude;
-          if ( distanceSq < minDistanceSq )
+          if ( distanceSq < minDistanceSq ) {
             minDistanceSq = distanceSq;
+            closestSample = new MeasurementBoxClosestSample
+            {
+              IsValid = true,
+              SourceIsBucket = sourceIsBucket,
+              NormalizedSourcePoint = normalizedSourcePoint,
+              SourcePointWorld = samplePointWorld,
+              ClosestPointWorld = closestPointWorld
+            };
+          }
         }
       }
     }

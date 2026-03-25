@@ -16,6 +16,8 @@ V0 task loop:
 - Unity now exports active-target hard-collision summary signals
 - the scene `DigArea` is now highlighted with a transparent fill and colored contour
 - the Unity HUD now shows the DigArea good-start latch and live DigArea geometry checks
+- target-distance export is now stabilized around a configurable bucket proxy
+  volume plus target-side hard box geometry filtering
 - for hard-collision monitoring, it now covers the full `BedTruck`  
 hard body
 - collision counting is now designed as event-based :  
@@ -37,7 +39,12 @@ Current meanings:
 
 - `mass_in_target_box_kg` always refers to the currently active target
 - `deposited_mass_in_target_box_kg` is reset-relative net retained target mass
-- `min_distance_to_target_m` is back on the older approximate bucket-to-target measurement-volume distance path; the attempted hard-surface / full-excavator fix was rolled back because it did not solve the bug and caused frame-rate drop
+- `min_distance_to_target_m` now uses a dedicated editor-configurable bucket
+  target-distance proxy volume against the active target distance geometry
+- target-side distance geometry now prefers hard `Box` shapes and only falls
+  back to a target distance volume when those shapes are unavailable
+- `TruckBed` now excludes helper `*FailureVolume` shapes such as the dump/top
+  failure volumes from the target distance / hard-collision geometry set
 - `target_hard_collision_count` is the cumulative hard-collision event count within the current episode
 - `target_contact_max_normal_force_n` is the current-step maximum monitored normal force
 - `min_distance_to_dig_area_m` is the approximate minimum bucket-to-DigArea distance
@@ -106,6 +113,15 @@ DigArea alignment:
 - `ExperimentHUD` now shows whether good dig start has latched
 - the HUD also shows live DigArea touch status and the current bucket depth
 below the DigArea plane
+- `ExcavationMassTracker` now exposes a `Target Distance Proxy` section in the
+Inspector so the bucket proxy box can be resized directly in Unity Editor
+- `EpisodeManager` now exposes context-menu diagnostics for the current
+target-distance path, logging the bucket proxy volume, the current target
+distance geometry, and the sampled overlap point that causes
+`min_distance_to_target_m` to become `0`
+- those diagnostics now also report the active `bucket_proxy_source` and
+  `target_geometry_source`, so TruckBed shape-filter issues can be identified
+  directly from the Console
 
 ## 3. Current Reward And Penalty Settings
 

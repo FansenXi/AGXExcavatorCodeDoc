@@ -49,7 +49,12 @@ Current observation semantics:
 - Unity computes it as current measured target mass minus the reset baseline, clamped to zero
 
 `min_distance_to_target_m` semantics:
-- this field is the approximate minimum distance between the current bucket body volume and the currently active Unity target measurement volume
+- this field is the approximate minimum distance between the current bucket target-distance proxy volume and the currently active Unity target distance geometry
+- the current scene exposes that bucket proxy volume on `ExcavationMassTracker` for direct editor tuning
+- the target side now prefers the active target hard box shapes and only falls back to a target distance volume when those shapes are unavailable
+- for `TruckBed`, this geometry follows truck hard-body box shapes rather than the bed mass-measurement headroom volume
+- for `TruckBed`, helper `*FailureVolume` shapes such as the dump/top failure volumes are excluded from this target-distance / hard-collision geometry set
+- if no dedicated bucket proxy configuration is available, Unity falls back to older bucket measurement geometry sources
 - the current implementation is distance-based and does not require collision/contact export
 - Unity appends this field after the four existing mass fields to preserve V0 mass index compatibility
 - `-1.0` means the distance could not be evaluated for the current frame

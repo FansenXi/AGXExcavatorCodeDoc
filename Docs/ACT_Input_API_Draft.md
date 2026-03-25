@@ -251,7 +251,7 @@ public interface IActBackendClient
 | `task_state.excavated_mass_kg` | `ExcavationMassTracker.ExcavatedMass` |
 | `task_state.mass_in_target_box_kg` | `TerrainParticleBoxMassSensor.MassInBox` |
 | `task_state.deposited_mass_in_target_box_kg` | `TerrainParticleBoxMassSensor.DepositedMass` |
-| `task_state.min_distance_to_target_m` | `BucketTargetDistanceMeasurementUtility` 基于 `BucketReference` 与当前激活目标测量体积计算 |
+| `task_state.min_distance_to_target_m` | `BucketTargetDistanceMeasurementUtility` 基于 bucket target-distance proxy 与当前激活目标的 target distance geometry 计算 |
 | `previous_operator_command` | 最近一次有效的 `OperatorCommand`，去除 episode bool 后序列化 |
 
 补充说明：
@@ -259,7 +259,7 @@ public interface IActBackendClient
 - `task_state.mass_in_bucket_kg` / `task_state.excavated_mass_kg` 现在不仅包含 deformable terrain 返给 shovel 的动态土体质量，也会额外包含 bucket 测量体积内、被标记为 `HandleAsParticle` 的动态刚体质量
 - `task_state.mass_in_target_box_kg` / `task_state.deposited_mass_in_target_box_kg` 同样同时覆盖 soil particles 与 `HandleAsParticle` 动态刚体，例如 `Dynamic Rock`
 - `task_state.deposited_mass_in_target_box_kg` 现在表示“相对最新 reset 基线的净沉积质量”，不是历史累计正向流入量
-- `task_state.min_distance_to_target_m` 现在表示 bucket 量测体到当前激活目标量测体的近似最小距离；不可计算时为 `-1`
+- `task_state.min_distance_to_target_m` 现在表示 bucket target-distance proxy 到当前激活目标 target distance geometry 的近似最小距离；不可计算时为 `-1`
 
 当前有三个归一化配置：
 

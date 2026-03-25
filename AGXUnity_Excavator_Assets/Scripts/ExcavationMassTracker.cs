@@ -21,6 +21,25 @@ public class ExcavationMassTracker : ScriptComponent
   [Min( 0.0f )]
   private float m_handledAsParticleRigidBodyPadding = 0.1f;
 
+  [Header( "Target Distance Proxy" )]
+  [SerializeField]
+  private bool m_useDedicatedTargetDistanceProxy = true;
+
+  [SerializeField]
+  private Vector3 m_targetDistanceProxyCenterOffset = Vector3.zero;
+
+  [SerializeField]
+  private Vector3 m_targetDistanceProxyHalfExtentsScale = new Vector3( 0.4f, 0.35f, 0.4f );
+
+  [SerializeField]
+  private Vector3 m_targetDistanceProxyExtraHalfExtents = Vector3.zero;
+
+  [SerializeField]
+  private bool m_drawTargetDistanceProxyGizmo = true;
+
+  [SerializeField]
+  private Color m_targetDistanceProxyGizmoColor = new Color( 0.96f, 0.37f, 0.12f, 0.95f );
+
   float m_excavatedMass = 0;
   float m_massInBucket = 0;
   float m_previousMassInBucket = 0;
@@ -61,6 +80,45 @@ public class ExcavationMassTracker : ScriptComponent
     m_excavatedMass += Mathf.Max( 0.0f, m_massInBucket - m_previousMassInBucket );
     m_previousMassInBucket = m_massInBucket;
     UpdateInfoText();
+  }
+
+  private void OnDrawGizmosSelected()
+  {
+    if ( !m_drawTargetDistanceProxyGizmo )
+      return;
+
+    if ( !TryGetTargetDistanceProxyVolume( out var measurementFrame,
+                                           out var measurementCenter,
+                                           out var measurementHalfExtents ) )
+      return;
+
+    var previousColor = Gizmos.color;
+    var previousMatrix = Gizmos.matrix;
+
+    Gizmos.color = m_targetDistanceProxyGizmoColor;
+    Gizmos.matrix = measurementFrame.localToWorldMatrix;
+    Gizmos.DrawWireCube( measurementCenter, 2.0f * measurementHalfExtents );
+
+    Gizmos.matrix = previousMatrix;
+    Gizmos.color = previousColor;
+  }
+
+  [ContextMenu( "Reset Target Distance Proxy To Tight Default" )]
+  private void ResetTargetDistanceProxyToTightDefault()
+  {
+    m_useDedicatedTargetDistanceProxy = true;
+    m_targetDistanceProxyCenterOffset = Vector3.zero;
+    m_targetDistanceProxyHalfExtentsScale = new Vector3( 0.4f, 0.35f, 0.4f );
+    m_targetDistanceProxyExtraHalfExtents = Vector3.zero;
+  }
+
+  [ContextMenu( "Match Target Distance Proxy To Bucket Measurement" )]
+  private void MatchTargetDistanceProxyToBucketMeasurement()
+  {
+    m_useDedicatedTargetDistanceProxy = true;
+    m_targetDistanceProxyCenterOffset = m_bucketMeasurementCenterOffset;
+    m_targetDistanceProxyHalfExtentsScale = Vector3.one;
+    m_targetDistanceProxyExtraHalfExtents = Vector3.zero;
   }
 
   private float ReadMassInBucket()
@@ -105,16 +163,11 @@ public class ExcavationMassTracker : ScriptComponent
     if ( measurementFrame == null )
       return false;
 
-    if ( m_cachedBucketMeasurementFrame != measurementFrame ) {
-      m_cachedBucketMeasurementFrame = measurementFrame;
-      m_hasAutoBucketLocalBounds = HandledAsParticleRigidBodyMassUtility.TryCalculateLocalRendererBounds( measurementFrame, out m_autoBucketLocalBounds );
-    }
-
-    if ( !m_hasAutoBucketLocalBounds )
+    if ( !TryGetAutoBucketLocalBounds( measurementFrame, out var autoBucketLocalBounds ) )
       return false;
 
-    measurementCenter = m_autoBucketLocalBounds.center + m_bucketMeasurementCenterOffset;
-    measurementHalfExtents = m_autoBucketLocalBounds.extents + m_bucketMeasurementExtraHalfExtents;
+    measurementCenter = autoBucketLocalBounds.center + m_bucketMeasurementCenterOffset;
+    measurementHalfExtents = autoBucketLocalBounds.extents + m_bucketMeasurementExtraHalfExtents;
 
     return measurementHalfExtents.x > 0.0f &&
            measurementHalfExtents.y > 0.0f &&
@@ -134,6 +187,39 @@ public class ExcavationMassTracker : ScriptComponent
     }
 
     return TryGetBucketMeasurement( out measurementCenter, out measurementHalfExtents );
+  }
+
+  public bool TryGetTargetDistanceProxyVolume( out Transform measurementFrame,
+                                               out Vector3 measurementCenter,
+                                               out Vector3 measurementHalfExtents )
+  {
+    measurementFrame = ResolveBucketMeasurementFrame();
+    if ( measurementFrame == null ) {
+      measurementCenter = Vector3.zero;
+      measurementHalfExtents = Vector3.zero;
+      return false;
+    }
+
+    if ( !m_useDedicatedTargetDistanceProxy )
+      return TryGetBucketMeasurement( out measurementCenter, out measurementHalfExtents );
+
+    if ( !TryGetAutoBucketLocalBounds( measurementFrame, out var autoBucketLocalBounds ) )
+      return TryGetBucketMeasurement( out measurementCenter, out measurementHalfExtents );
+
+    var baseHalfExtents = autoBucketLocalBounds.extents + m_bucketMeasurementExtraHalfExtents;
+    var nonNegativeScale = new Vector3(
+      Mathf.Max( 0.0f, m_targetDistanceProxyHalfExtentsScale.x ),
+      Mathf.Max( 0.0f, m_targetDistanceProxyHalfExtentsScale.y ),
+      Mathf.Max( 0.0f, m_targetDistanceProxyHalfExtentsScale.z ) );
+
+    measurementCenter = autoBucketLocalBounds.center + m_targetDistanceProxyCenterOffset;
+    measurementHalfExtents = Vector3.Scale( baseHalfExtents, nonNegativeScale ) + m_targetDistanceProxyExtraHalfExtents;
+    measurementHalfExtents = new Vector3(
+      Mathf.Max( 0.01f, measurementHalfExtents.x ),
+      Mathf.Max( 0.01f, measurementHalfExtents.y ),
+      Mathf.Max( 0.01f, measurementHalfExtents.z ) );
+
+    return true;
   }
 
   public static bool TryGetBucketMeasurementVolumeForFrame( Transform measurementFrame,
@@ -159,6 +245,49 @@ public class ExcavationMassTracker : ScriptComponent
     }
 
     return false;
+  }
+
+  public static bool TryGetTargetDistanceProxyVolumeForFrame( Transform measurementFrame,
+                                                              out Vector3 measurementCenter,
+                                                              out Vector3 measurementHalfExtents )
+  {
+    measurementCenter = Vector3.zero;
+    measurementHalfExtents = Vector3.zero;
+    if ( measurementFrame == null )
+      return false;
+
+    var trackers = Object.FindObjectsByType<ExcavationMassTracker>(
+      FindObjectsInactive.Include,
+      FindObjectsSortMode.None );
+    if ( trackers == null || trackers.Length == 0 )
+      return false;
+
+    foreach ( var tracker in trackers ) {
+      if ( tracker == null || tracker.BucketMeasurementFrame != measurementFrame )
+        continue;
+
+      return tracker.TryGetTargetDistanceProxyVolume( out _, out measurementCenter, out measurementHalfExtents );
+    }
+
+    return false;
+  }
+
+  private bool TryGetAutoBucketLocalBounds( Transform measurementFrame, out Bounds autoBucketLocalBounds )
+  {
+    autoBucketLocalBounds = default;
+    if ( measurementFrame == null )
+      return false;
+
+    if ( m_cachedBucketMeasurementFrame != measurementFrame ) {
+      m_cachedBucketMeasurementFrame = measurementFrame;
+      m_hasAutoBucketLocalBounds = HandledAsParticleRigidBodyMassUtility.TryCalculateLocalRendererBounds( measurementFrame, out m_autoBucketLocalBounds );
+    }
+
+    if ( !m_hasAutoBucketLocalBounds )
+      return false;
+
+    autoBucketLocalBounds = m_autoBucketLocalBounds;
+    return true;
   }
 
   private void UpdateInfoText()

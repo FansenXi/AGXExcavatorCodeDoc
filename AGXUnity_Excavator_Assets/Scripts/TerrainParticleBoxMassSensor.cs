@@ -44,6 +44,9 @@ public class TerrainParticleBoxMassSensor : TargetMassSensorBase
   private float m_depositedMass = 0.0f;
   private float m_resetBaselineMassInBox = 0.0f;
   private float m_nextSampleTime = 0.0f;
+  private Transform m_cachedTargetDistanceBoundsTransform = null;
+  private Bounds m_cachedTargetDistanceLocalBounds = default;
+  private bool m_hasCachedTargetDistanceLocalBounds = false;
 
   public override string TargetName => string.IsNullOrWhiteSpace( m_targetName ) ? gameObject.name : m_targetName;
   public override float MassInBox => m_massInBox;
@@ -80,6 +83,35 @@ public class TerrainParticleBoxMassSensor : TargetMassSensorBase
            measurementHalfExtents.x > 0.0f &&
            measurementHalfExtents.y > 0.0f &&
            measurementHalfExtents.z > 0.0f;
+  }
+
+  public override bool TryGetTargetDistanceVolume( out Transform measurementFrame,
+                                                   out Vector3 measurementCenterLocal,
+                                                   out Vector3 measurementHalfExtents )
+  {
+    ResolveReferences();
+
+    measurementFrame = transform;
+    measurementCenterLocal = Vector3.zero;
+    measurementHalfExtents = Vector3.zero;
+    if ( measurementFrame == null )
+      return false;
+
+    if ( m_cachedTargetDistanceBoundsTransform != measurementFrame ) {
+      m_cachedTargetDistanceBoundsTransform = measurementFrame;
+      m_hasCachedTargetDistanceLocalBounds =
+        TargetDistanceVolumeUtility.TryCalculateLocalBoxBounds( measurementFrame, (Transform)null, out m_cachedTargetDistanceLocalBounds );
+    }
+
+    if ( !m_hasCachedTargetDistanceLocalBounds )
+      return TryGetMeasurementVolume( out measurementFrame, out measurementCenterLocal, out measurementHalfExtents );
+
+    measurementCenterLocal = m_cachedTargetDistanceLocalBounds.center;
+    measurementHalfExtents = new Vector3(
+      Mathf.Max( 0.01f, m_cachedTargetDistanceLocalBounds.extents.x ),
+      Mathf.Max( 0.01f, m_cachedTargetDistanceLocalBounds.extents.y ),
+      Mathf.Max( 0.01f, m_cachedTargetDistanceLocalBounds.extents.z ) );
+    return true;
   }
 
   protected override bool Initialize()

@@ -1,6 +1,7 @@
 using AGXUnity.Collide;
 using AGXUnity.Model;
 using AGXUnity.Utils;
+using System;
 using UnityEngine;
 
 public class TruckBedMassSensor : TargetMassSensorBase
@@ -66,6 +67,10 @@ public class TruckBedMassSensor : TargetMassSensorBase
   [SerializeField]
   private bool m_drawSensorBoundsGizmo = true;
 
+  [Header( "Target Distance / Collision Shape Filter" )]
+  [SerializeField]
+  private string[] m_excludedHelperShapeNames = { "DumpFailureVolume", "TopFailureVolume" };
+
   private float m_massInBox = 0.0f;
   private float m_depositedMass = 0.0f;
   private float m_nextSampleTime = 0.0f;
@@ -73,7 +78,9 @@ public class TruckBedMassSensor : TargetMassSensorBase
   private Transform m_cachedBoundsTransform = null;
   private Bounds m_cachedBedLocalBounds = default;
   private bool m_hasCachedBedLocalBounds = false;
-  private static readonly Vector3[] s_boxLocalCorners = new Vector3[8];
+  private Transform m_cachedTargetDistanceBoundsTransform = null;
+  private Bounds m_cachedTargetDistanceLocalBounds = default;
+  private bool m_hasCachedTargetDistanceLocalBounds = false;
 
   public override string TargetName => string.IsNullOrWhiteSpace( m_targetName ) ? "TruckBed" : m_targetName;
   public override float MassInBox => m_massInBox;
@@ -99,6 +106,9 @@ public class TruckBedMassSensor : TargetMassSensorBase
         continue;
 
       if ( excludedRoot != null && shape.transform.IsChildOf( excludedRoot ) )
+        continue;
+
+      if ( IsExcludedHelperShape( shape ) )
         continue;
 
       if ( !filteredShapes.Contains( shape ) )
@@ -237,6 +247,39 @@ public class TruckBedMassSensor : TargetMassSensorBase
            measurementHalfExtents.z > 0.0f;
   }
 
+  public override bool TryGetTargetDistanceVolume( out Transform measurementFrame,
+                                                   out Vector3 measurementCenterLocal,
+                                                   out Vector3 measurementHalfExtents )
+  {
+    measurementFrame = null;
+    measurementCenterLocal = Vector3.zero;
+    measurementHalfExtents = Vector3.zero;
+
+    ResolveReferences();
+    var collisionRoot = m_truckRoot != null ? m_truckRoot : m_bedTransform;
+    if ( collisionRoot == null )
+      return TryGetMeasurementVolume( out measurementFrame, out measurementCenterLocal, out measurementHalfExtents );
+
+    if ( m_cachedTargetDistanceBoundsTransform != collisionRoot ) {
+      m_cachedTargetDistanceBoundsTransform = collisionRoot;
+      m_hasCachedTargetDistanceLocalBounds =
+        TargetDistanceVolumeUtility.TryCalculateLocalBoxBounds( collisionRoot,
+                                                                GetCollisionShapes(),
+                                                                out m_cachedTargetDistanceLocalBounds );
+    }
+
+    if ( !m_hasCachedTargetDistanceLocalBounds )
+      return TryGetMeasurementVolume( out measurementFrame, out measurementCenterLocal, out measurementHalfExtents );
+
+    measurementFrame = collisionRoot;
+    measurementCenterLocal = m_cachedTargetDistanceLocalBounds.center;
+    measurementHalfExtents = new Vector3(
+      Mathf.Max( 0.01f, m_cachedTargetDistanceLocalBounds.extents.x ),
+      Mathf.Max( 0.01f, m_cachedTargetDistanceLocalBounds.extents.y ),
+      Mathf.Max( 0.01f, m_cachedTargetDistanceLocalBounds.extents.z ) );
+    return true;
+  }
+
   private void RefreshCachedBedBounds()
   {
     if ( m_cachedBoundsTransform == m_bedTransform )
@@ -250,7 +293,7 @@ public class TruckBedMassSensor : TargetMassSensorBase
       return;
     }
 
-    if ( TryCalculateLocalBoxBounds( m_bedTransform, out m_cachedBedLocalBounds ) ) {
+    if ( TargetDistanceVolumeUtility.TryCalculateLocalBoxBounds( m_bedTransform, (Transform)null, out m_cachedBedLocalBounds ) ) {
       m_hasCachedBedLocalBounds = true;
       return;
     }
@@ -297,6 +340,32 @@ public class TruckBedMassSensor : TargetMassSensorBase
     }
   }
 
+  private bool IsExcludedHelperShape( Shape shape )
+  {
+    if ( shape == null )
+      return true;
+
+    var shapeName = shape.transform != null ? shape.transform.name : shape.name;
+    if ( string.IsNullOrWhiteSpace( shapeName ) )
+      return false;
+
+    if ( shapeName.IndexOf( "FailureVolume", StringComparison.OrdinalIgnoreCase ) >= 0 )
+      return true;
+
+    if ( m_excludedHelperShapeNames == null || m_excludedHelperShapeNames.Length == 0 )
+      return false;
+
+    foreach ( var excludedName in m_excludedHelperShapeNames ) {
+      if ( string.IsNullOrWhiteSpace( excludedName ) )
+        continue;
+
+      if ( string.Equals( shapeName, excludedName, StringComparison.OrdinalIgnoreCase ) )
+        return true;
+    }
+
+    return false;
+  }
+
   private void DisableBedTerrainObjectIfRequested()
   {
     if ( !m_disableBedTerrainObject )
@@ -322,62 +391,6 @@ public class TruckBedMassSensor : TargetMassSensorBase
 
       box.CollisionsEnabled = true;
     }
-  }
-
-  private static bool TryCalculateLocalBoxBounds( Transform reference, out Bounds localBounds )
-  {
-    localBounds = default;
-    if ( reference == null )
-      return false;
-
-    var boxes = reference.GetComponentsInChildren<Box>( true );
-    var hasBounds = false;
-
-    foreach ( var box in boxes ) {
-      if ( box == null )
-        continue;
-
-      var halfExtents = box.HalfExtents;
-      if ( halfExtents.x <= 0.0f || halfExtents.y <= 0.0f || halfExtents.z <= 0.0f )
-        continue;
-
-      GetLocalBoxCorners( halfExtents, s_boxLocalCorners );
-      var localMin = Vector3.positiveInfinity;
-      var localMax = Vector3.negativeInfinity;
-
-      for ( var i = 0; i < s_boxLocalCorners.Length; ++i ) {
-        var worldCorner = box.transform.TransformPoint( s_boxLocalCorners[i] );
-        var localCorner = reference.InverseTransformPoint( worldCorner );
-        localMin = Vector3.Min( localMin, localCorner );
-        localMax = Vector3.Max( localMax, localCorner );
-      }
-
-      if ( !hasBounds ) {
-        localBounds = new Bounds( 0.5f * ( localMin + localMax ), localMax - localMin );
-        hasBounds = true;
-      }
-      else {
-        localBounds.Encapsulate( localMin );
-        localBounds.Encapsulate( localMax );
-      }
-    }
-
-    return hasBounds;
-  }
-
-  private static void GetLocalBoxCorners( Vector3 halfExtents, Vector3[] corners )
-  {
-    var min = -halfExtents;
-    var max = halfExtents;
-
-    corners[0] = new Vector3( min.x, min.y, min.z );
-    corners[1] = new Vector3( min.x, min.y, max.z );
-    corners[2] = new Vector3( min.x, max.y, min.z );
-    corners[3] = new Vector3( min.x, max.y, max.z );
-    corners[4] = new Vector3( max.x, min.y, min.z );
-    corners[5] = new Vector3( max.x, min.y, max.z );
-    corners[6] = new Vector3( max.x, max.y, min.z );
-    corners[7] = new Vector3( max.x, max.y, max.z );
   }
 
   private static Transform FindTransformByName( string transformName )

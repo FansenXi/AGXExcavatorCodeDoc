@@ -17,6 +17,15 @@ public abstract class TargetMassSensorBase : ScriptComponent
                                                 out Vector3 measurementCenterLocal,
                                                 out Vector3 measurementHalfExtents );
 
+  public virtual bool TryGetTargetDistanceVolume( out Transform measurementFrame,
+                                                  out Vector3 measurementCenterLocal,
+                                                  out Vector3 measurementHalfExtents )
+  {
+    return TryGetMeasurementVolume( out measurementFrame,
+                                    out measurementCenterLocal,
+                                    out measurementHalfExtents );
+  }
+
   public abstract void ResetMeasurements();
 }
 
