@@ -121,6 +121,9 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
     private global::ActiveTargetCollisionMonitor m_activeTargetCollisionMonitor = null;
 
     [SerializeField]
+    private global::DigAreaMeasurement m_digAreaMeasurement = null;
+
+    [SerializeField]
     private ActuatorNormalizationRange m_boomRange = new ActuatorNormalizationRange();
 
     [SerializeField]
@@ -253,6 +256,13 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
         m_activeTargetCollisionMonitor != null ?
           m_activeTargetCollisionMonitor.TargetContactMaxNormalForceN :
           0.0f;
+      if ( m_digAreaMeasurement != null &&
+           m_digAreaMeasurement.TryMeasureBucketDigAreaMetrics( bucketReference,
+                                                                out var minDistanceToDigAreaMeters,
+                                                                out var bucketDepthBelowDigAreaPlaneMeters ) ) {
+        observation.task_state.min_distance_to_dig_area_m = minDistanceToDigAreaMeters;
+        observation.task_state.bucket_depth_below_dig_area_plane_m = bucketDepthBelowDigAreaPlaneMeters;
+      }
 
       return observation;
     }
@@ -296,12 +306,17 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       m_massTracker = ExcavatorRigLocator.ResolveComponent( this, m_massTracker );
       m_targetMassSensor = ExcavatorRigLocator.ResolveComponent( this, m_targetMassSensor );
       m_activeTargetCollisionMonitor = ExcavatorRigLocator.ResolveComponent( this, m_activeTargetCollisionMonitor );
+      m_digAreaMeasurement = ExcavatorRigLocator.ResolveComponent( this, m_digAreaMeasurement );
       if ( m_activeTargetCollisionMonitor == null ) {
         var monitorHost = m_excavator != null ? m_excavator.gameObject : gameObject;
         m_activeTargetCollisionMonitor = monitorHost.GetComponent<global::ActiveTargetCollisionMonitor>();
         if ( m_activeTargetCollisionMonitor == null )
           m_activeTargetCollisionMonitor = monitorHost.AddComponent<global::ActiveTargetCollisionMonitor>();
       }
+      if ( m_digAreaMeasurement == null )
+        m_digAreaMeasurement = global::DigAreaMeasurement.FindOrCreateInScene();
+      else
+        m_digAreaMeasurement.ResolveReferences();
       m_targetMassSensor?.RefreshTargets();
     }
 

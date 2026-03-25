@@ -35,6 +35,7 @@ public class ExcavationMassTracker : ScriptComponent
   // by accumulating positive changes in bucket load across the episode.
   public float ExcavatedMass => m_excavatedMass;
   public float MassInBucket => m_massInBucket;
+  public Transform BucketMeasurementFrame => ResolveBucketMeasurementFrame();
 
 
   protected override bool Initialize()
@@ -118,6 +119,46 @@ public class ExcavationMassTracker : ScriptComponent
     return measurementHalfExtents.x > 0.0f &&
            measurementHalfExtents.y > 0.0f &&
            measurementHalfExtents.z > 0.0f;
+  }
+
+  public bool TryGetBucketMeasurementVolume( out Transform measurementFrame,
+                                             out Vector3 measurementCenter,
+                                             out Vector3 measurementHalfExtents )
+  {
+    measurementFrame = ResolveBucketMeasurementFrame();
+    if ( measurementFrame == null )
+    {
+      measurementCenter = Vector3.zero;
+      measurementHalfExtents = Vector3.zero;
+      return false;
+    }
+
+    return TryGetBucketMeasurement( out measurementCenter, out measurementHalfExtents );
+  }
+
+  public static bool TryGetBucketMeasurementVolumeForFrame( Transform measurementFrame,
+                                                            out Vector3 measurementCenter,
+                                                            out Vector3 measurementHalfExtents )
+  {
+    measurementCenter = Vector3.zero;
+    measurementHalfExtents = Vector3.zero;
+    if ( measurementFrame == null )
+      return false;
+
+    var trackers = Object.FindObjectsByType<ExcavationMassTracker>(
+      FindObjectsInactive.Include,
+      FindObjectsSortMode.None );
+    if ( trackers == null || trackers.Length == 0 )
+      return false;
+
+    foreach ( var tracker in trackers ) {
+      if ( tracker == null || tracker.BucketMeasurementFrame != measurementFrame )
+        continue;
+
+      return tracker.TryGetBucketMeasurementVolume( out _, out measurementCenter, out measurementHalfExtents );
+    }
+
+    return false;
   }
 
   private void UpdateInfoText()

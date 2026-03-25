@@ -14,6 +14,8 @@ V0 task loop:
 - AGX success remains target-centric:
 `deposited_mass_in_target_box_kg >= 100.0 kg` for `25` consecutive steps
 - Unity now exports active-target hard-collision summary signals
+- the scene `DigArea` is now highlighted with a transparent fill and colored contour
+- the Unity HUD now shows the DigArea good-start latch and live DigArea geometry checks
 - for hard-collision monitoring, it now covers the full `BedTruck`  
 hard body
 - collision counting is now designed as event-based :  
@@ -29,15 +31,17 @@ backup scalar
 
 The current Unity `env_state` contract is now:
 
-`[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n]`
+`[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n, min_distance_to_dig_area_m, bucket_depth_below_dig_area_plane_m]`
 
 Current meanings:
 
 - `mass_in_target_box_kg` always refers to the currently active target
 - `deposited_mass_in_target_box_kg` is reset-relative net retained target mass
-- `min_distance_to_target_m` is the approximate minimum bucket-to-target distance
+- `min_distance_to_target_m` is back on the older approximate bucket-to-target measurement-volume distance path; the attempted hard-surface / full-excavator fix was rolled back because it did not solve the bug and caused frame-rate drop
 - `target_hard_collision_count` is the cumulative hard-collision event count within the current episode
 - `target_contact_max_normal_force_n` is the current-step maximum monitored normal force
+- `min_distance_to_dig_area_m` is the approximate minimum bucket-to-DigArea distance
+- `bucket_depth_below_dig_area_plane_m` is the current bucket depth below the DigArea plane
 
 ### 2.2 Hard-Collision Monitoring Upgrade
 
@@ -64,16 +68,18 @@ Repo A continues to use one continuous mission:
 
 Reward is still shaped from observable sub-targets rather than hard stage IDs:
 
-1. `loading`
+1. `loading` after a qualified DigArea good start
 2. `approaching_target`
 3. `depositing`
 4. `retained_success`
 
 Optional step logs currently include:
 
+- `good_dig_start`
 - `load_progress`
 - `approach_progress`
 - `deposit_progress`
+- `load_outside_dig_area`
 - `spill_before_target`
 - `unsafe_target_distance`
 - `hard_target_collision`
@@ -89,6 +95,17 @@ The default AGX episode budget remains:
 - `20` seconds maximum per episode
 
 This is already reflected in teleop/eval defaults.
+
+### 2.5 Runtime Visual / HUD Feedback
+
+The current Unity scene now also provides direct operator-facing feedback for
+DigArea alignment:
+
+- the existing scene `DigArea` thin box is reused as a semi-transparent fill
+- a colored contour is drawn around the DigArea footprint at runtime
+- `ExperimentHUD` now shows whether good dig start has latched
+- the HUD also shows live DigArea touch status and the current bucket depth
+below the DigArea plane
 
 ## 3. Current Reward And Penalty Settings
 
@@ -289,4 +306,3 @@ For now, the current working rule remains:
 - task success is still defined by retained target mass
 - collision already affects reward
 - efficiency has not yet been explicitly priced into reward, but it should be discussed next
-

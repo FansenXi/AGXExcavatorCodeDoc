@@ -78,6 +78,8 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
     public float min_distance_to_target_m = -1.0f;
     public float target_hard_collision_count = 0.0f;
     public float target_contact_max_normal_force_n = 0.0f;
+    public float min_distance_to_dig_area_m = -1.0f;
+    public float bucket_depth_below_dig_area_plane_m = 0.0f;
   }
 
   [Serializable]

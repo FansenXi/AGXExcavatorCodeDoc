@@ -34,6 +34,31 @@ internal struct OrientedMeasurementBox
       normalizedZ * HalfExtents.z );
     return Frame.TransformPoint( CenterLocal + localOffset );
   }
+
+  public Vector3 CornerWorld( int xSign, int ySign, int zSign )
+  {
+    return Frame.TransformPoint(
+      CenterLocal + new Vector3(
+        xSign * HalfExtents.x,
+        ySign * HalfExtents.y,
+        zSign * HalfExtents.z ) );
+  }
+
+  public float GetWorldMinY()
+  {
+    var minWorldY = float.PositiveInfinity;
+    for ( var xSign = -1; xSign <= 1; xSign += 2 ) {
+      for ( var ySign = -1; ySign <= 1; ySign += 2 ) {
+        for ( var zSign = -1; zSign <= 1; zSign += 2 ) {
+          var worldCorner = CornerWorld( xSign, ySign, zSign );
+          if ( worldCorner.y < minWorldY )
+            minWorldY = worldCorner.y;
+        }
+      }
+    }
+
+    return float.IsPositiveInfinity( minWorldY ) ? 0.0f : minWorldY;
+  }
 }
 
 internal static class BucketTargetDistanceMeasurementUtility
@@ -48,7 +73,7 @@ internal static class BucketTargetDistanceMeasurementUtility
     if ( bucketReference == null || targetSensor == null )
       return false;
 
-    if ( !TryGetMeasurementBox( bucketReference, out var bucketBox ) )
+    if ( !TryGetLegacyMeasurementBox( bucketReference, out var bucketBox ) )
       return false;
 
     if ( !targetSensor.TryGetMeasurementVolume( out var targetFrame, out var targetCenterLocal, out var targetHalfExtents ) )
@@ -68,7 +93,50 @@ internal static class BucketTargetDistanceMeasurementUtility
     return true;
   }
 
-  private static bool TryGetMeasurementBox( Transform reference, out OrientedMeasurementBox measurementBox )
+  internal static bool TryGetMeasurementBox( Transform reference, out OrientedMeasurementBox measurementBox )
+  {
+    measurementBox = default;
+    if ( reference == null )
+      return false;
+
+    if ( ExcavationMassTracker.TryGetBucketMeasurementVolumeForFrame( reference,
+                                                                      out var trackerMeasurementCenter,
+                                                                      out var trackerMeasurementHalfExtents ) ) {
+      measurementBox = new OrientedMeasurementBox
+      {
+        Frame = reference,
+        CenterLocal = trackerMeasurementCenter,
+        HalfExtents = trackerMeasurementHalfExtents
+      };
+      return measurementBox.IsValid;
+    }
+
+    if ( !TryCalculateLocalCompositeBounds( reference, out var localBounds ) )
+      return false;
+
+    var halfExtents = 0.5f * localBounds.size;
+    if ( halfExtents.x <= 0.0f || halfExtents.y <= 0.0f || halfExtents.z <= 0.0f )
+      return false;
+
+    measurementBox = new OrientedMeasurementBox
+    {
+      Frame = reference,
+      CenterLocal = localBounds.center,
+      HalfExtents = halfExtents
+    };
+    return true;
+  }
+
+  internal static float MeasureApproximateDistance( OrientedMeasurementBox left, OrientedMeasurementBox right )
+  {
+    var minDistanceSq = float.PositiveInfinity;
+    SampleBoxAgainstOther( left, right, ref minDistanceSq );
+    SampleBoxAgainstOther( right, left, ref minDistanceSq );
+
+    return float.IsPositiveInfinity( minDistanceSq ) ? -1.0f : Mathf.Sqrt( Mathf.Max( 0.0f, minDistanceSq ) );
+  }
+
+  private static bool TryGetLegacyMeasurementBox( Transform reference, out OrientedMeasurementBox measurementBox )
   {
     measurementBox = default;
     if ( reference == null )
@@ -88,15 +156,6 @@ internal static class BucketTargetDistanceMeasurementUtility
       HalfExtents = halfExtents
     };
     return true;
-  }
-
-  private static float MeasureApproximateDistance( OrientedMeasurementBox left, OrientedMeasurementBox right )
-  {
-    var minDistanceSq = float.PositiveInfinity;
-    SampleBoxAgainstOther( left, right, ref minDistanceSq );
-    SampleBoxAgainstOther( right, left, ref minDistanceSq );
-
-    return float.IsPositiveInfinity( minDistanceSq ) ? -1.0f : Mathf.Sqrt( Mathf.Max( 0.0f, minDistanceSq ) );
   }
 
   private static void SampleBoxAgainstOther( OrientedMeasurementBox source,

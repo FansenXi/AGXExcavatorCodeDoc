@@ -56,11 +56,14 @@ The current main scene provides:
 
 - fixed excavator pose
 - fixed soil pile / dig zone
+- a scene `DigArea` guide rendered as a transparent fill with a colored contour
 - FPV camera for step-ack export
 - a static rigid `ContainerBox` target
 - a `BedTruck` target with runtime target switching
 
 Runtime target routing is implemented, so the same exported field names continue to refer to the **currently active target**.
+The runtime HUD also exposes DigArea good-start state, DigArea touch state, and
+bucket depth below the DigArea plane for quick operator validation.
 
 ### 3.2 Target Mass Measurement
 
@@ -137,7 +140,7 @@ The current Unity bridge already supports:
 - FPV raw RGB export
 - 4D `qpos`
 - 4D `qvel`
-- 7D `env_state`
+- 9D `env_state`
 
 ## 4. Current Export Contract
 
@@ -150,7 +153,7 @@ The current exported observation is:
 
 Current `env_state` order:
 
-`[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n]`
+`[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n, min_distance_to_dig_area_m, bucket_depth_below_dig_area_plane_m]`
 
 Field semantics:
 
@@ -161,6 +164,12 @@ Field semantics:
 - `min_distance_to_target_m`: approximate minimum bucket-to-active-target distance
 - `target_hard_collision_count`: cumulative episode count of monitored excavator-vs-active-target hard collisions
 - `target_contact_max_normal_force_n`: per-step maximum monitored excavator-vs-active-target solved normal force in Newtons
+- `min_distance_to_dig_area_m`: approximate minimum bucket-measurement-volume distance to the scene `DigArea`
+- `bucket_depth_below_dig_area_plane_m`: `max(0, dig_plane_y - bucket_world_min_y)` for the current bucket measurement volume
+
+The DigArea fields continue to use the configured bucket measurement volume that
+`ExcavationMassTracker` uses for bucket-mass estimation when that configuration
+is available in the scene.
 
 For precise wire details, use `Docs/protocol.md`.
 
@@ -192,8 +201,10 @@ require Unity to export explicit stage IDs. Reward is attached to observable
 sub-targets inside that single mission:
 
 1. `loading`
-   The bucket starts gaining meaningful soil mass.
-   Signals: `mass_in_bucket_kg`, `excavated_mass_kg`
+   The bucket starts gaining meaningful soil mass **after** a qualified DigArea
+   good start.
+   Signals: `mass_in_bucket_kg`, `excavated_mass_kg`,
+   `min_distance_to_dig_area_m`, `bucket_depth_below_dig_area_plane_m`
 2. `approaching_target`
    A loaded bucket moves closer to the currently active target.
    Signals: `mass_in_bucket_kg`, `min_distance_to_target_m`
@@ -214,10 +225,11 @@ Current reward range:
 - `4.0` retained success held
 
 The tracker also emits optional per-step success/fail logs such as
-`load_progress`, `approach_progress`, `deposit_progress`,
-`spill_before_target`, `unsafe_target_distance`, and
-`hard_target_collision` for debugging. These logs are testbed-side diagnostics;
-they are not part of the Unity wire protocol.
+`good_dig_start`, `load_progress`, `approach_progress`,
+`deposit_progress`, `load_outside_dig_area`, `spill_before_target`,
+`unsafe_target_distance`, and `hard_target_collision` for debugging. These
+logs are testbed-side diagnostics; they are not part of the Unity wire
+protocol.
 
 Current testbed penalty behavior:
 
@@ -232,6 +244,8 @@ The intended episode flow is now:
 1. reset the scene
 2. confirm or set the active dump target
 3. scoop material from the soil pile
+   The intended good start is now: bucket measurement volume touches the
+   `DigArea` region and digs below the DigArea plane while load increases.
 4. transport the load toward the selected target
 5. dump material into the target
 6. wait for settling / retained-mass confirmation

@@ -9,6 +9,11 @@ namespace AGXUnity_Excavator.Scripts.Presentation
 {
   public class ExperimentHUD : MonoBehaviour
   {
+    private const string GoodColor = "#7CFC00";
+    private const string WarnColor = "#FFD166";
+    private const string BadColor = "#F4A261";
+    private const string NeutralColor = "#B0B0B0";
+
     [SerializeField]
     private EpisodeManager m_episodeManager = null;
 
@@ -19,7 +24,7 @@ namespace AGXUnity_Excavator.Scripts.Presentation
     private AgxSimStepAckServer m_stepAckServer = null;
 
     [SerializeField]
-    private Rect m_rect = new Rect( 16.0f, 16.0f, 520.0f, 520.0f );
+    private Rect m_rect = new Rect( 16.0f, 16.0f, 520.0f, 620.0f );
 
     [SerializeField]
     private bool m_showRuntimeConfig = true;
@@ -126,6 +131,9 @@ namespace AGXUnity_Excavator.Scripts.Presentation
                          $"Min distance to target: {m_episodeManager.MinDistanceToTarget:0.000} m" :
                          "Min distance to target: n/a",
                        m_style );
+      GUILayout.Label( FormatGoodDigStartLine(), m_style );
+      GUILayout.Label( FormatDigAreaTouchLine(), m_style );
+      GUILayout.Label( FormatDigAreaDepthLine(), m_style );
       GUILayout.Label( $"Target hard collisions (episode): {m_episodeManager.TargetHardCollisionCount}", m_style );
       GUILayout.Label( $"Target max normal force (step): {m_episodeManager.TargetContactMaxNormalForceN:0.0} N", m_style );
       if ( m_showStepAckDebug )
@@ -248,6 +256,55 @@ namespace AGXUnity_Excavator.Scripts.Presentation
 
         GUILayout.Label( debugLine, m_style );
       }
+    }
+
+    private string FormatGoodDigStartLine()
+    {
+      if ( m_episodeManager == null )
+        return "Good dig start: n/a";
+
+      if ( m_episodeManager.GoodDigStartThisFrame )
+        return $"Good dig start: {Colorize( "latched this frame", GoodColor )}";
+
+      if ( m_episodeManager.GoodDigStartLatched )
+        return $"Good dig start: {Colorize( "latched", GoodColor )}";
+
+      if ( !m_episodeManager.IsEpisodeRunning )
+        return $"Good dig start: {Colorize( "idle", NeutralColor )}";
+
+      if ( m_episodeManager.IsBucketTouchingDigArea &&
+           m_episodeManager.IsBucketBelowDigAreaPlane )
+        return $"Good dig start: {Colorize( "armed, waiting for load", WarnColor )}";
+
+      return $"Good dig start: {Colorize( "waiting", BadColor )}";
+    }
+
+    private string FormatDigAreaTouchLine()
+    {
+      if ( m_episodeManager == null || m_episodeManager.MinDistanceToDigArea < 0.0f )
+        return $"DigArea touch: {Colorize( "n/a", NeutralColor )}    Min distance to DigArea: n/a";
+
+      return $"DigArea touch: {FormatBooleanState( m_episodeManager.IsBucketTouchingDigArea )}    " +
+             $"Min distance to DigArea: {m_episodeManager.MinDistanceToDigArea:0.000} m";
+    }
+
+    private string FormatDigAreaDepthLine()
+    {
+      if ( m_episodeManager == null || m_episodeManager.MinDistanceToDigArea < 0.0f )
+        return $"Below DigArea plane: {Colorize( "n/a", NeutralColor )}    Bucket depth below plane: n/a";
+
+      return $"Below DigArea plane: {FormatBooleanState( m_episodeManager.IsBucketBelowDigAreaPlane )}    " +
+             $"Bucket depth below plane: {m_episodeManager.BucketDepthBelowDigAreaPlane:0.000} m";
+    }
+
+    private static string FormatBooleanState( bool value )
+    {
+      return value ? Colorize( "yes", GoodColor ) : Colorize( "no", BadColor );
+    }
+
+    private static string Colorize( string text, string colorHex )
+    {
+      return $"<color={colorHex}>{text}</color>";
     }
 
     private static string GetSourceHotkeyLabel( int sourceIndex )

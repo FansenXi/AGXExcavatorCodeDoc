@@ -272,7 +272,9 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
         "deposited_mass_in_target_box_kg",
         "min_distance_to_target_m",
         "target_hard_collision_count",
-        "target_contact_max_normal_force_n"
+        "target_contact_max_normal_force_n",
+        "min_distance_to_dig_area_m",
+        "bucket_depth_below_dig_area_plane_m"
       };
       payload.cameras = CreateCameraDescriptors();
       payload.camera_names = Array.ConvertAll( payload.cameras, camera => camera.name );
@@ -372,7 +374,9 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
         observation.task_state != null ? observation.task_state.deposited_mass_in_target_box_kg : 0.0f,
         observation.task_state != null ? observation.task_state.min_distance_to_target_m : -1.0f,
         observation.task_state != null ? observation.task_state.target_hard_collision_count : 0.0f,
-        observation.task_state != null ? observation.task_state.target_contact_max_normal_force_n : 0.0f
+        observation.task_state != null ? observation.task_state.target_contact_max_normal_force_n : 0.0f,
+        observation.task_state != null ? observation.task_state.min_distance_to_dig_area_m : -1.0f,
+        observation.task_state != null ? observation.task_state.bucket_depth_below_dig_area_plane_m : 0.0f
       };
       payload.reward = observation.task_state != null ? observation.task_state.deposited_mass_in_target_box_kg : 0.0f;
       payload.sim_time_ns = observation != null ? (long)Math.Round( observation.sim_time_sec * 1000000000.0 ) : -1;

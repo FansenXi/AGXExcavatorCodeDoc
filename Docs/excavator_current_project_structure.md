@@ -50,12 +50,14 @@
   `deposited_mass_in_target_box_kg`，作为 backup success proxy；Repo A /
   testbed 仍然基于导出的 `env_state` 本地计算主 excavation mission reward
 - 当前 step-ack `env_state` 顺序是：
-  `[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n]`
+  `[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n, min_distance_to_dig_area_m, bucket_depth_below_dig_area_plane_m]`
 - `mass_in_target_box_kg` 当前表示“运行时选中的接料目标”
   当前主场景支持 `ContainerBox` 和 `TruckBed`
 - `min_distance_to_target_m` 当前表示 bucket 量测体到当前激活目标量测体的近似最小距离
 - `target_hard_collision_count` / `target_contact_max_normal_force_n` 当前表示
   excavator 与当前激活目标硬表面的每步硬碰撞摘要信号
+- `min_distance_to_dig_area_m` / `bucket_depth_below_dig_area_plane_m` 当前表示
+  bucket 量测体相对场景 `DigArea` 的起挖几何信号
 - 当当前激活目标是 `TruckBed` 时，硬碰撞监控范围覆盖整台 `BedTruck`，而不只是 bed / trunk 量测区域
 - 当前默认 evaluator / mission success 使用
   `deposited_mass_in_target_box_kg` 作为最终成功信号，默认阈值为
@@ -232,6 +234,7 @@ flowchart TB
 - `TruckBedMassSensor.cs`
 - `SwitchableTargetMassSensor.cs`
 - `TargetMassSensorBase.cs`
+- `BucketTargetDistanceMeasurementUtility.cs`
 
 补充说明：
 
@@ -314,7 +317,7 @@ flowchart TB
 
 当前二进制 `STEP_RESP.env_state` 的顺序是：
 
-`[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n]`
+`[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n, min_distance_to_dig_area_m, bucket_depth_below_dig_area_plane_m]`
 
 其中：
 
@@ -324,6 +327,9 @@ flowchart TB
 - `target_hard_collision_count` 表示当前 episode 内累计的监控 excavator-vs-active-target 硬碰撞次数
 - 同一段连续接触期间，这个累计值最多只增加一次；必须先离开目标，下一次接触才会再次增加
 - `target_contact_max_normal_force_n` 表示当前这一步中，监控 excavator-vs-active-target 接触的最大法向力
+- `min_distance_to_dig_area_m` 表示 bucket 量测体到场景 `DigArea` 薄 box 的近似最小距离；不可计算时为 `-1`
+- `bucket_depth_below_dig_area_plane_m` 表示当前 bucket 量测体最低点低于 DigArea 平面的深度；未低于平面时为 `0`
+- 当前这些距离字段在 bucket 侧优先复用 `ExcavationMassTracker` 已配置的 measurement frame / volume，这样 bucket 质量统计和距离统计使用同一套量测几何
 
 #### E. `ExcavationMassTracker` 的 bucket 统计补充
 
@@ -483,7 +489,7 @@ Python client
 - `RESET` 和 `STEP` 前会确保 `Simulation.AutoSteppingMode = Disabled`
 - `STEP_REQ` 会应用 4 维 action，然后调用一次 `DoStep()`
 - `STEP_RESP` 返回 4D `qpos`、4D `qvel`、`env_state`、`reward`、`sim_time_ns` 和 FPV 原始图像
-- `env_state` 现在是在原 4 个质量字段后追加 `min_distance_to_target_m`，以保持既有质量索引不变
+- `env_state` 现在保持前 7 个字段兼容，并在尾部追加 DigArea good-start 信号
 - server 在 serving 时可以暂时禁用 `EpisodeManager`，避免常规实验链和手动步进同时驱动仿真
 
 ## 6. 主场景中的当前集成角色
@@ -543,11 +549,12 @@ Python client
 - 在 `SubmergedBox` 上方的定向盒体体积内累加 soil particle 质量与上述动态刚体质量
 - `TruckBedMassSensor` 会在 AGX 初始化前禁用 truck 的 `BedTerrain` 子物体、重新启用 `Bed` 现有支撑 `Box` 碰撞，并优先用这些 `Box` 碰撞几何加顶部 headroom 构造 truck 测量体积，以本次 reset 时的质量为基线输出 truck target 质量，避免 truck 的 `MovableTerrain` merge 成高度场后漏计、底板穿透或只统计到床斗底部一层
 - `BucketTargetDistanceMeasurementUtility` 会基于 bucket 本体的局部包围盒和当前激活目标的测量体积，输出近似最小距离
+- `DigAreaMeasurement` 会复用同一套 bucket 量测几何，输出 bucket 到 `DigArea` 的近似最小距离，以及 bucket 低于 DigArea 平面的深度
 - `ActiveTargetCollisionMonitor` 会监听 AGX solved contact，只统计 excavator 与当前激活目标硬表面之间的接触；其中 `target_hard_collision_count` 是按“接触开始 -> 离开 -> 再次接触”语义累计的 episode 计数，`target_contact_max_normal_force_n` 是当前步最大法向力
 - `SceneResetService.ResetScene(resetTerrain: true, ...)` 后，terrain native 会清掉动态粒子，传感器计数同步归零
 - 这条质量数据当前进入 `ExperimentHUD`、`ExperimentLogger` 和 `ActObservation.task_state.*`
 - 二进制 `STEP_RESP.env_state` 当前顺序是：
-  `[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n]`
+  `[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n, min_distance_to_dig_area_m, bucket_depth_below_dig_area_plane_m]`
 
 `ExcavationMassTracker` 当前也不再只依赖 `terrain.getDynamicMass(shovel)`：
 

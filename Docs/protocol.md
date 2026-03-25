@@ -37,7 +37,7 @@ Current observation semantics:
 - qpos order: `[swing_position_norm, boom_position_norm, stick_position_norm, bucket_position_norm]`
 - qvel order: `[swing_speed, boom_speed, stick_speed, bucket_speed]`
 - env_state order:
-  `[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n]`
+  `[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n, min_distance_to_dig_area_m, bucket_depth_below_dig_area_plane_m]`
 
 `mass_in_target_box_kg` semantics:
 - this field always refers to the **currently active Unity dump target**
@@ -67,6 +67,17 @@ Current observation semantics:
 `target_contact_max_normal_force_n` semantics:
 - this field is the maximum solved normal-force magnitude observed during the just-completed simulation step across all monitored excavator-vs-active-target contacts
 - `0.0` means no monitored active-target contact was observed for that step
+
+`min_distance_to_dig_area_m` semantics:
+- this field is the approximate minimum distance between the current bucket measurement volume and the scene `DigArea` thin box
+- the scene `DigArea` object is treated as the single source of truth for the dig start region
+- `0.0` means the bucket measurement volume is touching or overlapping the DigArea box volume
+- `-1.0` means the distance could not be evaluated for the current frame
+
+`bucket_depth_below_dig_area_plane_m` semantics:
+- this field is computed as `max(0, dig_plane_y - bucket_world_min_y)`
+- `dig_plane_y` is the world-space Y value of the DigArea box center plane
+- this value only becomes positive when the bucket measurement volume goes below the DigArea plane
 
 ## 2. Byte Order and Primitive Encoding
 
@@ -229,7 +240,7 @@ After the common response prefix, fields are written in this order:
 Current Unity values:
 - `qpos.len = 4`
 - `qvel.len = 4`
-- `env_state.len = 7`
+- `env_state.len = 9`
 - `reward = deposited_mass_in_target_box_kg`
 - `image_format = "raw_rgb"` when FPV capture succeeds
 - `image_w = 0`, `image_h = 0`, `image_payload = empty` when no FPV frame is available
@@ -246,7 +257,7 @@ Reward note:
   `env_state[3]` / `deposited_mass_in_target_box_kg`; the `reward` field is a
   convenience mirror of that signal on the wire
 - current testbed reward sub-targets are:
-  - meaningful bucket load acquisition
+  - qualified DigArea good start plus meaningful bucket load acquisition
   - approaching the active target while loaded
   - increasing retained mass inside the active target
   - holding retained target mass above the configured success threshold
@@ -260,6 +271,8 @@ Target note:
 - `env_state[4]` reports the approximate minimum bucket-to-target distance in meters
 - `env_state[5]` reports the cumulative episode hard-collision count for monitored excavator-vs-active-target contacts
 - `env_state[6]` reports the maximum monitored contact normal force in Newtons for the completed step
+- `env_state[7]` reports the approximate minimum bucket-to-DigArea distance in meters
+- `env_state[8]` reports the current bucket depth below the DigArea plane in meters
 - Unity local CSV logs now include `target_name` for debugging
 - the binary `STEP_RESP` payload does **not** yet carry `target_name`; clients should treat target identity as scene/runtime configuration for now
 
@@ -294,6 +307,7 @@ Compared with older drafts in this repo, the current Unity implementation has th
 - target mass routing can now switch between multiple Unity dump targets while keeping the same env_state layout.
 - Unity now exports an approximate distance-to-active-target scalar alongside the existing mass metrics.
 - Unity now exports active-target hard-collision summary metrics without changing the meaning of the first five env_state indices.
+- Unity now also exports DigArea good-start geometry metrics while keeping the first seven env_state indices stable.
 
 ## 12. Known Limits
 

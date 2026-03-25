@@ -59,6 +59,21 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     private global::ActiveTargetCollisionMonitor m_activeTargetCollisionMonitor = null;
 
     [SerializeField]
+    private global::DigAreaMeasurement m_digAreaMeasurement = null;
+
+    [SerializeField]
+    [Min( 0.0f )]
+    private float m_goodDigAreaTouchToleranceM = 0.05f;
+
+    [SerializeField]
+    [Min( 0.0f )]
+    private float m_goodDigBelowPlaneDepthToleranceM = 0.02f;
+
+    [SerializeField]
+    [Min( 0.0f )]
+    private float m_goodDigLoadDeltaToleranceKg = 5.0f;
+
+    [SerializeField]
     private ExcavatorCommandInterpreter m_interpreter = new ExcavatorCommandInterpreter();
 
     private OperatorCommandSourceBehaviour[] m_availableSources = Array.Empty<OperatorCommandSourceBehaviour>();
@@ -68,6 +83,12 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     private bool m_targetMassSensorResolved = false;
     private bool m_inputCutActive = false;
     private float m_inputNeutralSinceTime = -1.0f;
+    private float m_minDistanceToDigArea = -1.0f;
+    private float m_bucketDepthBelowDigAreaPlane = 0.0f;
+    private float m_previousMassInBucketSample = 0.0f;
+    private float m_previousExcavatedMassSample = 0.0f;
+    private bool m_goodDigStartLatched = false;
+    private bool m_goodDigStartThisFrame = false;
 
     public int CurrentEpisodeIndex { get; private set; }
     public bool IsEpisodeRunning { get; private set; }
@@ -89,6 +110,15 @@ namespace AGXUnity_Excavator.Scripts.Experiment
                                                    out var minDistanceMeters ) ?
         minDistanceMeters :
         -1.0f;
+    public float MinDistanceToDigArea => m_minDistanceToDigArea;
+    public float BucketDepthBelowDigAreaPlane => m_bucketDepthBelowDigAreaPlane;
+    public bool IsBucketTouchingDigArea =>
+      m_minDistanceToDigArea >= 0.0f &&
+      m_minDistanceToDigArea <= m_goodDigAreaTouchToleranceM;
+    public bool IsBucketBelowDigAreaPlane =>
+      m_bucketDepthBelowDigAreaPlane >= m_goodDigBelowPlaneDepthToleranceM;
+    public bool GoodDigStartLatched => m_goodDigStartLatched;
+    public bool GoodDigStartThisFrame => m_goodDigStartThisFrame;
     public int TargetHardCollisionCount => m_activeTargetCollisionMonitor != null ? m_activeTargetCollisionMonitor.TargetHardCollisionCount : 0;
     public float TargetContactMaxNormalForceN => m_activeTargetCollisionMonitor != null ? m_activeTargetCollisionMonitor.TargetContactMaxNormalForceN : 0.0f;
     public int AvailableSourceCount => m_availableSources != null ? m_availableSources.Length : 0;
@@ -104,6 +134,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     {
       ResolveReferences();
       DisableLegacyExcavatorInputControllers();
+      ResetGoodDigStartTracking();
     }
 
     private void Start()
@@ -139,6 +170,8 @@ namespace AGXUnity_Excavator.Scripts.Experiment
 
       if ( m_machineController != null )
         m_machineController.ApplyActuationCommand( LastActuationCommand );
+
+      RefreshGoodDigStartState();
 
       if ( IsEpisodeRunning ) {
         var actDiagnostics = m_commandSource as IActCommandDiagnostics;
@@ -287,6 +320,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       }
 
       m_logger?.BeginEpisode( CurrentEpisodeIndex, CurrentSourceName );
+      ResetGoodDigStartTracking();
     }
 
     public void StopEpisode( string reason )
@@ -302,6 +336,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       LastRawCommand = OperatorCommand.Zero;
       LastSimulatedCommand = OperatorCommand.Zero;
       LastActuationCommand = ExcavatorActuationCommand.Zero;
+      ResetGoodDigStartTracking();
 
       if ( m_logger != null && m_logger.IsRecording )
         m_logger.EndEpisode( reason );
@@ -317,6 +352,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       StopEpisode( "reset" );
       m_sceneResetService?.ResetScene();
       m_activeTargetCollisionMonitor?.ResetMonitoring();
+      ResetGoodDigStartTracking();
 
       if ( restartEpisode )
         StartEpisode();
@@ -453,11 +489,64 @@ namespace AGXUnity_Excavator.Scripts.Experiment
         if ( m_activeTargetCollisionMonitor == null )
           m_activeTargetCollisionMonitor = monitorHost.AddComponent<global::ActiveTargetCollisionMonitor>();
       }
+      if ( m_digAreaMeasurement == null )
+        m_digAreaMeasurement = ExcavatorRigLocator.ResolveComponent( this, m_digAreaMeasurement );
+      if ( m_digAreaMeasurement == null )
+        m_digAreaMeasurement = global::DigAreaMeasurement.FindOrCreateInScene();
+      else
+        m_digAreaMeasurement.ResolveReferences();
 
       m_massTrackerResolved = true;
       m_targetMassSensorResolved = true;
 
       m_targetMassSensor?.RefreshTargets();
+    }
+
+    private void RefreshGoodDigStartState()
+    {
+      RefreshDigAreaMeasurements();
+      m_goodDigStartThisFrame = false;
+
+      var currentMassInBucket = MassInBucket;
+      var currentExcavatedMass = ExcavatedMass;
+      if ( IsEpisodeRunning && !m_goodDigStartLatched ) {
+        var rawLoadProgress = ( currentMassInBucket - m_previousMassInBucketSample ) >= m_goodDigLoadDeltaToleranceKg ||
+                              ( currentExcavatedMass - m_previousExcavatedMassSample ) >= m_goodDigLoadDeltaToleranceKg;
+        if ( rawLoadProgress &&
+             IsBucketTouchingDigArea &&
+             IsBucketBelowDigAreaPlane ) {
+          m_goodDigStartLatched = true;
+          m_goodDigStartThisFrame = true;
+        }
+      }
+
+      m_previousMassInBucketSample = currentMassInBucket;
+      m_previousExcavatedMassSample = currentExcavatedMass;
+    }
+
+    private void RefreshDigAreaMeasurements()
+    {
+      var bucketReference = m_machineController != null ? m_machineController.BucketReference : null;
+      if ( m_digAreaMeasurement != null &&
+           m_digAreaMeasurement.TryMeasureBucketDigAreaMetrics( bucketReference,
+                                                                out var minDistanceToDigAreaMeters,
+                                                                out var bucketDepthBelowDigAreaPlaneMeters ) ) {
+        m_minDistanceToDigArea = minDistanceToDigAreaMeters;
+        m_bucketDepthBelowDigAreaPlane = bucketDepthBelowDigAreaPlaneMeters;
+        return;
+      }
+
+      m_minDistanceToDigArea = -1.0f;
+      m_bucketDepthBelowDigAreaPlane = 0.0f;
+    }
+
+    private void ResetGoodDigStartTracking()
+    {
+      RefreshDigAreaMeasurements();
+      m_goodDigStartLatched = false;
+      m_goodDigStartThisFrame = false;
+      m_previousMassInBucketSample = MassInBucket;
+      m_previousExcavatedMassSample = ExcavatedMass;
     }
 
     private OperatorCommandSourceBehaviour[] DiscoverAvailableSources()
