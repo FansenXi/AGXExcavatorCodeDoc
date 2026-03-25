@@ -56,6 +56,9 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     private global::SwitchableTargetMassSensor m_targetMassSensor = null;
 
     [SerializeField]
+    private global::ActiveTargetCollisionMonitor m_activeTargetCollisionMonitor = null;
+
+    [SerializeField]
     private ExcavatorCommandInterpreter m_interpreter = new ExcavatorCommandInterpreter();
 
     private OperatorCommandSourceBehaviour[] m_availableSources = Array.Empty<OperatorCommandSourceBehaviour>();
@@ -86,6 +89,8 @@ namespace AGXUnity_Excavator.Scripts.Experiment
                                                    out var minDistanceMeters ) ?
         minDistanceMeters :
         -1.0f;
+    public int TargetHardCollisionCount => m_activeTargetCollisionMonitor != null ? m_activeTargetCollisionMonitor.TargetHardCollisionCount : 0;
+    public float TargetContactMaxNormalForceN => m_activeTargetCollisionMonitor != null ? m_activeTargetCollisionMonitor.TargetContactMaxNormalForceN : 0.0f;
     public int AvailableSourceCount => m_availableSources != null ? m_availableSources.Length : 0;
     public int CurrentSourceIndex => GetSourceIndex( m_commandSource );
     public int AvailableTargetCount => m_targetMassSensor != null ? m_targetMassSensor.AvailableTargetCount : 0;
@@ -148,7 +153,8 @@ namespace AGXUnity_Excavator.Scripts.Experiment
             hardwareDiagnostics,
             m_machineController != null ? m_machineController.BucketReference : null,
             m_massTracker,
-            m_targetMassSensor );
+            m_targetMassSensor,
+            m_activeTargetCollisionMonitor );
         }
       }
     }
@@ -310,6 +316,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     {
       StopEpisode( "reset" );
       m_sceneResetService?.ResetScene();
+      m_activeTargetCollisionMonitor?.ResetMonitoring();
 
       if ( restartEpisode )
         StartEpisode();
@@ -436,6 +443,16 @@ namespace AGXUnity_Excavator.Scripts.Experiment
 
       if ( m_targetMassSensor == null && !m_targetMassSensorResolved )
         m_targetMassSensor = ExcavatorRigLocator.ResolveComponent( this, m_targetMassSensor );
+
+      if ( m_activeTargetCollisionMonitor == null )
+        m_activeTargetCollisionMonitor = ExcavatorRigLocator.ResolveComponent( this, m_activeTargetCollisionMonitor );
+
+      if ( m_activeTargetCollisionMonitor == null ) {
+        var monitorHost = m_machineController != null ? m_machineController.gameObject : gameObject;
+        m_activeTargetCollisionMonitor = monitorHost.GetComponent<global::ActiveTargetCollisionMonitor>();
+        if ( m_activeTargetCollisionMonitor == null )
+          m_activeTargetCollisionMonitor = monitorHost.AddComponent<global::ActiveTargetCollisionMonitor>();
+      }
 
       m_massTrackerResolved = true;
       m_targetMassSensorResolved = true;

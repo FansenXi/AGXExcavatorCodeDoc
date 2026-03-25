@@ -118,6 +118,9 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
     private global::SwitchableTargetMassSensor m_targetMassSensor = null;
 
     [SerializeField]
+    private global::ActiveTargetCollisionMonitor m_activeTargetCollisionMonitor = null;
+
+    [SerializeField]
     private ActuatorNormalizationRange m_boomRange = new ActuatorNormalizationRange();
 
     [SerializeField]
@@ -152,6 +155,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       m_lastBaseSampleTime = -1.0f;
       m_lastLinearVelocityLocal = Vector3.zero;
       m_lastAngularVelocityLocal = Vector3.zero;
+      m_activeTargetCollisionMonitor?.ResetMonitoring();
 
       var baseTransform = m_excavator != null ? m_excavator.transform : transform;
       m_lastBasePosition = baseTransform != null ? baseTransform.position : Vector3.zero;
@@ -241,6 +245,14 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
         m_targetMassSensor.TryMeasureBucketDistance( bucketReference, out var minDistanceToTargetMeters ) ?
           minDistanceToTargetMeters :
           -1.0f;
+      observation.task_state.target_hard_collision_count =
+        m_activeTargetCollisionMonitor != null ?
+          m_activeTargetCollisionMonitor.TargetHardCollisionCount :
+          0.0f;
+      observation.task_state.target_contact_max_normal_force_n =
+        m_activeTargetCollisionMonitor != null ?
+          m_activeTargetCollisionMonitor.TargetContactMaxNormalForceN :
+          0.0f;
 
       return observation;
     }
@@ -283,6 +295,13 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       m_excavator = ExcavatorRigLocator.ResolveComponent( this, m_excavator );
       m_massTracker = ExcavatorRigLocator.ResolveComponent( this, m_massTracker );
       m_targetMassSensor = ExcavatorRigLocator.ResolveComponent( this, m_targetMassSensor );
+      m_activeTargetCollisionMonitor = ExcavatorRigLocator.ResolveComponent( this, m_activeTargetCollisionMonitor );
+      if ( m_activeTargetCollisionMonitor == null ) {
+        var monitorHost = m_excavator != null ? m_excavator.gameObject : gameObject;
+        m_activeTargetCollisionMonitor = monitorHost.GetComponent<global::ActiveTargetCollisionMonitor>();
+        if ( m_activeTargetCollisionMonitor == null )
+          m_activeTargetCollisionMonitor = monitorHost.AddComponent<global::ActiveTargetCollisionMonitor>();
+      }
       m_targetMassSensor?.RefreshTargets();
     }
 

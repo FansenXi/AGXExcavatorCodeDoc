@@ -1,7 +1,7 @@
 # AGXUnity Excavator Task Scene - Current V0 Reference
 
 **Status:** current English source of truth for the Unity/AGX side  
-**Last updated:** 2026-03-24  
+**Last updated:** 2026-03-25  
 **Companion translation:** `Docs/scene.zh-CN.md` is a reading-only mirror; if the two files ever diverge, this English file wins.
 
 This document is no longer an implementation plan. It describes the scene and task contract that are currently implemented across the Unity repo and the linked Python testbed workflow.
@@ -23,12 +23,13 @@ The current V0 scene is a fixed-reset excavator digging task with:
 - FPV image export
 - mass-based task signals
 - distance-based target-approach / near-collision signal
+- active-target hard-collision summary export
 
 The current step-ack contract intentionally excludes:
 
 - `drive / steer / track` from the action space
 - explicit phase labels
-- collision/contact export as a required V0 feature
+- full collision/contact event export as a required V0 feature
 
 ## 2. Task Definition
 
@@ -94,7 +95,28 @@ Current behavior:
 - it is exported alongside mass signals in `env_state`
 - it returns `-1.0` when the distance cannot be evaluated
 
-### 3.4 Reset
+### 3.4 Active-Target Hard Collision Export
+
+The current Unity scene also exports two active-target hard-collision summary
+signals:
+
+- `target_hard_collision_count`
+- `target_contact_max_normal_force_n`
+
+Current behavior:
+
+- source shapes are the enabled AGX `Collide.Shape` components under the excavator root, covering bucket / arm / chassis
+- target shapes come from the currently active target sensor hard-surface shape set
+- when the active target is `TruckBed`, the hard-surface shape set covers the full `BedTruck` collision body, not only the bed/trunk measurement region
+- `target_hard_collision_count` is cumulative within the current episode
+- a continuous excavator-vs-target contact session increments `target_hard_collision_count` at most once
+- while the excavator remains in contact with the target, the count does not keep rising every frame
+- after the excavator leaves the target, the next qualifying touch can increment the count again
+- the current scene default is `hard_collision_normal_force_thresh_n = 5000.0`
+- `target_contact_max_normal_force_n` records the maximum monitored solved normal-force magnitude from the completed step
+- these fields are summary metrics for reward / diagnostics; they do not replace the current mass-based success rule
+
+### 3.5 Reset
 
 The current reset path already restores:
 
@@ -106,7 +128,7 @@ The current reset path already restores:
 
 The current reset goal is stable baseline reproducibility, not strict seeded determinism.
 
-### 3.5 Step-Ack Bridge
+### 3.6 Step-Ack Bridge
 
 The current Unity bridge already supports:
 
@@ -115,7 +137,7 @@ The current Unity bridge already supports:
 - FPV raw RGB export
 - 4D `qpos`
 - 4D `qvel`
-- 5D `env_state`
+- 7D `env_state`
 
 ## 4. Current Export Contract
 
@@ -128,7 +150,7 @@ The current exported observation is:
 
 Current `env_state` order:
 
-`[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m]`
+`[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n]`
 
 Field semantics:
 
@@ -137,6 +159,8 @@ Field semantics:
 - `mass_in_target_box_kg`: current mass retained in the active dump target
 - `deposited_mass_in_target_box_kg`: reset-relative net retained mass in the active dump target
 - `min_distance_to_target_m`: approximate minimum bucket-to-active-target distance
+- `target_hard_collision_count`: cumulative episode count of monitored excavator-vs-active-target hard collisions
+- `target_contact_max_normal_force_n`: per-step maximum monitored excavator-vs-active-target solved normal force in Newtons
 
 For precise wire details, use `Docs/protocol.md`.
 
@@ -191,8 +215,15 @@ Current reward range:
 
 The tracker also emits optional per-step success/fail logs such as
 `load_progress`, `approach_progress`, `deposit_progress`,
-`spill_before_target`, and `unsafe_target_distance` for debugging. These logs
-are testbed-side diagnostics; they are not part of the Unity wire protocol.
+`spill_before_target`, `unsafe_target_distance`, and
+`hard_target_collision` for debugging. These logs are testbed-side diagnostics;
+they are not part of the Unity wire protocol.
+
+Current testbed penalty behavior:
+
+- if cumulative `target_hard_collision_count` increases for a step, the testbed applies one fixed `hard_collision_penalty = 0.75`
+- this penalty does not change the success rule
+- Unity `STEP_RESP.reward` still mirrors retained target mass only; the collision penalty stays testbed-side
 
 ## 6. Operational Flow
 
@@ -227,6 +258,7 @@ The following items that used to be planned are now complete enough to be treate
 - runtime target switching
 - truck-inclusive reset
 - distance export
+- active-target hard-collision summary export
 - testbed-side AGX mission reward
 - testbed-side named-signal success configuration
 
@@ -236,11 +268,11 @@ Because these items are implemented, this file no longer keeps the old implement
 
 The following are still intentionally open or out of scope for the current V0 contract:
 
-- collision/contact export is not yet a required or implemented primary signal
+- full collision/contact event export is not part of the current primary contract; only the active-target hard-collision summary metrics are exported
 - `drive / steer / track` are not part of the current step-ack action space
 - explicit phase labels are not exported
 - success threshold tuning still needs pilot-data calibration
-- exact geometric collision risk is not exported; only the current approximate distance signal is
+- exact geometric collision-risk fields beyond the current distance signal and active-target hard-collision summaries are not exported
 
 ## 9. Working Rule for Future Updates
 

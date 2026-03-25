@@ -1,190 +1,292 @@
-# AGXUnity Excavator Scene Report - 2026-03-24
+# AGXUnity Excavator Scene Report - 2026-03-25
 
 **Base document:** `Docs/scene.md`  
-**Purpose:** summarize what was completed today and the current working status
+**Purpose:** summarize today's implementation progress, record the current reward and penalty settings, and answer the latest task-design questions.
 
-This report is a teammate-facing progress note. 
+This report is a teammate-facing progress note. If this file conflicts with the main task specification, `Docs/scene.md` wins.
 
 ## 1. Executive Summary
 
-Today the scene/task line was moved from an implementation-plan state into a
-working V0 reference plus a usable testbed mission.
+Today the Unity/AGX side and the Python testbed were moved to a more complete
+V0 task loop:
 
-The main outcome is:
+- the scene/task contract is now documented as current implemented behavior
+- AGX success remains target-centric:
+`deposited_mass_in_target_box_kg >= 100.0 kg` for `25` consecutive steps
+- Unity now exports active-target hard-collision summary signals
+- for hard-collision monitoring, it now covers the full `BedTruck`  
+hard body
+- collision counting is now designed as event-based :  
+one continuous contact session counts at most once, and the count can grow  
+again only after the excavator leaves the target and touches it again
+- Repo A continues to compute the main mission reward locally from `env_state`
+while Unity keeps mirroring retained target mass into `STEP_RESP.reward` as a
+backup scalar
 
-- the Unity scene contract is now documented as a current implemented state
-- the Python testbed now uses a target-based excavation mission reward while
-Unity mirrors retained target mass into `STEP_RESP.reward` as a backup success
-proxy
-- AGX success is now defined by retained mass in the active target, not by
-bucket mass
-- the default AGX episode budget was increased from `500` to `1000` steps, 
-for 10 seconds is not enough to carry out a full task.
+## 2. What Was Completed Today
 
-## 2. Scene / Protocol Status
+### 2.1 Scene / Protocol Side
 
-The current V0 scene, as reflected in `Docs/scene.md`, now assumes:
+The current Unity `env_state` contract is now:
 
-- fixed-reset excavator digging
-- one fixed soil pile
-- one runtime-selected dump target
-- 4D arm control only: `swing / boom / stick / bucket`
-- FPV export
-- target-mass export
-- distance export
+`[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n]`
 
-The current Unity `env_state` contract is:
+Current meanings:
 
-`[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m]`
+- `mass_in_target_box_kg` always refers to the currently active target
+- `deposited_mass_in_target_box_kg` is reset-relative net retained target mass
+- `min_distance_to_target_m` is the approximate minimum bucket-to-target distance
+- `target_hard_collision_count` is the cumulative hard-collision event count within the current episode
+- `target_contact_max_normal_force_n` is the current-step maximum monitored normal force
 
-Important current meanings:
+### 2.2 Hard-Collision Monitoring Upgrade
 
-- `mass_in_target_box_kg` always means the **currently active target**
-- `deposited_mass_in_target_box_kg` is reset-relative net retained mass
-- `min_distance_to_target_m` is an approximate bucket-to-active-target distance
-- Unity `STEP_RESP.reward` now mirrors
-  `deposited_mass_in_target_box_kg` as a backup success proxy on the wire
+The hard-collision path was extended in two important ways.
 
-## 3. What Was Completed Today
+First, target coverage is broader:
 
-### 3.1 Scene Documentation Cleanup
+- `ContainerBox` monitors its own hard body
+- `BedTruck` now monitors the full `BedTruck` hard body
 
-`Docs/scene.md` was rewritten as the current source of truth instead of  
-an unfinished implementation plan.
+Second, counting semantics were fixed:
 
-Completed items were moved out of plan/checklist language and rewritten as
-implemented behavior, including:
+- the current behavior counts collision **events**
+- one continuous excavator-vs-target contact session increments the cumulative
+count at most once
+- the cumulative count can increase again only after the excavator leaves the
+target and later touches it again
 
-- target routing between `ContainerBox` and `TruckBed`
-- reset-relative target retained mass export
-- distance export
-- testbed-side mission/reward integration
+### 2.3 Testbed Mission / Reward Integration
 
-### 3.2 AGX Mission Definition in the Testbed
-
-The AGX excavation task in Repo A was redefined as one continuous mission:
+Repo A continues to use one continuous mission:
 
 `scoop -> transport -> dump -> retain`
 
-The mission is **not** exported as hard stage IDs. Instead, reward is attached
-to observable sub-targets inside the same mission:
+Reward is still shaped from observable sub-targets rather than hard stage IDs:
 
 1. `loading`
 2. `approaching_target`
 3. `depositing`
 4. `retained_success`
 
-Optional per-step logs are now available on the Python side, including:
+Optional step logs currently include:
 
 - `load_progress`
 - `approach_progress`
 - `deposit_progress`
 - `spill_before_target`
 - `unsafe_target_distance`
+- `hard_target_collision`
 
-These logs are for debugging and analysis only. They are not part of the Unity
-wire protocol.
+These are testbed-side diagnostics, not Unity wire fields.
 
-### 3.3 Success Definition Change
+### 2.4 Episode Budget
 
-AGX success is no longer defined from bucket mass.
+The default AGX episode budget remains:
 
-The current default success rule is:
+- `1000` steps
+- `50 Hz`
+- `20` seconds maximum per episode
+
+This is already reflected in teleop/eval defaults.
+
+## 3. Current Reward And Penalty Settings
+
+## 3.1 Success Rule
+
+Current default success rule:
 
 - signal: `deposited_mass_in_target_box_kg`
 - threshold: `100.0 kg`
-- hold time: `25` control steps
+- hold window: `25` control steps
+- episode limit: `1000` steps
 
-This means success is now target-centric and aligned with the actual mission:
-material must be retained in the currently active target.
+This means the task is currently evaluated by **retained mass in the active
+target**, not by bucket mass and not by Unity wire `reward`.
 
-### 3.4 Unity Backup Reward Field
+## 3.2 Reward Range
 
-Unity `STEP_RESP.reward` is no longer a constant placeholder on the wire.
+Current mission reward max:
 
-It now mirrors:
+- `max_reward = 4.0`
 
-- `deposited_mass_in_target_box_kg`
+Current shaped components are:
 
-This is intended as a backup success proxy only.
+- `loading`
+- `approaching_target`
+- `depositing`
+- `retained_success`
 
-Current ownership remains:
+## 3.3 Penalty Settings With Numbers
 
-- Unity exports retained target mass again in `reward` for redundancy
-- Repo A / the Python testbed still computes the primary shaped mission reward
-  from `env_state`
-- the named source-of-truth success signal remains
-  `deposited_mass_in_target_box_kg`
+Current penalty values in Repo A:
 
-### 3.5 Episode Budget Increase
+- `spill_penalty = 0.25`
+- `unsafe_distance_penalty = 0.25`
+- `hard_collision_penalty = 0.75`
 
-The default AGX episode budget was increased from `500` to `1000` steps.
+Current thresholds:
 
-This was applied to:
+- `load_mass_threshold_kg = 100.0`
+- `bucket_mass_delta_tol_kg = 5.0`
+- `target_mass_delta_tol_kg = 2.0`
+- `unsafe_distance_m = 0.20`
+- Unity hard-collision threshold:
+`hard_collision_normal_force_thresh_n = 5000.0`
 
-- teleop default `max_steps`
-- AGX eval default `episode_len`
-- AGX ACT training configs so training does not truncate the longer recordings
+Practical interpretation:
 
-At `50 Hz`, the new default budget is `20 seconds`.
+- a new hard collision event costs `0.75 / 4.0 = 18.75%` of the full step reward range
+- unsafe target approach costs `0.25 / 4.0 = 6.25%`
+- spill costs `0.25 / 4.0 = 6.25%`
 
-## 4. Validation Run on Fresh Episodes
+## 3.4 Exact Current Trigger Logic
 
-After the data directory was cleaned and recording restarted from index `0`,
-episodes `0` through `4` were checked.
+### Spill
 
-Summary:
+`spill_penalty` is applied when all of the following are true:
 
+- previous bucket mass is at least `50.0 kg`
+because the code uses `0.5 * load_mass_threshold_kg`
+- current bucket mass drops by at least `5.0 kg`
+- target mass does **not** show meaningful increase:
+`delta_mass_in_target_box_kg < 2.0 kg`
+and `delta_deposited_mass_in_target_box_kg < 2.0 kg`
 
-| Episode | Steps  | Max Reward | Success | Final Deposited Mass (kg) |
-| ------- | ------ | ---------- | ------- | ------------------------- |
-| `0`     | `1000` | `4.0`      | `1`     | `962.66`                  |
-| `1`     | `1000` | `4.0`      | `1`     | `2360.98`                 |
-| `2`     | `1000` | `4.0`      | `1`     | `2391.76`                 |
-| `3`     | `1000` | `4.0`      | `1`     | `2055.48`                 |
-| `4`     | `1000` | `4.0`      | `1`     | `1997.02`                 |
+This is the current operational definition of:
 
+- material was lost from the bucket
+- but it was not deposited into the target
 
-Interpretation:
+### Unsafe Distance
 
-- the new `1000`-step default is active
-- all five checked episodes reached retained-mass success
-- final retained target mass is far above the current default threshold
+`unsafe_distance_penalty` is applied when:
 
-## 5. Verification
+- `min_distance_to_target_m <= 0.20 m`
 
-The following Python-side checks passed after the mission/reward update:
+This is a near-collision / risky-approach penalty.
+It does **not** require actual contact.
 
-- `python -m py_compile` on the modified AGX mission/backend/eval files
+### Hard Collision
+
+`hard_collision_penalty` is applied when:
+
+- `target_hard_collision_count` increases on the current step
+
+That increase only happens when:
+
+- the excavator starts a new continuous contact session with the active target
+- the session reaches at least `5000.0 N` monitored normal force
+
+While the excavator remains in continuous contact with the target:
+
+- the count does not keep increasing every frame
+- the penalty does not keep re-triggering every frame
+
+## 4. Response To The Latest Questions
+
+### 4.1 Should Collision Be A Penalty, Or Should Collision Force Reward Very Low?
+
+The current answer is:
+
+- yes, collision should affect reward
+- we already implemented that path
+- but the current rule is still a **soft penalty**, not a hard fail rule
+
+Current strength:
+
+- one new hard-collision event costs `0.75`
+- on a reward scale capped at `4.0`
+
+So the present behavior is:
+
+- collision clearly hurts reward
+- but collision does **not** yet force reward near zero
+- collision does **not** yet terminate the episode
+- collision does **not** yet block success directly
+
+This means the current system says:
+
+- collision is bad
+- but collision is not yet treated as absolutely forbidden
+
+That is a reasonable first implementation because it lets us verify the signal
+path and inspect behavior. But if the team agrees that target collision must be
+strictly avoided, then the next design discussion should consider one of these
+stronger rules:
+
+1. On hard collision, set step reward close to `0`
+2. On hard collision, terminate the episode
+3. Keep the current mass-based success rule, but add a no-collision constraint
+4. Scale penalty by force magnitude instead of using a fixed `0.75`
+
+Current recommendation for discussion:
+
+- keep success mass-based
+- decide whether collision should remain a soft penalty or be upgraded to a
+hard safety constraint
+
+### 4.2 Should Time / Efficiency Also Affect Reward?
+
+Yes, this concern is valid.
+
+Right now, the task mainly rewards:
+
+- getting material into the bucket
+- moving toward the target
+- depositing retained mass into the target
+- holding retained mass above the success threshold
+
+What it does **not** yet explicitly reward is:
+
+- finishing the loop quickly
+- maintaining high throughput
+- minimizing cycle time
+
+So a strategy that is correct but very slow can still look acceptable under the
+current success rule.
+
+Current conclusion:
+
+- success should probably stay mass-based
+- but reward and evaluation should start accounting for efficiency
+
+The most practical ways to add efficiency later are:
+
+1. Add a small per-step time penalty
+2. Add an early-finish bonus once success is reached
+3. Add cycle-time metrics for `dig -> rotate -> dump -> return`
+4. Evaluate throughput, for example retained target mass per unit time
+
+Current recommendation for discussion:
+
+- do not overload the success definition first
+- add efficiency through reward shaping or eval metrics
+
+## 5. Validation Status
+
+The following checks passed after today's reward / collision update:
+
+- `dotnet build /home/pingfan/AGXexcavator/Assembly-CSharp.csproj -nologo`
+- `python -m py_compile` on the modified reward/test files
 - `conda run -n aloha python -m unittest tests.test_agx_protocol tests.test_agx_repoa_integration`
 
 Result:
 
-- `11 tests OK`
+- Unity `Assembly-CSharp` build passed with only the two existing warnings
+- `14 tests OK`
 
-## 6. Remaining Open Items
+## 6. Suggested Follow-Up For The Next Meeting
 
-The following are still open and were **not** solved by today's work:
+The most useful questions to settle next are:
 
-- collision/contact export is still not a required V0 signal
-- Unity wire `reward` now carries a backup retained-mass success proxy, but it
-  is still not the primary shaped mission reward
-- reward thresholds still need pilot-data tuning
-- exact geometric collision-risk export is still absent; only approximate
-distance is exported
+1. Should hard collision remain a soft penalty (`0.75`) or become a hard safety rule?
+2. Should efficiency enter the reward through time penalty, early-finish bonus, or both?
+3. Should we start reporting cycle-time / throughput metrics alongside retained-mass success?
 
-## 7. Suggested Next Steps
+For now, the current working rule remains:
 
-Short-term practical next steps:
+- task success is still defined by retained target mass
+- collision already affects reward
+- efficiency has not yet been explicitly priced into reward, but it should be discussed next
 
-1. collect more `1000`-step teleop episodes under the new defaults
-2. inspect reward curves and retained-mass curves to tune the current
-  `100 kg / 25 steps` default
-3. decide whether the current testbed-side reward is good enough to keep, or
-  whether a future Unity-side reward should be added in parallel for
-   comparison
-
-For now, the recommended working rule remains:
-
-- scene/task decisions go into `Docs/scene.md`
-- teammate-readable status updates can go into report files like this one

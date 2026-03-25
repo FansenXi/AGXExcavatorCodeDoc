@@ -76,6 +76,8 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
     public float mass_in_target_box_kg = 0.0f;
     public float deposited_mass_in_target_box_kg = 0.0f;
     public float min_distance_to_target_m = -1.0f;
+    public float target_hard_collision_count = 0.0f;
+    public float target_contact_max_normal_force_n = 0.0f;
   }
 
   [Serializable]

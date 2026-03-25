@@ -48,6 +48,23 @@ public class TerrainParticleBoxMassSensor : TargetMassSensorBase
   public override string TargetName => string.IsNullOrWhiteSpace( m_targetName ) ? gameObject.name : m_targetName;
   public override float MassInBox => m_massInBox;
   public override float DepositedMass => m_depositedMass;
+  public override Shape[] GetCollisionShapes()
+  {
+    var shapes = GetComponentsInChildren<Shape>( true );
+    if ( shapes == null || shapes.Length == 0 )
+      return System.Array.Empty<Shape>();
+
+    var filteredShapes = new System.Collections.Generic.List<Shape>( shapes.Length );
+    foreach ( var shape in shapes ) {
+      if ( shape == null || !shape.CollisionsEnabled )
+        continue;
+
+      if ( !filteredShapes.Contains( shape ) )
+        filteredShapes.Add( shape );
+    }
+
+    return filteredShapes.ToArray();
+  }
 
   public override bool TryGetMeasurementVolume( out Transform measurementFrame,
                                                 out Vector3 measurementCenterLocal,

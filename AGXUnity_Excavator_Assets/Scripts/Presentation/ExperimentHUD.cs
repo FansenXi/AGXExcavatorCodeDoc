@@ -126,6 +126,8 @@ namespace AGXUnity_Excavator.Scripts.Presentation
                          $"Min distance to target: {m_episodeManager.MinDistanceToTarget:0.000} m" :
                          "Min distance to target: n/a",
                        m_style );
+      GUILayout.Label( $"Target hard collisions (episode): {m_episodeManager.TargetHardCollisionCount}", m_style );
+      GUILayout.Label( $"Target max normal force (step): {m_episodeManager.TargetContactMaxNormalForceN:0.0} N", m_style );
       if ( m_showStepAckDebug )
         DrawStepAckDebug();
       if ( m_showCalibrationDebug )

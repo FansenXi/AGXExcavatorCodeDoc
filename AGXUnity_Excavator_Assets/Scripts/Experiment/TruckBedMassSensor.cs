@@ -78,6 +78,35 @@ public class TruckBedMassSensor : TargetMassSensorBase
   public override string TargetName => string.IsNullOrWhiteSpace( m_targetName ) ? "TruckBed" : m_targetName;
   public override float MassInBox => m_massInBox;
   public override float DepositedMass => m_depositedMass;
+  public override Shape[] GetCollisionShapes()
+  {
+    ResolveReferences();
+    var collisionRoot = m_truckRoot != null ? m_truckRoot : m_bedTransform;
+    if ( collisionRoot == null )
+      return System.Array.Empty<Shape>();
+
+    // For hard-collision penalty we want the whole truck hard body, not only
+    // the bed measurement area. Keep excluding the disabled BedTerrain helper.
+    var shapes = collisionRoot.GetComponentsInChildren<Shape>( true );
+    if ( shapes == null || shapes.Length == 0 )
+      return System.Array.Empty<Shape>();
+
+    var filteredShapes = new System.Collections.Generic.List<Shape>( shapes.Length );
+    var excludedRoot = m_bedTerrain != null ? m_bedTerrain.transform : null;
+
+    foreach ( var shape in shapes ) {
+      if ( shape == null || !shape.CollisionsEnabled )
+        continue;
+
+      if ( excludedRoot != null && shape.transform.IsChildOf( excludedRoot ) )
+        continue;
+
+      if ( !filteredShapes.Contains( shape ) )
+        filteredShapes.Add( shape );
+    }
+
+    return filteredShapes.ToArray();
+  }
 
   protected override void OnAwake()
   {

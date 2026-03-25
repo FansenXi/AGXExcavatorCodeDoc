@@ -1,13 +1,14 @@
 # AGXUnity Step-Ack Binary Protocol
 
 **Status:** current implementation truth source for Unity side  
-**Last updated:** 2026-03-24  
+**Last updated:** 2026-03-25  
 **Implementation files:**
 - `AGXUnity_Excavator_Assets/Scripts/SimulationBridge/AgxSimProtocol.cs`
 - `AGXUnity_Excavator_Assets/Scripts/SimulationBridge/AgxSimStepAckServer.cs`
 - `AGXUnity_Excavator_Assets/Scripts/Presentation/TrackedCameraWindow.cs`
 - `AGXUnity_Excavator_Assets/Scripts/Control/Sources/ActObservationCollector.cs`
 - `AGXUnity_Excavator_Assets/Scripts/Experiment/SwitchableTargetMassSensor.cs`
+- `AGXUnity_Excavator_Assets/Scripts/Experiment/TargetMassSensorBase.cs`
 - `AGXUnity_Excavator_Assets/Scripts/Experiment/TruckBedMassSensor.cs`
 
 This document describes the protocol that is currently implemented in the Unity repo.
@@ -36,7 +37,7 @@ Current observation semantics:
 - qpos order: `[swing_position_norm, boom_position_norm, stick_position_norm, bucket_position_norm]`
 - qvel order: `[swing_speed, boom_speed, stick_speed, bucket_speed]`
 - env_state order:
-  `[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m]`
+  `[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n]`
 
 `mass_in_target_box_kg` semantics:
 - this field always refers to the **currently active Unity dump target**
@@ -52,6 +53,20 @@ Current observation semantics:
 - the current implementation is distance-based and does not require collision/contact export
 - Unity appends this field after the four existing mass fields to preserve V0 mass index compatibility
 - `-1.0` means the distance could not be evaluated for the current frame
+
+`target_hard_collision_count` semantics:
+- this field is the cumulative episode count of hard-collision occurrences against the currently active target
+- Unity increments it only when a new continuous excavator-vs-target contact session reaches the hard-collision threshold
+- while the excavator remains in continuous contact with the target, the count does not continue increasing every frame
+- after the excavator leaves the target, the next qualifying touch can increment the count again
+- the current Unity scene default threshold is `hard_collision_normal_force_thresh_n = 5000.0`
+- source shapes are the enabled AGX `Collide.Shape` components under the excavator root, which covers bucket / arm / chassis
+- target shapes come from the currently active target sensor hard-surface shape set
+- when the active target is `TruckBed`, this hard-surface set covers the full `BedTruck` collision body, not only the bed/trunk measurement region
+
+`target_contact_max_normal_force_n` semantics:
+- this field is the maximum solved normal-force magnitude observed during the just-completed simulation step across all monitored excavator-vs-active-target contacts
+- `0.0` means no monitored active-target contact was observed for that step
 
 ## 2. Byte Order and Primitive Encoding
 
@@ -214,7 +229,7 @@ After the common response prefix, fields are written in this order:
 Current Unity values:
 - `qpos.len = 4`
 - `qvel.len = 4`
-- `env_state.len = 5`
+- `env_state.len = 7`
 - `reward = deposited_mass_in_target_box_kg`
 - `image_format = "raw_rgb"` when FPV capture succeeds
 - `image_w = 0`, `image_h = 0`, `image_payload = empty` when no FPV frame is available
@@ -235,12 +250,16 @@ Reward note:
   - approaching the active target while loaded
   - increasing retained mass inside the active target
   - holding retained target mass above the configured success threshold
+- current testbed reward also applies a fixed per-step hard-collision penalty
+  when the cumulative `target_hard_collision_count` increases on that step
 - current default testbed success signal is
   `deposited_mass_in_target_box_kg >= 100.0 kg` for `25` consecutive steps
 
 Target note:
 - `env_state[2]` and `env_state[3]` report the active target selected by Unity runtime target routing
 - `env_state[4]` reports the approximate minimum bucket-to-target distance in meters
+- `env_state[5]` reports the cumulative episode hard-collision count for monitored excavator-vs-active-target contacts
+- `env_state[6]` reports the maximum monitored contact normal force in Newtons for the completed step
 - Unity local CSV logs now include `target_name` for debugging
 - the binary `STEP_RESP` payload does **not** yet carry `target_name`; clients should treat target identity as scene/runtime configuration for now
 
@@ -274,6 +293,7 @@ Compared with older drafts in this repo, the current Unity implementation has th
 - `reset_pose` is supported through the current reset path.
 - target mass routing can now switch between multiple Unity dump targets while keeping the same env_state layout.
 - Unity now exports an approximate distance-to-active-target scalar alongside the existing mass metrics.
+- Unity now exports active-target hard-collision summary metrics without changing the meaning of the first five env_state indices.
 
 ## 12. Known Limits
 
@@ -283,3 +303,4 @@ The current Unity implementation still has some limits that clients should know 
 - transport has CRC32 and framing; the server now drops stale dead TCP clients, but it is still a single-client sequential protocol
 - this document describes Unity-side implementation only; Python client must mirror the same field order exactly
 - active target identity is not yet serialized in `GET_INFO_RESP` / `STEP_RESP`; use scene config or Unity-side logs/HUD when switching targets
+- Unity does not export a full contact-event stream; only the current active-target hard-collision summary fields are on the wire
