@@ -1,12 +1,9 @@
 # AGXUnity Excavator Scene Report - 2026-03-24
 
-**Audience:** Unity / AGX / testbed teammates  
-**Base document:** `Docs/scene.md` remains the English source of truth  
+**Base document:** `Docs/scene.md`  
 **Purpose:** summarize what was completed today and the current working status
 
-This report is a teammate-facing progress note. It does not replace
-`Docs/scene.md` or `Docs/protocol.md`. If wording conflicts with those files,
-the source-of-truth documents win.
+This report is a teammate-facing progress note. 
 
 ## 1. Executive Summary
 
@@ -16,11 +13,13 @@ working V0 reference plus a usable testbed mission.
 The main outcome is:
 
 - the Unity scene contract is now documented as a current implemented state
-- the Python testbed now uses a target-based excavation mission reward instead
-  of Unity's placeholder `reward = 0.0`
+- the Python testbed now uses a target-based excavation mission reward while
+Unity mirrors retained target mass into `STEP_RESP.reward` as a backup success
+proxy
 - AGX success is now defined by retained mass in the active target, not by
-  bucket mass
-- the default AGX episode budget was increased from `500` to `1000` steps
+bucket mass
+- the default AGX episode budget was increased from `500` to `1000` steps, 
+for 10 seconds is not enough to carry out a full task.
 
 ## 2. Scene / Protocol Status
 
@@ -43,14 +42,14 @@ Important current meanings:
 - `mass_in_target_box_kg` always means the **currently active target**
 - `deposited_mass_in_target_box_kg` is reset-relative net retained mass
 - `min_distance_to_target_m` is an approximate bucket-to-active-target distance
-- Unity `STEP_RESP.reward` is still a placeholder transport field and remains
-  `0.0` on the wire
+- Unity `STEP_RESP.reward` now mirrors
+  `deposited_mass_in_target_box_kg` as a backup success proxy on the wire
 
 ## 3. What Was Completed Today
 
 ### 3.1 Scene Documentation Cleanup
 
-`Docs/scene.md` was rewritten as the current English source of truth instead of
+`Docs/scene.md` was rewritten as the current source of truth instead of  
 an unfinished implementation plan.
 
 Completed items were moved out of plan/checklist language and rewritten as
@@ -60,9 +59,6 @@ implemented behavior, including:
 - reset-relative target retained mass export
 - distance export
 - testbed-side mission/reward integration
-
-A Chinese reading mirror was kept in `Docs/scene.zh-CN.md`, but decision
-authority stays with the English `Docs/scene.md`.
 
 ### 3.2 AGX Mission Definition in the Testbed
 
@@ -102,7 +98,25 @@ The current default success rule is:
 This means success is now target-centric and aligned with the actual mission:
 material must be retained in the currently active target.
 
-### 3.4 Episode Budget Increase
+### 3.4 Unity Backup Reward Field
+
+Unity `STEP_RESP.reward` is no longer a constant placeholder on the wire.
+
+It now mirrors:
+
+- `deposited_mass_in_target_box_kg`
+
+This is intended as a backup success proxy only.
+
+Current ownership remains:
+
+- Unity exports retained target mass again in `reward` for redundancy
+- Repo A / the Python testbed still computes the primary shaped mission reward
+  from `env_state`
+- the named source-of-truth success signal remains
+  `deposited_mass_in_target_box_kg`
+
+### 3.5 Episode Budget Increase
 
 The default AGX episode budget was increased from `500` to `1000` steps.
 
@@ -121,13 +135,15 @@ episodes `0` through `4` were checked.
 
 Summary:
 
-| Episode | Steps | Max Reward | Success | Final Deposited Mass (kg) |
-| --- | ---: | ---: | ---: | ---: |
-| `0` | `1000` | `4.0` | `1` | `962.66` |
-| `1` | `1000` | `4.0` | `1` | `2360.98` |
-| `2` | `1000` | `4.0` | `1` | `2391.76` |
-| `3` | `1000` | `4.0` | `1` | `2055.48` |
-| `4` | `1000` | `4.0` | `1` | `1997.02` |
+
+| Episode | Steps  | Max Reward | Success | Final Deposited Mass (kg) |
+| ------- | ------ | ---------- | ------- | ------------------------- |
+| `0`     | `1000` | `4.0`      | `1`     | `962.66`                  |
+| `1`     | `1000` | `4.0`      | `1`     | `2360.98`                 |
+| `2`     | `1000` | `4.0`      | `1`     | `2391.76`                 |
+| `3`     | `1000` | `4.0`      | `1`     | `2055.48`                 |
+| `4`     | `1000` | `4.0`      | `1`     | `1997.02`                 |
+
 
 Interpretation:
 
@@ -151,10 +167,11 @@ Result:
 The following are still open and were **not** solved by today's work:
 
 - collision/contact export is still not a required V0 signal
-- Unity wire `reward` is still a placeholder and is not yet the simulator truth
+- Unity wire `reward` now carries a backup retained-mass success proxy, but it
+  is still not the primary shaped mission reward
 - reward thresholds still need pilot-data tuning
 - exact geometric collision-risk export is still absent; only approximate
-  distance is exported
+distance is exported
 
 ## 7. Suggested Next Steps
 
@@ -162,9 +179,9 @@ Short-term practical next steps:
 
 1. collect more `1000`-step teleop episodes under the new defaults
 2. inspect reward curves and retained-mass curves to tune the current
-   `100 kg / 25 steps` default
+  `100 kg / 25 steps` default
 3. decide whether the current testbed-side reward is good enough to keep, or
-   whether a future Unity-side reward should be added in parallel for
+  whether a future Unity-side reward should be added in parallel for
    comparison
 
 For now, the recommended working rule remains:
