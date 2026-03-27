@@ -127,6 +127,11 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     public int AvailableTargetCount => m_targetMassSensor != null ? m_targetMassSensor.AvailableTargetCount : 0;
     public int CurrentTargetIndex => m_targetMassSensor != null ? m_targetMassSensor.CurrentTargetIndex : -1;
     public bool IsTransitionInputCutActive => m_inputCutActive;
+    // Step-ack serving may intentionally disable EpisodeManager.Update().
+    // Keep the armed state so manual control still requires a neutral release
+    // after the manager comes back, but avoid showing a popup that can never
+    // clear while the component itself is disabled.
+    public bool ShouldShowTransitionInputCutWarning => m_inputCutActive && isActiveAndEnabled;
     public string TransitionInputCutHint => CurrentSourceHasHardwareDiagnostics ?
                                             "Release joystick and buttons to continue." :
                                             "Release all control inputs to continue.";

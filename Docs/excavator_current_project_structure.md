@@ -1,6 +1,6 @@
 # AGXUnity Excavator Current Project Structure
 
-更新时间：2026-03-25
+更新时间：2026-03-26
 
 ## 1. 文档目的
 
@@ -360,7 +360,10 @@ flowchart TB
 
 - `ExperimentHUD` 展示运行时状态、输入源、ACT 状态、step-ack 状态和质量统计
 - HUD 现在同时展示当前激活的接料目标，并支持通过 `F8/F9` 在不同 target 间切换
-- `TrackedCameraWindow` 提供场景内相机窗口和原始 RGB 抓帧能力
+- `TrackedCameraWindow` 提供场景内相机窗口、原始 RGB 抓帧能力，以及 Inspector
+  中的默认旋转偏移微调（`m_localRotationOffsetEuler`）
+- `TrackedCameraWindow` 的 FPV 抓帧走相机到 `RenderTexture` 的路径，不会把
+  `ExperimentHUD` 或窗口装饰条叠进 step-ack 导出的 `fpv` 图像
 
 ### 4.7 `SimulationBridge`
 

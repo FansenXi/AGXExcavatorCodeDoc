@@ -144,7 +144,7 @@ namespace AGXUnity_Excavator.Scripts.Presentation
       GUILayout.Label( $"Last log: {m_episodeManager.LastSavedPath}", m_style );
       GUILayout.EndArea();
 
-      if ( m_episodeManager.IsTransitionInputCutActive )
+      if ( m_episodeManager.ShouldShowTransitionInputCutWarning )
         DrawReleaseInputPopup();
     }
 

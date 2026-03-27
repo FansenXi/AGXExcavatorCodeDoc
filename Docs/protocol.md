@@ -1,7 +1,7 @@
 # AGXUnity Step-Ack Binary Protocol
 
-**Status:** current implementation truth source for Unity side  
-**Last updated:** 2026-03-25  
+**Status:** current implementation truth source for Unity side<br>
+**Last updated:** 2026-03-26
 **Implementation files:**
 - `AGXUnity_Excavator_Assets/Scripts/SimulationBridge/AgxSimProtocol.cs`
 - `AGXUnity_Excavator_Assets/Scripts/SimulationBridge/AgxSimStepAckServer.cs`
@@ -208,6 +208,9 @@ Current Unity values:
 - `supports_images = true` if the FPV camera is configured
 - `pixel_format = "raw_rgb"`
 - `row_order = "top_to_bottom"`
+- current FPV view pose still comes from `TrackedCameraWindow`, which now supports
+  an Inspector-side `m_localRotationOffsetEuler` view-direction trim without
+  changing protocol fields
 
 ## 8. RESET_RESP Payload
 
@@ -224,6 +227,7 @@ Current behavior:
 - when `reset_terrain = true`, Unity rebuilds the deformable terrain native instance so dynamic soil mass/particles are cleared as part of reset, including particles that were still trapped in the bucket
 - for step-ack serving, a successful reset also re-arms the machine controller engine so subsequent `STEP_REQ` actions take effect immediately
 - Unity reset path prefers `SceneResetService.ResetScene(resetTerrain, resetPose)` and only falls back to `EpisodeManager.ResetEpisode(...)` for full resets
+- when `AgxSimStepAckServer` is configured to disable `EpisodeManager` while serving, the reset path may still arm the manual input-cut state for later hand-back, but the HUD "Release Controls" popup is only shown while `EpisodeManager` itself is enabled
 - terrain reset is handled by `ResetTerrain` / `SceneResetService`; the excavation metrics component no longer mutates terrain heights during reset
 - pending step-ack requests are consumed on Unity `FixedUpdate`, so external step-ack teleop stays aligned with `Time.fixedDeltaTime` instead of Editor render-frame jitter
 
@@ -249,6 +253,9 @@ Current Unity values:
 - `reward = deposited_mass_in_target_box_kg`
 - `image_format = "raw_rgb"` when FPV capture succeeds
 - `image_w = 0`, `image_h = 0`, `image_payload = empty` when no FPV frame is available
+- FPV capture renders directly from the tracked camera into a `RenderTexture`;
+  IMGUI overlays such as `ExperimentHUD` and the camera window chrome are not
+  included in `image_payload`
 
 Reward note:
 - for the current V0 stationary digging pipeline, `reward` is a Unity-side

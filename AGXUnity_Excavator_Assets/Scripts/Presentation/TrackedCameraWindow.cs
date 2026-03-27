@@ -50,6 +50,9 @@ namespace AGXUnity_Excavator.Scripts.Presentation
     private Vector3 m_localLookAtPoint = new Vector3( 0.0f, -0.1f, 1.2f );
 
     [SerializeField]
+    private Vector3 m_localRotationOffsetEuler = Vector3.zero;
+
+    [SerializeField]
     private bool m_followTargetRotation = true;
 
     private Camera m_camera = null;
@@ -91,6 +94,13 @@ namespace AGXUnity_Excavator.Scripts.Presentation
     {
       ResolveReferences();
       EnsureRenderTexture();
+      UpdateTrackingPose();
+      UpdateCameraState();
+    }
+
+    private void OnValidate()
+    {
+      ResolveReferences();
       UpdateTrackingPose();
       UpdateCameraState();
     }
@@ -157,7 +167,8 @@ namespace AGXUnity_Excavator.Scripts.Presentation
         viewDirection = m_followTargetRotation ? m_runtimeTarget.forward : Vector3.forward;
 
       var upDirection = m_followTargetRotation ? m_runtimeTarget.up : Vector3.up;
-      transform.rotation = Quaternion.LookRotation( viewDirection.normalized, upDirection );
+      var baseRotation = Quaternion.LookRotation( viewDirection.normalized, upDirection );
+      transform.rotation = baseRotation * Quaternion.Euler( m_localRotationOffsetEuler );
     }
 
     private Transform ResolveTarget()
