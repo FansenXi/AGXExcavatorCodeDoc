@@ -30,7 +30,6 @@
 
 需要特别说明：
 
-- 早期 ACT / teleop 设计稿和临时 next-step 文档已经从当前活跃文档集合中清理掉，不应再被当成现状真值源。
 - 本文档优先描述“现在代码里有什么、是怎么连起来的”。
 
 ## 2.1 当前 V0 任务边界
@@ -39,7 +38,7 @@
 
 - 固定站位 / 固定初始姿态的 digging 任务
 - step-ack action space 只包含 4D 臂控：
-  `swing / boom / stick / bucket`
+`swing / boom / stick / bucket`
 - `drive / steer / track` 暂时不进入 Repo A <-> Repo B 的 step-ack 契约
 
 这意味着：
@@ -47,21 +46,21 @@
 - Repo A 当前通过二进制 step-ack 录制的 HDF5 数据集，是站位固定的挖掘演示数据
 - 履带移动如果需要，属于回合外人工 reposition，或未来 V1 再扩 action space
 - Unity `STEP_RESP.reward` 当前镜像
-  `deposited_mass_in_target_box_kg`，作为 backup success proxy；Repo A /
-  testbed 仍然基于导出的 `env_state` 本地计算主 excavation mission reward
+`deposited_mass_in_target_box_kg`，作为 backup success proxy；Repo A /
+testbed 仍然基于导出的 `env_state` 本地计算主 excavation mission reward
 - 当前 step-ack `env_state` 顺序是：
-  `[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n, min_distance_to_dig_area_m, bucket_depth_below_dig_area_plane_m]`
+`[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n, min_distance_to_dig_area_m, bucket_depth_below_dig_area_plane_m]`
 - `mass_in_target_box_kg` 当前表示“运行时选中的接料目标”
-  当前主场景支持 `ContainerBox` 和 `TruckBed`
+当前主场景支持 `ContainerBox` 和 `TruckBed`
 - `min_distance_to_target_m` 当前表示 bucket target-distance proxy 到当前激活目标 distance geometry 的近似最小距离
 - `target_hard_collision_count` / `target_contact_max_normal_force_n` 当前表示
-  excavator 与当前激活目标硬表面的每步硬碰撞摘要信号
+excavator 与当前激活目标硬表面的每步硬碰撞摘要信号
 - `min_distance_to_dig_area_m` / `bucket_depth_below_dig_area_plane_m` 当前表示
-  bucket 量测体相对场景 `DigArea` 的起挖几何信号
+bucket 量测体相对场景 `DigArea` 的起挖几何信号
 - 当当前激活目标是 `TruckBed` 时，硬碰撞监控范围覆盖整台 `BedTruck`，而不只是 bed / trunk 量测区域
 - 当前默认 evaluator / mission success 使用
-  `deposited_mass_in_target_box_kg` 作为最终成功信号，默认阈值为
-  `100 kg` 且需保持 `25` 个 control step
+`deposited_mass_in_target_box_kg` 作为最终成功信号，默认阈值为
+`100 kg` 且需保持 `25` 个 control step
 
 ## 2.2 当前联调 / 运行命令
 
@@ -79,7 +78,7 @@ tb-eval --config testbed/configs/eval_agx_v0.yaml
 命令边界：
 
 - `tb-record-teleop` / `tb-replay` / `tb-eval` 都需要 Unity 主场景运行并监听
-  step-ack 端口
+step-ack 端口
 - `tb-train` 是离线训练，不需要 Unity 在线
 - 最终 canonical dataset 由 Repo A 直接写 HDF5
 - 当前主场景不再挂 Unity 本地 `metadata.json` / `steps.jsonl` / raw RGB sidecar exporter
@@ -149,6 +148,8 @@ flowchart TB
   Bridge --> Present
 ```
 
+
+
 这张图对应的是“目录和模块如何拼起来”，不是运行时逐帧调用顺序。
 
 ## 4. Scripts 目录结构
@@ -160,15 +161,15 @@ flowchart TB
 当前关键文件：
 
 - `OperatorCommand.cs`
-  统一的人类操作命令结构
+统一的人类操作命令结构
 - `IOperatorCommandSource.cs`
-  输入源接口
+输入源接口
 - `OperatorCommandSourceBehaviour.cs`
-  Unity 组件化输入源基类
+Unity 组件化输入源基类
 - `ExcavatorActuationCommand.cs`
-  挖机执行命令结构
+挖机执行命令结构
 - `ExcavatorRigLocator.cs`
-  当前 rig 上组件解析辅助
+当前 rig 上组件解析辅助
 
 ### 4.2 `Control/Sources`
 
@@ -244,17 +245,17 @@ flowchart TB
 职责划分：
 
 - `EpisodeManager`
-  负责回合开始、结束、重置、输入源切换，以及主控制链驱动
+负责回合开始、结束、重置、输入源切换，以及主控制链驱动
 - `SceneResetService`
-  负责场景重置；当前会对全场景刚体与约束做快照/恢复，所以 `BedTruck` 的车体姿态和 bed 相关约束状态也会随 reset 一起回到初始基线
+负责场景重置；当前会对全场景刚体与约束做快照/恢复，所以 `BedTruck` 的车体姿态和 bed 相关约束状态也会随 reset 一起回到初始基线
 - `ExperimentLogger`
-  负责导出逐帧 CSV 日志
+负责导出逐帧 CSV 日志
 - `TerrainParticleBoxMassSensor`
-  负责把场景里的目标箱体/接料面当成“接料质量传感区域”，统计当前箱内质量与 reset 以来的净沉积质量，来源同时包含 terrain soil particles 和 `HandleAsParticle` 动态刚体（例如 `Dynamic Rock`）
+负责把场景里的目标箱体/接料面当成“接料质量传感区域”，统计当前箱内质量与 reset 以来的净沉积质量，来源同时包含 terrain soil particles 和 `HandleAsParticle` 动态刚体（例如 `Dynamic Rock`）
 - `TruckBedMassSensor`
-  负责把 `BedTruck` 的 `Bed` / trunk 区域当成接料质量传感区域，优先按 `Bed` 子树中的 AGX `Box` 碰撞几何合成局部包围盒并加顶部余量，统计当前质量和 reset 以来的净沉积质量；统计时会聚合所有活跃 `DeformableTerrain`，避免 truck bed support terrain 让粒子质量漏计
+负责把 `BedTruck` 的 `Bed` / trunk 区域当成接料质量传感区域，优先按 `Bed` 子树中的 AGX `Box` 碰撞几何合成局部包围盒并加顶部余量，统计当前质量和 reset 以来的净沉积质量；统计时会聚合所有活跃 `DeformableTerrain`，避免 truck bed support terrain 让粒子质量漏计
 - `SwitchableTargetMassSensor`
-  负责在多个目标传感器之间做运行时切换，并把当前激活目标统一暴露给 `EpisodeManager`、`ActObservationCollector`、HUD 和 reset 链路
+负责在多个目标传感器之间做运行时切换，并把当前激活目标统一暴露给 `EpisodeManager`、`ActObservationCollector`、HUD 和 reset 链路
 
 ### 4.5.1 当前质量统计支线
 
@@ -361,9 +362,9 @@ flowchart TB
 - `ExperimentHUD` 展示运行时状态、输入源、ACT 状态、step-ack 状态和质量统计
 - HUD 现在同时展示当前激活的接料目标，并支持通过 `F8/F9` 在不同 target 间切换
 - `TrackedCameraWindow` 提供场景内相机窗口、原始 RGB 抓帧能力，以及 Inspector
-  中的默认旋转偏移微调（`m_localRotationOffsetEuler`）
+中的默认旋转偏移微调（`m_localRotationOffsetEuler`）
 - `TrackedCameraWindow` 的 FPV 抓帧走相机到 `RenderTexture` 的路径，不会把
-  `ExperimentHUD` 或窗口装饰条叠进 step-ack 导出的 `fpv` 图像
+`ExperimentHUD` 或窗口装饰条叠进 step-ack 导出的 `fpv` 图像
 
 ### 4.7 `SimulationBridge`
 
@@ -414,6 +415,8 @@ flowchart LR
     CAM --> STEP
   end
 ```
+
+
 
 这张图强调的是：
 
@@ -557,7 +560,7 @@ Python client
 - `SceneResetService.ResetScene(resetTerrain: true, ...)` 后，terrain native 会清掉动态粒子，传感器计数同步归零
 - 这条质量数据当前进入 `ExperimentHUD`、`ExperimentLogger` 和 `ActObservation.task_state.*`
 - 二进制 `STEP_RESP.env_state` 当前顺序是：
-  `[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n, min_distance_to_dig_area_m, bucket_depth_below_dig_area_plane_m]`
+`[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n, min_distance_to_dig_area_m, bucket_depth_below_dig_area_plane_m]`
 
 `ExcavationMassTracker` 当前也不再只依赖 `terrain.getDynamicMass(shovel)`：
 
