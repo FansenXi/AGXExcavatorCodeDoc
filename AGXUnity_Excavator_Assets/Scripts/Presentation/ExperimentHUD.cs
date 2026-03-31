@@ -60,7 +60,7 @@ namespace AGXUnity_Excavator.Scripts.Presentation
 
     private void OnGUI()
     {
-      if ( m_episodeManager == null )
+      if ( m_episodeManager == null && m_observationCollector == null )
         return;
 
       if ( m_style == null ) {
@@ -89,28 +89,55 @@ namespace AGXUnity_Excavator.Scripts.Presentation
         };
       }
 
+      var collectorTaskState = m_observationCollector != null ? m_observationCollector.LastTaskState : null;
+      var useStepAckTelemetry = ShouldUseStepAckTelemetry( collectorTaskState );
+      var displayedMassInBucket = GetDisplayedMassInBucket( useStepAckTelemetry, collectorTaskState );
+      var displayedMassInTargetBox = GetDisplayedMassInTargetBox( useStepAckTelemetry, collectorTaskState );
+      var displayedDepositedMassInTargetBox = GetDisplayedDepositedMassInTargetBox( useStepAckTelemetry, collectorTaskState );
+      var displayedMinDistanceToTarget = GetDisplayedMinDistanceToTarget( useStepAckTelemetry, collectorTaskState );
+      var displayedMinDistanceToDigArea = GetDisplayedMinDistanceToDigArea( useStepAckTelemetry, collectorTaskState );
+      var displayedBucketDepthBelowDigAreaPlane = GetDisplayedBucketDepthBelowDigAreaPlane( useStepAckTelemetry, collectorTaskState );
+      var displayedTargetHardCollisionCount = GetDisplayedTargetHardCollisionCount( useStepAckTelemetry, collectorTaskState );
+      var displayedTargetContactMaxNormalForceN = GetDisplayedTargetContactMaxNormalForceN( useStepAckTelemetry, collectorTaskState );
+      var displayedBucketTouchingDigArea =
+        displayedMinDistanceToDigArea >= 0.0f &&
+        displayedMinDistanceToDigArea <= GetDigAreaTouchTolerance();
+      var displayedBucketBelowDigAreaPlane =
+        displayedBucketDepthBelowDigAreaPlane >= GetDigAreaBelowPlaneTolerance();
+
       GUILayout.BeginArea( m_rect, GUI.skin.box );
       GUILayout.BeginHorizontal();
       GUILayout.Label( "<b>Experiment HUD</b>", m_style );
       if ( GUILayout.Button( m_showRuntimeConfig ? "Hide Menu" : "Show Menu", GUILayout.Width( 96.0f ) ) )
         m_showRuntimeConfig = !m_showRuntimeConfig;
       GUILayout.EndHorizontal();
-      GUILayout.Label( $"Episode: {m_episodeManager.CurrentEpisodeIndex}    Running: {m_episodeManager.IsEpisodeRunning}", m_style );
-      GUILayout.Label( $"Source: {m_episodeManager.CurrentSourceName}", m_style );
-      GUILayout.Label( $"Target: {m_episodeManager.CurrentTargetName}", m_style );
-      if ( !string.IsNullOrWhiteSpace( m_episodeManager.CurrentControlLayout ) )
-        GUILayout.Label( $"Layout: {m_episodeManager.CurrentControlLayout}", m_style );
-      GUILayout.Label( "Controls: R reset, Enter start, Backspace stop, F6/F7 switch source, 1-9 select source, F8/F9 switch target", m_style );
-      if ( m_showRuntimeConfig )
+      if ( useStepAckTelemetry )
+        GUILayout.Label( $"Telemetry: {Colorize( "step-ack collector", GoodColor )}    EpisodeManager: {Colorize( "disabled while serving", WarnColor )}", m_style );
+      else if ( m_stepAckServer != null && m_stepAckServer.IsListening && m_episodeManager != null && !m_episodeManager.isActiveAndEnabled )
+        GUILayout.Label( $"Telemetry: {Colorize( "waiting for first step-ack sample", WarnColor )}", m_style );
+
+      if ( m_episodeManager != null ) {
+        GUILayout.Label( $"Episode: {m_episodeManager.CurrentEpisodeIndex}    Running: {m_episodeManager.IsEpisodeRunning}", m_style );
+        GUILayout.Label( $"Source: {m_episodeManager.CurrentSourceName}", m_style );
+        GUILayout.Label( $"Target: {m_episodeManager.CurrentTargetName}", m_style );
+        if ( !string.IsNullOrWhiteSpace( m_episodeManager.CurrentControlLayout ) )
+          GUILayout.Label( $"Layout: {m_episodeManager.CurrentControlLayout}", m_style );
+        GUILayout.Label( "Controls: R reset, Enter start, Backspace stop, F6/F7 switch source, 1-9 select source, F8/F9 switch target", m_style );
+      }
+      else {
+        GUILayout.Label( "EpisodeManager: n/a", m_style );
+      }
+
+      if ( m_showRuntimeConfig && m_episodeManager != null )
         DrawRuntimeConfig();
 
-      if ( m_episodeManager.CurrentSourceName == "ACT" ) {
+      if ( m_episodeManager != null && m_episodeManager.CurrentSourceName == "ACT" ) {
         GUILayout.Label( $"Backend ready: {m_episodeManager.CurrentSourceBackendReady}    Timeout: {m_episodeManager.CurrentSourceTimedOut}", m_style );
         GUILayout.Label( $"ACT seq: {m_episodeManager.CurrentSourceSequence}    Infer: {m_episodeManager.CurrentSourceInferenceTimeMs:0.0} ms", m_style );
         GUILayout.Label( $"ACT session: {m_episodeManager.CurrentSourceSessionId}    Status: {m_episodeManager.CurrentSourceBackendStatus}", m_style );
       }
 
-      if ( m_episodeManager.CurrentSourceHasHardwareDiagnostics ) {
+      if ( m_episodeManager != null && m_episodeManager.CurrentSourceHasHardwareDiagnostics ) {
         GUILayout.Label( $"Device connected: {m_episodeManager.CurrentSourceDeviceConnected}    Status: {m_episodeManager.CurrentSourceBindingStatus}", m_style );
         GUILayout.Label( $"Device: {m_episodeManager.CurrentSourceDeviceDisplayName}", m_style );
         GUILayout.Label( $"Profile: {m_episodeManager.CurrentSourceProfileName}", m_style );
@@ -120,31 +147,33 @@ namespace AGXUnity_Excavator.Scripts.Presentation
       }
 
       GUILayout.Space( 6.0f );
-      GUILayout.Label( $"Raw: {m_episodeManager.LastRawCommand.ToCompactString()}", m_style );
-      GUILayout.Label( $"Sim: {m_episodeManager.LastSimulatedCommand.ToCompactString()}", m_style );
-      GUILayout.Label( $"Act: {m_episodeManager.LastActuationCommand.ToCompactString()}", m_style );
+      if ( m_episodeManager != null ) {
+        GUILayout.Label( $"Raw: {m_episodeManager.LastRawCommand.ToCompactString()}", m_style );
+        GUILayout.Label( $"Sim: {m_episodeManager.LastSimulatedCommand.ToCompactString()}", m_style );
+        GUILayout.Label( $"Act: {m_episodeManager.LastActuationCommand.ToCompactString()}", m_style );
+      }
       GUILayout.Space( 6.0f );
-      GUILayout.Label( $"Mass in bucket: {m_episodeManager.MassInBucket:0.00} kg", m_style );
-      GUILayout.Label( $"Mass in target box: {m_episodeManager.MassInTargetBox:0.00} kg", m_style );
-      GUILayout.Label( $"Deposited in target box: {m_episodeManager.DepositedMassInTargetBox:0.00} kg", m_style );
-      GUILayout.Label( m_episodeManager.MinDistanceToTarget >= 0.0f ?
-                         $"Min distance to target: {m_episodeManager.MinDistanceToTarget:0.000} m" :
+      GUILayout.Label( $"Mass in bucket: {displayedMassInBucket:0.00} kg", m_style );
+      GUILayout.Label( $"Mass in target box: {displayedMassInTargetBox:0.00} kg", m_style );
+      GUILayout.Label( $"Deposited in target box: {displayedDepositedMassInTargetBox:0.00} kg", m_style );
+      GUILayout.Label( displayedMinDistanceToTarget >= 0.0f ?
+                         $"Min distance to target: {displayedMinDistanceToTarget:0.000} m" :
                          "Min distance to target: n/a",
                        m_style );
-      GUILayout.Label( FormatGoodDigStartLine(), m_style );
-      GUILayout.Label( FormatDigAreaTouchLine(), m_style );
-      GUILayout.Label( FormatDigAreaDepthLine(), m_style );
-      GUILayout.Label( $"Target hard collisions (episode): {m_episodeManager.TargetHardCollisionCount}", m_style );
-      GUILayout.Label( $"Target max normal force (step): {m_episodeManager.TargetContactMaxNormalForceN:0.0} N", m_style );
+      GUILayout.Label( FormatGoodDigStartLine( useStepAckTelemetry, displayedBucketTouchingDigArea, displayedBucketBelowDigAreaPlane ), m_style );
+      GUILayout.Label( FormatDigAreaTouchLine( displayedMinDistanceToDigArea, displayedBucketTouchingDigArea ), m_style );
+      GUILayout.Label( FormatDigAreaDepthLine( displayedMinDistanceToDigArea, displayedBucketDepthBelowDigAreaPlane, displayedBucketBelowDigAreaPlane ), m_style );
+      GUILayout.Label( $"Target hard collisions (episode): {displayedTargetHardCollisionCount}", m_style );
+      GUILayout.Label( $"Target max normal force (step): {displayedTargetContactMaxNormalForceN:0.0} N", m_style );
       if ( m_showStepAckDebug )
         DrawStepAckDebug();
       if ( m_showCalibrationDebug )
         DrawCalibrationDebug();
       GUILayout.Space( 6.0f );
-      GUILayout.Label( $"Last log: {m_episodeManager.LastSavedPath}", m_style );
+      GUILayout.Label( $"Last log: {( m_episodeManager != null ? m_episodeManager.LastSavedPath : string.Empty )}", m_style );
       GUILayout.EndArea();
 
-      if ( m_episodeManager.ShouldShowTransitionInputCutWarning )
+      if ( m_episodeManager != null && m_episodeManager.ShouldShowTransitionInputCutWarning )
         DrawReleaseInputPopup();
     }
 
@@ -258,8 +287,99 @@ namespace AGXUnity_Excavator.Scripts.Presentation
       }
     }
 
-    private string FormatGoodDigStartLine()
+    private bool ShouldUseStepAckTelemetry( ActTaskState collectorTaskState )
     {
+      return collectorTaskState != null &&
+             m_stepAckServer != null &&
+             m_stepAckServer.IsListening &&
+             ( m_episodeManager == null || !m_episodeManager.isActiveAndEnabled );
+    }
+
+    private float GetDisplayedMassInBucket( bool useStepAckTelemetry, ActTaskState collectorTaskState )
+    {
+      if ( useStepAckTelemetry && collectorTaskState != null )
+        return collectorTaskState.mass_in_bucket_kg;
+
+      return m_episodeManager != null ? m_episodeManager.MassInBucket : 0.0f;
+    }
+
+    private float GetDisplayedMassInTargetBox( bool useStepAckTelemetry, ActTaskState collectorTaskState )
+    {
+      if ( useStepAckTelemetry && collectorTaskState != null )
+        return collectorTaskState.mass_in_target_box_kg;
+
+      return m_episodeManager != null ? m_episodeManager.MassInTargetBox : 0.0f;
+    }
+
+    private float GetDisplayedDepositedMassInTargetBox( bool useStepAckTelemetry, ActTaskState collectorTaskState )
+    {
+      if ( useStepAckTelemetry && collectorTaskState != null )
+        return collectorTaskState.deposited_mass_in_target_box_kg;
+
+      return m_episodeManager != null ? m_episodeManager.DepositedMassInTargetBox : 0.0f;
+    }
+
+    private float GetDisplayedMinDistanceToTarget( bool useStepAckTelemetry, ActTaskState collectorTaskState )
+    {
+      if ( useStepAckTelemetry && collectorTaskState != null )
+        return collectorTaskState.min_distance_to_target_m;
+
+      return m_episodeManager != null ? m_episodeManager.MinDistanceToTarget : -1.0f;
+    }
+
+    private float GetDisplayedMinDistanceToDigArea( bool useStepAckTelemetry, ActTaskState collectorTaskState )
+    {
+      if ( useStepAckTelemetry && collectorTaskState != null )
+        return collectorTaskState.min_distance_to_dig_area_m;
+
+      return m_episodeManager != null ? m_episodeManager.MinDistanceToDigArea : -1.0f;
+    }
+
+    private float GetDisplayedBucketDepthBelowDigAreaPlane( bool useStepAckTelemetry, ActTaskState collectorTaskState )
+    {
+      if ( useStepAckTelemetry && collectorTaskState != null )
+        return collectorTaskState.bucket_depth_below_dig_area_plane_m;
+
+      return m_episodeManager != null ? m_episodeManager.BucketDepthBelowDigAreaPlane : 0.0f;
+    }
+
+    private int GetDisplayedTargetHardCollisionCount( bool useStepAckTelemetry, ActTaskState collectorTaskState )
+    {
+      if ( useStepAckTelemetry && collectorTaskState != null )
+        return Mathf.RoundToInt( collectorTaskState.target_hard_collision_count );
+
+      return m_episodeManager != null ? m_episodeManager.TargetHardCollisionCount : 0;
+    }
+
+    private float GetDisplayedTargetContactMaxNormalForceN( bool useStepAckTelemetry, ActTaskState collectorTaskState )
+    {
+      if ( useStepAckTelemetry && collectorTaskState != null )
+        return collectorTaskState.target_contact_max_normal_force_n;
+
+      return m_episodeManager != null ? m_episodeManager.TargetContactMaxNormalForceN : 0.0f;
+    }
+
+    private float GetDigAreaTouchTolerance()
+    {
+      return m_episodeManager != null ? m_episodeManager.GoodDigAreaTouchToleranceM : 0.05f;
+    }
+
+    private float GetDigAreaBelowPlaneTolerance()
+    {
+      return m_episodeManager != null ? m_episodeManager.GoodDigBelowPlaneDepthToleranceM : 0.02f;
+    }
+
+    private string FormatGoodDigStartLine( bool useStepAckTelemetry,
+                                           bool isBucketTouchingDigArea,
+                                           bool isBucketBelowDigAreaPlane )
+    {
+      if ( useStepAckTelemetry ) {
+        if ( isBucketTouchingDigArea && isBucketBelowDigAreaPlane )
+          return $"Good dig start: {Colorize( "step-ack ready, waiting for load", WarnColor )}";
+
+        return $"Good dig start: {Colorize( "step-ack mode", NeutralColor )}";
+      }
+
       if ( m_episodeManager == null )
         return "Good dig start: n/a";
 
@@ -279,22 +399,24 @@ namespace AGXUnity_Excavator.Scripts.Presentation
       return $"Good dig start: {Colorize( "waiting", BadColor )}";
     }
 
-    private string FormatDigAreaTouchLine()
+    private string FormatDigAreaTouchLine( float minDistanceToDigArea, bool isBucketTouchingDigArea )
     {
-      if ( m_episodeManager == null || m_episodeManager.MinDistanceToDigArea < 0.0f )
+      if ( minDistanceToDigArea < 0.0f )
         return $"DigArea touch: {Colorize( "n/a", NeutralColor )}    Min distance to DigArea: n/a";
 
-      return $"DigArea touch: {FormatBooleanState( m_episodeManager.IsBucketTouchingDigArea )}    " +
-             $"Min distance to DigArea: {m_episodeManager.MinDistanceToDigArea:0.000} m";
+      return $"DigArea touch: {FormatBooleanState( isBucketTouchingDigArea )}    " +
+             $"Min distance to DigArea: {minDistanceToDigArea:0.000} m";
     }
 
-    private string FormatDigAreaDepthLine()
+    private string FormatDigAreaDepthLine( float minDistanceToDigArea,
+                                           float bucketDepthBelowDigAreaPlane,
+                                           bool isBucketBelowDigAreaPlane )
     {
-      if ( m_episodeManager == null || m_episodeManager.MinDistanceToDigArea < 0.0f )
-        return $"Below DigArea plane: {Colorize( "n/a", NeutralColor )}    Bucket depth below plane: n/a";
+      if ( minDistanceToDigArea < 0.0f )
+        return $"Below DigArea plane: {Colorize( "n/a", NeutralColor )}    Effective depth below plane: n/a";
 
-      return $"Below DigArea plane: {FormatBooleanState( m_episodeManager.IsBucketBelowDigAreaPlane )}    " +
-             $"Bucket depth below plane: {m_episodeManager.BucketDepthBelowDigAreaPlane:0.000} m";
+      return $"Below DigArea plane: {FormatBooleanState( isBucketBelowDigAreaPlane )}    " +
+             $"Effective depth below plane: {bucketDepthBelowDigAreaPlane:0.000} m";
     }
 
     private static string FormatBooleanState( bool value )

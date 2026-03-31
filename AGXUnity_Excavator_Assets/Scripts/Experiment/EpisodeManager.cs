@@ -113,6 +113,8 @@ namespace AGXUnity_Excavator.Scripts.Experiment
         -1.0f;
     public float MinDistanceToDigArea => m_minDistanceToDigArea;
     public float BucketDepthBelowDigAreaPlane => m_bucketDepthBelowDigAreaPlane;
+    public float GoodDigAreaTouchToleranceM => m_goodDigAreaTouchToleranceM;
+    public float GoodDigBelowPlaneDepthToleranceM => m_goodDigBelowPlaneDepthToleranceM;
     public bool IsBucketTouchingDigArea =>
       m_minDistanceToDigArea >= 0.0f &&
       m_minDistanceToDigArea <= m_goodDigAreaTouchToleranceM;

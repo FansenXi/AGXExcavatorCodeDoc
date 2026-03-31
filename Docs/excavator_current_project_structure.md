@@ -328,9 +328,10 @@ Unity 组件化输入源基类
 - `target_hard_collision_count` 表示当前 episode 内累计的监控 excavator-vs-active-target 硬碰撞次数
 - 同一段连续接触期间，这个累计值最多只增加一次；必须先离开目标，下一次接触才会再次增加
 - `target_contact_max_normal_force_n` 表示当前这一步中，监控 excavator-vs-active-target 接触的最大法向力
-- `min_distance_to_dig_area_m` 表示 bucket 量测体到场景 `DigArea` 薄 box 的近似最小距离；不可计算时为 `-1`
-- `bucket_depth_below_dig_area_plane_m` 表示当前 bucket 量测体最低点低于 DigArea 平面的深度；未低于平面时为 `0`
-- `min_distance_to_target_m` 在 bucket 侧现在优先使用 `ExcavationMassTracker` 上单独配置的 target-distance proxy volume；DigArea 两个几何字段仍继续复用 bucket 质量统计那套 measurement frame / volume
+- `min_distance_to_dig_area_m` 表示 bucket DigArea proxy volume 到场景 `DigArea` 薄 box 的近似最小距离；不可计算时为 `-1`
+- `bucket_depth_below_dig_area_plane_m` 表示当前 bucket DigArea proxy 相对 DigArea 中心平面的“有效下探深度”：Unity 会在 DigArea 局部坐标里对 proxy 做采样，取样点低于平面的原始深度，再按该点到 DigArea footprint 的 XZ 有符号距离做平滑加权，因此 bucket 在 footprint 外侧时该值会保持接近 `0`，接近并进入 DigArea 时才会连续上升
+- `min_distance_to_target_m` 在 bucket 侧现在优先使用 `ExcavationMassTracker` 上单独配置的 target-distance proxy volume；DigArea 两个几何字段现在也复用这套更紧的 proxy 优先链，而不是 bucket 质量统计那套较大的 measurement frame / volume
+- 这两个 DigArea 字段在 Python 手动步进链里一直由 `ActObservationCollector` 直接测量并写进 `STEP_RESP.env_state`，不依赖 `EpisodeManager` 是否处于启用状态
 
 #### E. `ExcavationMassTracker` 的 bucket 统计补充
 
@@ -361,6 +362,9 @@ Unity 组件化输入源基类
 
 - `ExperimentHUD` 展示运行时状态、输入源、ACT 状态、step-ack 状态和质量统计
 - HUD 现在同时展示当前激活的接料目标，并支持通过 `F8/F9` 在不同 target 间切换
+- 当 `AgxSimStepAckServer` 监听并临时禁用 `EpisodeManager` 时，`ExperimentHUD`
+  会回退到 `ActObservationCollector` 最近一次 task-state 采样，继续刷新质量、
+  目标距离、DigArea 指标和 active-target 硬碰撞摘要，避免 HUD 看起来“完全不动”
 - `TrackedCameraWindow` 提供场景内相机窗口、原始 RGB 抓帧能力，以及 Inspector
 中的默认旋转偏移微调（`m_localRotationOffsetEuler`）
 - `TrackedCameraWindow` 的 FPV 抓帧走相机到 `RenderTexture` 的路径，不会把
@@ -555,7 +559,7 @@ Python client
 - 在 `SubmergedBox` 上方的定向盒体体积内累加 soil particle 质量与上述动态刚体质量
 - `TruckBedMassSensor` 会在 AGX 初始化前禁用 truck 的 `BedTerrain` 子物体、重新启用 `Bed` 现有支撑 `Box` 碰撞，并优先用这些 `Box` 碰撞几何加顶部 headroom 构造 truck 测量体积，以本次 reset 时的质量为基线输出 truck target 质量，避免 truck 的 `MovableTerrain` merge 成高度场后漏计、底板穿透或只统计到床斗底部一层
 - `BucketTargetDistanceMeasurementUtility` 会基于 bucket 本体的局部包围盒和当前激活目标的测量体积，输出近似最小距离
-- `DigAreaMeasurement` 会复用同一套 bucket 量测几何，输出 bucket 到 `DigArea` 的近似最小距离，以及 bucket 低于 DigArea 平面的深度
+- `DigAreaMeasurement` 现在优先复用 bucket 的 target-distance proxy 几何，输出 bucket 到 `DigArea` 的近似最小距离，以及相对 DigArea 中心平面的平滑“有效下探深度”
 - `ActiveTargetCollisionMonitor` 会监听 AGX solved contact，只统计 excavator 与当前激活目标硬表面之间的接触；其中 `target_hard_collision_count` 是按“接触开始 -> 离开 -> 再次接触”语义累计的 episode 计数，`target_contact_max_normal_force_n` 是当前步最大法向力
 - `SceneResetService.ResetScene(resetTerrain: true, ...)` 后，terrain native 会清掉动态粒子，传感器计数同步归零
 - 这条质量数据当前进入 `ExperimentHUD`、`ExperimentLogger` 和 `ActObservation.task_state.*`

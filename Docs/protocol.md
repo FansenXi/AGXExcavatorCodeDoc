@@ -74,15 +74,18 @@ Current observation semantics:
 - `0.0` means no monitored active-target contact was observed for that step
 
 `min_distance_to_dig_area_m` semantics:
-- this field is the approximate minimum distance between the current bucket measurement volume and the scene `DigArea` thin box
+- this field is the approximate minimum distance between the current bucket DigArea proxy volume and the scene `DigArea` thin box
 - the scene `DigArea` object is treated as the single source of truth for the dig start region
-- `0.0` means the bucket measurement volume is touching or overlapping the DigArea box volume
+- `0.0` means the bucket DigArea proxy volume is touching or overlapping the DigArea box volume
 - `-1.0` means the distance could not be evaluated for the current frame
 
 `bucket_depth_below_dig_area_plane_m` semantics:
-- this field is computed as `max(0, dig_plane_y - bucket_world_min_y)`
-- `dig_plane_y` is the world-space Y value of the DigArea box center plane
-- this value only becomes positive when the bucket measurement volume goes below the DigArea plane
+- this field is a proximity-weighted effective depth below the DigArea center plane
+- Unity samples the current bucket DigArea proxy volume in DigArea-local coordinates
+- each sample contributes `max(0, -local_y)` depth below the DigArea local center plane
+- that raw sample depth is multiplied by a smooth weight derived from the sample's signed XZ distance to the DigArea footprint
+- the reported value is the maximum weighted sample depth across the sampled bucket volume
+- this keeps the signal near zero when the bucket is laterally far from the DigArea footprint and lets it rise smoothly as the bucket approaches and enters the dig region
 
 ## 2. Byte Order and Primitive Encoding
 
@@ -284,7 +287,7 @@ Target note:
 - `env_state[5]` reports the cumulative episode hard-collision count for monitored excavator-vs-active-target contacts
 - `env_state[6]` reports the maximum monitored contact normal force in Newtons for the completed step
 - `env_state[7]` reports the approximate minimum bucket-to-DigArea distance in meters
-- `env_state[8]` reports the current bucket depth below the DigArea plane in meters
+- `env_state[8]` reports the current proximity-weighted effective bucket depth below the DigArea center plane in meters
 - Unity local CSV logs now include `target_name` for debugging
 - the binary `STEP_RESP` payload does **not** yet carry `target_name`; clients should treat target identity as scene/runtime configuration for now
 

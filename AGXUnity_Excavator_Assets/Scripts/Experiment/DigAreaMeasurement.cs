@@ -35,6 +35,14 @@ public class DigAreaMeasurement : MonoBehaviour
   [Min( 0.0f )]
   private float m_contourHeightOffset = 0.015f;
 
+  [SerializeField]
+  [Min( 0.0f )]
+  private float m_depthHorizontalBlendDistance = 0.25f;
+
+  [SerializeField]
+  [Range( 3, 9 )]
+  private int m_depthSamplingResolution = 5;
+
   private Material m_runtimeFillMaterial = null;
   private Material m_runtimeContourMaterial = null;
 
@@ -116,7 +124,7 @@ public class DigAreaMeasurement : MonoBehaviour
     if ( bucketReference == null || m_digAreaBox == null )
       return false;
 
-    if ( !BucketTargetDistanceMeasurementUtility.TryGetMeasurementBox( bucketReference, out var bucketBox ) )
+    if ( !BucketTargetDistanceMeasurementUtility.TryGetDigAreaMeasurementBox( bucketReference, out var bucketBox ) )
       return false;
 
     var digAreaBox = new OrientedMeasurementBox
@@ -129,10 +137,70 @@ public class DigAreaMeasurement : MonoBehaviour
       return false;
 
     minDistanceMeters = BucketTargetDistanceMeasurementUtility.MeasureApproximateDistance( bucketBox, digAreaBox );
-
-    var digPlaneWorldY = m_digAreaBox.transform.position.y;
-    bucketDepthBelowPlaneMeters = Mathf.Max( 0.0f, digPlaneWorldY - bucketBox.GetWorldMinY() );
+    bucketDepthBelowPlaneMeters = MeasureEffectiveBucketDepthBelowPlane( bucketBox );
     return true;
+  }
+
+  private float MeasureEffectiveBucketDepthBelowPlane( OrientedMeasurementBox bucketBox )
+  {
+    if ( m_digAreaBox == null )
+      return 0.0f;
+
+    var digAreaTransform = m_digAreaBox.transform;
+    var digAreaHalfExtents = m_digAreaBox.HalfExtents;
+    var resolution = Mathf.Max( 3, m_depthSamplingResolution );
+    var denominator = Mathf.Max( 1, resolution - 1 );
+    var blendDistance = Mathf.Max( 0.0f, m_depthHorizontalBlendDistance );
+    var maxEffectiveDepth = 0.0f;
+
+    // Weight vertical depth by how close the sampled bucket point is to the
+    // DigArea footprint so the metric rises smoothly near the boundary.
+    for ( var xIndex = 0; xIndex < resolution; ++xIndex ) {
+      var normalizedX = Mathf.Lerp( -1.0f, 1.0f, xIndex / (float)denominator );
+      for ( var yIndex = 0; yIndex < resolution; ++yIndex ) {
+        var normalizedY = Mathf.Lerp( -1.0f, 1.0f, yIndex / (float)denominator );
+        for ( var zIndex = 0; zIndex < resolution; ++zIndex ) {
+          var normalizedZ = Mathf.Lerp( -1.0f, 1.0f, zIndex / (float)denominator );
+          var bucketSampleWorld = bucketBox.SamplePointWorld( normalizedX, normalizedY, normalizedZ );
+          var bucketSampleDigAreaLocal = digAreaTransform.InverseTransformPoint( bucketSampleWorld );
+          var rawDepthBelowPlane = Mathf.Max( 0.0f, -bucketSampleDigAreaLocal.y );
+          if ( rawDepthBelowPlane <= 0.0f )
+            continue;
+
+          var footprintInsetMeters = EvaluateDigAreaFootprintInsetMeters( bucketSampleDigAreaLocal,
+                                                                          digAreaHalfExtents );
+          var footprintWeight = EvaluateFootprintWeight( footprintInsetMeters, blendDistance );
+          if ( footprintWeight <= 0.0f )
+            continue;
+
+          maxEffectiveDepth = Mathf.Max( maxEffectiveDepth, rawDepthBelowPlane * footprintWeight );
+        }
+      }
+    }
+
+    return maxEffectiveDepth;
+  }
+
+  private static float EvaluateDigAreaFootprintInsetMeters( Vector3 digAreaLocalPoint,
+                                                            Vector3 digAreaHalfExtents )
+  {
+    var q = new Vector2( Mathf.Abs( digAreaLocalPoint.x ) - digAreaHalfExtents.x,
+                         Mathf.Abs( digAreaLocalPoint.z ) - digAreaHalfExtents.z );
+    var outside = new Vector2( Mathf.Max( q.x, 0.0f ), Mathf.Max( q.y, 0.0f ) );
+    var signedDistanceToFootprint = outside.magnitude + Mathf.Min( Mathf.Max( q.x, q.y ), 0.0f );
+    return -signedDistanceToFootprint;
+  }
+
+  private static float EvaluateFootprintWeight( float footprintInsetMeters, float blendDistance )
+  {
+    if ( blendDistance <= 1.0e-5f )
+      return footprintInsetMeters >= 0.0f ? 1.0f : 0.0f;
+
+    return Mathf.SmoothStep( 0.0f,
+                             1.0f,
+                             Mathf.InverseLerp( -blendDistance,
+                                                blendDistance,
+                                                footprintInsetMeters ) );
   }
 
   private static Transform FindDigAreaRoot( string digAreaRootName )

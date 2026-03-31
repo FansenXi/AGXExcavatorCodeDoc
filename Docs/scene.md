@@ -64,6 +64,11 @@ The current main scene provides:
 Runtime target routing is implemented, so the same exported field names continue to refer to the **currently active target**.
 The runtime HUD also exposes DigArea good-start state, DigArea touch state, and
 bucket depth below the DigArea plane for quick operator validation.
+When `AgxSimStepAckServer` is serving and temporarily disables
+`EpisodeManager.Update()`, the HUD now falls back to the latest
+`ActObservationCollector` task-state sample for live mass, target-distance,
+DigArea, and active-target-collision telemetry instead of showing stale
+EpisodeManager-side cached values.
 
 ### 3.2 Target Mass Measurement
 
@@ -153,6 +158,10 @@ The current Unity bridge already supports:
 - 4D `qvel`
 - 9D `env_state`
 
+The step-ack export path already measures DigArea geometry through
+`ActObservationCollector`. It does not depend on `EpisodeManager` staying
+enabled while the server is listening.
+
 ## 4. Current Export Contract
 
 The current exported observation is:
@@ -175,14 +184,17 @@ Field semantics:
 - `min_distance_to_target_m`: approximate minimum bucket-proxy-to-active-target distance
 - `target_hard_collision_count`: cumulative episode count of monitored excavator-vs-active-target hard collisions
 - `target_contact_max_normal_force_n`: per-step maximum monitored excavator-vs-active-target solved normal force in Newtons
-- `min_distance_to_dig_area_m`: approximate minimum bucket-measurement-volume distance to the scene `DigArea`
-- `bucket_depth_below_dig_area_plane_m`: `max(0, dig_plane_y - bucket_world_min_y)` for the current bucket measurement volume
+- `min_distance_to_dig_area_m`: approximate minimum distance from the bucket DigArea proxy volume to the scene `DigArea`
+- `bucket_depth_below_dig_area_plane_m`: proximity-weighted effective depth of sampled bucket DigArea proxy points below the DigArea local center plane; the signal stays near zero when the bucket is laterally outside the DigArea footprint and rises smoothly as the bucket enters the dig region
 
 The target-distance field now prefers the dedicated bucket target-distance
 proxy volume configured on `ExcavationMassTracker`, and compares it against the
-active target's distance geometry. The DigArea fields continue to use the
-bucket measurement volume that `ExcavationMassTracker` uses for bucket-mass
-estimation.
+active target's distance geometry. The DigArea fields now also use that same
+tighter proxy preference chain instead of the larger bucket-mass measurement
+volume. During step-ack serving, these DigArea and target metrics continue
+to update in both the wire payload and the runtime HUD via
+`ActObservationCollector`; only the local `EpisodeManager`-side good-dig latch
+logic remains paused while that component is disabled.
 
 For precise wire details, use `Docs/protocol.md`.
 
@@ -257,7 +269,7 @@ The intended episode flow is now:
 1. reset the scene
 2. confirm or set the active dump target
 3. scoop material from the soil pile
-   The intended good start is now: bucket measurement volume touches the
+   The intended good start is now: bucket DigArea proxy touches the
    `DigArea` region and digs below the DigArea plane while load increases.
 4. transport the load toward the selected target
 5. dump material into the target

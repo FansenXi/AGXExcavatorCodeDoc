@@ -47,8 +47,8 @@ Current meanings:
   failure volumes from the target distance / hard-collision geometry set
 - `target_hard_collision_count` is the cumulative hard-collision event count within the current episode
 - `target_contact_max_normal_force_n` is the current-step maximum monitored normal force
-- `min_distance_to_dig_area_m` is the approximate minimum bucket-to-DigArea distance
-- `bucket_depth_below_dig_area_plane_m` is the current bucket depth below the DigArea plane
+- `min_distance_to_dig_area_m` is the approximate minimum distance from the bucket DigArea proxy to the DigArea region
+- `bucket_depth_below_dig_area_plane_m` is the proximity-weighted effective depth of the bucket DigArea proxy below the DigArea center plane
 
 ### 2.2 Hard-Collision Monitoring Upgrade
 

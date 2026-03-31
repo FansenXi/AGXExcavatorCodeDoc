@@ -188,6 +188,21 @@ internal static class BucketTargetDistanceMeasurementUtility
     return true;
   }
 
+  internal static bool TryGetDigAreaMeasurementBox( Transform reference,
+                                                    out OrientedMeasurementBox measurementBox )
+  {
+    measurementBox = default;
+    if ( reference == null )
+      return false;
+
+    // DigArea start qualification should use the same tighter proxy geometry
+    // that operators tune for close-proximity spatial reasoning.
+    if ( TryGetTargetDistanceBucketBox( reference, out measurementBox, out _ ) )
+      return measurementBox.IsValid;
+
+    return false;
+  }
+
   internal static float MeasureApproximateDistance( OrientedMeasurementBox left, OrientedMeasurementBox right )
   {
     return MeasureApproximateDistance( left, right, out _ );

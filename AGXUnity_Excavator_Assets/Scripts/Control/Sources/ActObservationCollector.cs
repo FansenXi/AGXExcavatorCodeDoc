@@ -140,10 +140,14 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
     private float m_lastBaseSampleTime = -1.0f;
     private Vector3 m_lastLinearVelocityLocal = Vector3.zero;
     private Vector3 m_lastAngularVelocityLocal = Vector3.zero;
+    private ActObservation m_lastCollectedObservation = null;
     private readonly ActuatorCalibrationDebugInfo m_swingCalibration = new ActuatorCalibrationDebugInfo { label = "Swing" };
     private readonly ActuatorCalibrationDebugInfo m_boomCalibration = new ActuatorCalibrationDebugInfo { label = "Boom" };
     private readonly ActuatorCalibrationDebugInfo m_stickCalibration = new ActuatorCalibrationDebugInfo { label = "Stick" };
     private readonly ActuatorCalibrationDebugInfo m_bucketCalibration = new ActuatorCalibrationDebugInfo { label = "Bucket" };
+
+    public ActObservation LastCollectedObservation => m_lastCollectedObservation;
+    public ActTaskState LastTaskState => m_lastCollectedObservation != null ? m_lastCollectedObservation.task_state : null;
 
     private void Awake()
     {
@@ -158,6 +162,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       m_lastBaseSampleTime = -1.0f;
       m_lastLinearVelocityLocal = Vector3.zero;
       m_lastAngularVelocityLocal = Vector3.zero;
+      m_lastCollectedObservation = null;
       m_activeTargetCollisionMonitor?.ResetMonitoring();
 
       var baseTransform = m_excavator != null ? m_excavator.transform : transform;
@@ -264,6 +269,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
         observation.task_state.bucket_depth_below_dig_area_plane_m = bucketDepthBelowDigAreaPlaneMeters;
       }
 
+      m_lastCollectedObservation = observation;
       return observation;
     }
 
