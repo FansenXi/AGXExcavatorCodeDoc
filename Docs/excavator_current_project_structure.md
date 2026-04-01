@@ -1,6 +1,6 @@
 # AGXUnity Excavator Current Project Structure
 
-更新时间：2026-03-26
+更新时间：2026-04-01
 
 ## 1. 文档目的
 
@@ -128,7 +128,7 @@ flowchart TB
       Sim["Control/Simulation<br/>输入仿真与平滑"]
       Exec["Control/Execution<br/>命令解释与 AGX 执行"]
       Exp["Experiment<br/>Episode / Logger / Reset / Sensor"]
-      Present["Presentation<br/>HUD / Camera Window"]
+      Present["Presentation<br/>HUD / Camera Window / VR Spectator"]
       Bridge["SimulationBridge<br/>Binary Step-Ack Server"]
     end
 
@@ -238,6 +238,34 @@ Unity 组件化输入源基类
 - `BucketTargetDistanceMeasurementUtility.cs`
 
 补充说明：
+
+### 4.6 `Presentation`
+
+这一层负责场景展示，而不是控制协议本身。
+
+当前文件包括：
+
+- `ExperimentHUD.cs`
+- `TrackedCameraWindow.cs`
+- `VrSpectatorBootstrap.cs`
+- `VrMainCameraMirror.cs`
+
+当前职责划分是：
+
+- `ExperimentHUD` 继续负责桌面端 `OnGUI` 运行时信息面板
+- `TrackedCameraWindow` 继续负责 bucket / 机体等辅助相机窗口与 FPV 抓帧
+- `VrSpectatorBootstrap` 负责在主场景启动时尝试拉起 OpenXR，并创建一条独立于桌面主相机的 HMD 渲染路径
+- `VrMainCameraMirror` 负责把桌面 `Main Camera` 的最终 world pose 镜像给运行时 XR origin，让 HMD 以桌面主视角为基准再叠加头显 6DoF 位姿
+
+需要特别注意：
+
+- 当前 VR spectator mode 只落在 `AGXUnity_Excavator.unity`
+- 桌面 `Main Camera` 仍然保留 `LinkCamera` 和桌面 HUD 行为
+- HMD 使用独立 XR 相机，不接管桌面主相机，也不修改 step-ack / ACT / teleop 控制链
+- `FollowCamera` 现在不再占用 `MainCamera` tag；场景里只有桌面主相机承担 `MainCamera` 语义
+- 当前这套 VR 脚本主要是为未来 PCVR 演示预留的 scaffold，不是当前 Linux 主线工作流里的已验证交付功能
+- 当前日常可依赖的展示路径仍然是普通桌面渲染；如果 XR 在 Linux 环境下启动失败，应视为回退到桌面模式，而不是主流程故障
+- 未来如果项目迁移到 Windows + SteamVR/OpenXR，这套双路 spectator 设计可以继续作为 HMD 展示入口
 
 - 历史上存在过 Unity 本地 sidecar 导出路径
 - 但相关 `TeleopEpisodeExporter` 脚本和主场景挂载都已从当前主线移除，因此不再作为当前主线输出路径说明对象

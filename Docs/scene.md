@@ -1,7 +1,7 @@
 # AGXUnity Excavator Task Scene - Current V0 Reference
 
 **Status:** current English source of truth for the Unity/AGX side  
-**Last updated:** 2026-03-25  
+**Last updated:** 2026-04-01  
 **Companion translation:** `Docs/scene.zh-CN.md` is a reading-only mirror; if the two files ever diverge, this English file wins.
 
 This document is no longer an implementation plan. It describes the scene and task contract that are currently implemented across the Unity repo and the linked Python testbed workflow.
@@ -161,6 +161,66 @@ The current Unity bridge already supports:
 The step-ack export path already measures DigArea geometry through
 `ActObservationCollector`. It does not depend on `EpisodeManager` staying
 enabled while the server is listening.
+
+### 3.7 Dual-Path VR Spectator Presentation
+
+The current main scene now also includes a dormant dual-path VR spectator
+scaffold that is kept in the repo for future PCVR presentation work.
+
+Current project status:
+
+- the VR spectator code path is intentionally kept in place, but it is **not**
+  part of the currently validated Linux desktop workflow
+- the current supported day-to-day presentation path remains the normal desktop
+  scene rendering path
+- the intended future target for this spectator scaffold is Windows desktop
+  PCVR with SteamVR acting as the system OpenXR runtime
+- when XR startup fails on the current Linux setup, that is treated as a normal
+  fallback-to-desktop outcome rather than a blocker for the main excavation
+  workflow
+
+Current behavior:
+
+- the existing desktop `Main Camera` remains the only camera responsible for the
+  desktop game window
+- the desktop view keeps its current `LinkCamera`, HUD, and auxiliary-window
+  behavior
+- a scene-level `VrSpectatorBootstrap` component on the desktop `Main Camera`
+  attempts to start OpenXR at runtime without changing the step-ack / teleop /
+  ACT control pipeline
+- when XR starts successfully, Unity creates a dedicated runtime `XROrigin` and
+  XR-only spectator camera for the HMD
+- the XR spectator camera does **not** replace the desktop `Main Camera`
+- the XR spectator rig mirrors the desktop `Main Camera` world pose every frame
+  through `VrMainCameraMirror`
+- HMD head pose still contributes its own local 6DoF tracking on top of that
+  mirrored base pose, so the headset gets stereoscopic XR rendering rather than
+  a flat monitor-style clone
+- when VR is active, the desktop `Main Camera` renders with `Target Eye = None`
+  so it stays on the desktop display only, while the XR spectator camera renders
+  with `Target Eye = Both` for the HMD
+- audio is switched from the desktop `AudioListener` to the XR spectator camera
+  while VR is active
+- if OpenXR cannot start, the project stays in pure desktop mode and the scene
+  continues to render exactly as before
+
+Presentation boundary:
+
+- no VR hand/controller interaction is added
+- no VR locomotion is added
+- no VR-specific HUD is added
+- `TrackedCameraWindow` / FPV capture / `AgxSimStepAckServer` continue to run on
+  their existing path and do not become the HMD main view
+- the current repo does **not** claim Linux x86_64 HMD availability as a
+  validated delivery target for this feature
+
+Scene consistency note:
+
+- the FPV `FollowCamera` object is no longer tagged `MainCamera`
+- the desktop `Main Camera` remains the single authoritative `MainCamera` in the
+  scene
+- the VR spectator scripts are best understood as a future-facing scaffold, not
+  a guaranteed cross-platform runtime feature in the current repo state
 
 ## 4. Current Export Contract
 
