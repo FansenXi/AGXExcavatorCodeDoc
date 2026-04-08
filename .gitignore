@@ -1,1 +1,11 @@
 *.meta
+*.unity
+.vscode/
+AGXUnity_Excavator_Assets/LightingData
+AGXUnity_Excavator_Assets/Physics
+AGXUnity_Excavator_Assets/Prefabs
+AGXUnity_Excavator_Assets/Profiles
+AGXUnity_Excavator_Assets/Terrains
+AGXUnity_Excavator_Assets/materials
+AGXUnity_Excavator_Assets/models
+AGXUnity_Excavator_Assets/SkySerie Freebie
