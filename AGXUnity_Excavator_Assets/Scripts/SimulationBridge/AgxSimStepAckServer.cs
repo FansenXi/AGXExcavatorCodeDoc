@@ -20,6 +20,7 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
     {
       public AgxSimMessageType Type = 0;
       public AgxSimRequestPayload Payload = new AgxSimRequestPayload();
+      public long ReceivedAtNs = -1;  // UTC ns when TCP thread finished reading this request
     }
 
     [SerializeField]
@@ -27,6 +28,15 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
 
     [SerializeField]
     private bool m_listenOnEnable = true;
+
+    /// <summary>
+    /// Latency A/B test toggle — change in Inspector WITHOUT recompiling.
+    /// false (default) = Update   → responsive, smooth, no tick-wait jitter
+    /// true            = FixedUpdate → bimodal distribution, adds ~0-20ms tick wait
+    /// </summary>
+    [SerializeField]
+    [Tooltip("Latency A/B test: false=Update (smooth), true=FixedUpdate (bimodal jitter)")]
+    private bool m_useFixedUpdateForRequests = false;
 
     [SerializeField]
     private bool m_disableEpisodeManagerWhileServing = true;
@@ -113,6 +123,14 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
 
     private void Update()
     {
+      if ( m_useFixedUpdateForRequests ) return;
+      ResolveReferences();
+      ProcessPendingRequests();
+    }
+
+    private void FixedUpdate()
+    {
+      if ( !m_useFixedUpdateForRequests ) return;
       ResolveReferences();
       ProcessPendingRequests();
     }
@@ -229,8 +247,9 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
 
       m_pendingRequests.Enqueue( new PendingRequest
       {
-        Type = messageType,
-        Payload = payload ?? new AgxSimRequestPayload()
+        Type        = messageType,
+        Payload     = payload ?? new AgxSimRequestPayload(),
+        ReceivedAtNs = AgxSimTimestamp.NowNs()
       } );
 
       return true;
@@ -249,7 +268,7 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
             QueueResponse( CreateResetResponse( request.Payload ) );
             break;
           case AgxSimMessageType.StepReq:
-            QueueResponse( CreateStepResponse( request.Payload ) );
+            QueueResponse( CreateStepResponse( request.Payload, request.ReceivedAtNs ) );
             break;
           default:
             Debug.LogWarning( $"AGX sim step-ack server encountered unsupported pending request: {request.Type}", this );
@@ -322,13 +341,15 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
       return AgxSimBinaryProtocol.SerializeResponse( AgxSimMessageType.ResetResp, payload );
     }
 
-    private byte[] CreateStepResponse( AgxSimRequestPayload request )
+    private byte[] CreateStepResponse( AgxSimRequestPayload request, long reqReceivedAtNs = -1 )
     {
       if ( request == null )
         return CreateErrorResponse( AgxSimMessageType.StepResp, "missing_payload" );
 
       if ( request.action == null || request.action.Length < 4 )
         return CreateErrorResponse( AgxSimMessageType.StepResp, "action_dim_must_be_4" );
+
+      var t_queue_exit = AgxSimTimestamp.NowNs();
 
       var warnings = new List<string>();
       EnsureManualStepping( warnings );
@@ -346,9 +367,13 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
       else
         warnings.Add( "simulation_instance_missing" );
 
+      var t_physics_done = AgxSimTimestamp.NowNs();
+
       var observation = m_observationCollector != null ?
                         m_observationCollector.Collect( OperatorCommand.Zero ) :
                         new ActObservation();
+
+      var t_image_ready = AgxSimTimestamp.NowNs();
 
       var payload = CreateBasePayload();
       payload.step_id = request.step_id;
@@ -382,6 +407,14 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
       payload.sim_time_ns = observation != null ? (long)Math.Round( observation.sim_time_sec * 1000000000.0 ) : -1;
       payload.image_fpv = CaptureImageFrame( warnings );
       payload.warnings = warnings.ToArray();
+
+      // Latency breakdown timestamps
+      payload.t_req_recv_ns     = reqReceivedAtNs;
+      payload.t_queue_exit_ns   = t_queue_exit;
+      payload.t_physics_done_ns = t_physics_done;
+      payload.t_image_ready_ns  = t_image_ready;
+      payload.t_resp_queued_ns  = AgxSimTimestamp.NowNs();
+
       RecordStepResponseDebug( payload );
 
       return AgxSimBinaryProtocol.SerializeResponse( AgxSimMessageType.StepResp, payload );

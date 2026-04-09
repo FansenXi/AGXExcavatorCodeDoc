@@ -266,7 +266,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
 
       foreach ( var terrain in m_fallbackTerrains ) {
         if ( terrain != null )
-          terrain.ResetHeights();
+          terrain.ResetHeightsAndRecreateNative();
       }
     }
 
