@@ -17,12 +17,15 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Core
     public sealed class DatasetOptions
     {
       public string RootDirectory = "AGXUnity_Excavator_Assets/ROI_Dataset";
-      public int ExportWidth = 576;
-      public int ExportHeight = 384;
+      public int ExportWidth = 1920;
+      public int ExportHeight = 1080;
       [Range( 0.05f, 0.95f )]
       public float ValidationSplit = 0.2f;
       public int JpegQuality = 90;
       public bool EnableImageExport = true;
+      public bool EnableAutomaticStepSampling = true;
+      [Min( 1 )]
+      public int AutomaticCaptureEverySteps = 12;
       public bool EnableManualCaptureHotkeys = true;
       public KeyCode ManualCaptureKey = KeyCode.F10;
       public KeyCode ManualAdvanceEpisodeKey = KeyCode.F11;

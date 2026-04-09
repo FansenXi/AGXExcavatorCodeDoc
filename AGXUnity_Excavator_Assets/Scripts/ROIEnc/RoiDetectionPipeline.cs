@@ -40,6 +40,9 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc
     private AgxSimStepAckServer m_stepAckServer = null;
 
     [SerializeField]
+    private EpisodeManager m_episodeManager = null;
+
+    [SerializeField]
     private ExcavatorMachineController m_machineController = null;
 
     [SerializeField]
@@ -65,10 +68,13 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc
     private long m_frameCounter = 0;
     private long m_lastExportedStepId = long.MinValue;
     private long m_lastObservedStepId = long.MinValue;
-    private long m_manualCaptureStepId = 0;
+    private long m_trainingEpisodeBaseStepId = long.MinValue;
+    private long m_manualFixedStepId = -1;
+    private long m_pendingManualAutoCaptureStepId = long.MinValue;
+    private int m_lastManualEpisodeIndex = 0;
+    private bool m_lastManualEpisodeRunning = false;
     private bool m_resetLatch = false;
     private float m_lastMotionIntensity = 0.0f;
-    private float m_lastManualCaptureTime = float.NegativeInfinity;
     private bool m_externalRuntimeLaunchAttempted = false;
     private System.Diagnostics.Process m_externalRuntimeProcess = null;
 
@@ -80,6 +86,12 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc
     {
       ResolveReferences();
       EnsureHelpers();
+      m_lastExportedStepId = long.MinValue;
+      m_lastObservedStepId = long.MinValue;
+      m_trainingEpisodeBaseStepId = long.MinValue;
+      m_lastManualEpisodeIndex = m_episodeManager != null ? m_episodeManager.CurrentEpisodeIndex : 0;
+      m_lastManualEpisodeRunning = m_episodeManager == null || m_episodeManager.IsEpisodeRunning;
+      ResetManualSamplingState();
       UpdateOverlayStatus();
     }
 
@@ -112,11 +124,24 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc
       }
     }
 
+    private void FixedUpdate()
+    {
+      ResolveReferences();
+      EnsureHelpers();
+
+      if ( m_mode != PipelineMode.ManualExport )
+        return;
+
+      SyncManualEpisodeState();
+      UpdateManualAutomaticSampling();
+    }
+
     private void ResolveReferences()
     {
       m_machineController = ExcavatorRigLocator.ResolveComponent( this, m_machineController );
       m_fpvCamera = ExcavatorRigLocator.ResolveComponent( this, m_fpvCamera );
       m_stepAckServer = ExcavatorRigLocator.ResolveComponent( this, m_stepAckServer );
+      m_episodeManager = ExcavatorRigLocator.ResolveComponent( this, m_episodeManager );
       m_targetMassSensor = ExcavatorRigLocator.ResolveComponent( this, m_targetMassSensor );
       m_digAreaMeasurement = ExcavatorRigLocator.ResolveComponent( this, m_digAreaMeasurement );
       m_observationCollector = ExcavatorRigLocator.ResolveComponent( this, m_observationCollector );
@@ -173,6 +198,16 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc
         return;
       }
 
+      var datasetOptions = m_configuration.Dataset ?? new RoiEncConfiguration.DatasetOptions();
+      if ( !ShouldCaptureTrainingStep( currentStepId, datasetOptions ) ) {
+        var stepInterval = Mathf.Max( 1, datasetOptions.AutomaticCaptureEverySteps );
+        m_lastStatus = datasetOptions.EnableAutomaticStepSampling ?
+                       $"training_export_waiting_for_step_interval:every={stepInterval},step={currentStepId}" :
+                       $"training_export_waiting_for_new_step:step={currentStepId}";
+        UpdateOverlayStatus( stepId: currentStepId );
+        return;
+      }
+
       if ( !TryBuildTrainingFrameSample( currentStepId, out var frameSample, out var error ) ) {
         m_lastStatus = $"training_export_capture_failed:{error}";
         UpdateOverlayStatus();
@@ -194,13 +229,27 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc
     {
       if ( m_fpvCamera == null || m_labelExporter == null ) {
         m_lastStatus = "manual_export_waiting_for_dependencies";
-        UpdateOverlayStatus( stepId: m_manualCaptureStepId );
+        UpdateOverlayStatus( stepId: CurrentManualStepId );
         return;
       }
 
+      SyncManualEpisodeState();
       var options = m_configuration.Dataset ?? new RoiEncConfiguration.DatasetOptions();
-      if ( Input.GetKeyDown( options.ManualAdvanceEpisodeKey ) )
+      var allowManualEpisodeAdvance = m_episodeManager == null || !m_episodeManager.isActiveAndEnabled;
+      if ( allowManualEpisodeAdvance && Input.GetKeyDown( options.ManualAdvanceEpisodeKey ) )
         AdvanceManualExportEpisodeInternal( "hotkey" );
+
+      if ( TryConsumePendingManualAutoCaptureStep( out var automaticStepId ) ) {
+        if ( !TryExportManualSample( automaticStepId, "auto_step", out var imagePath, out _, out var error ) ) {
+          m_lastStatus = $"manual_export_write_failed:{error}";
+          UpdateOverlayStatus( stepId: automaticStepId );
+          return;
+        }
+
+        m_lastStatus = $"manual_export_ok:auto_step:{imagePath}";
+        UpdateOverlayStatus( stepId: automaticStepId );
+        return;
+      }
 
       var captureRequested =
         options.EnableManualCaptureHotkeys &&
@@ -209,27 +258,24 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc
             Input.GetKeyDown( options.ManualCaptureKey ) );
 
       if ( captureRequested ) {
-        if ( Time.unscaledTime < m_lastManualCaptureTime + Mathf.Max( 0.0f, options.ManualCaptureCooldownSeconds ) ) {
-          m_lastStatus = $"manual_export_cooldown:{options.ManualCaptureKey}";
-          UpdateOverlayStatus( stepId: m_manualCaptureStepId );
-          return;
-        }
-
-        if ( !TryExportManualSample( "manual_hotkey", out var imagePath, out _, out var error ) ) {
+        if ( !TryExportManualSample( CurrentManualStepId, "manual_hotkey", out var imagePath, out _, out var error ) ) {
           m_lastStatus = $"manual_export_write_failed:{error}";
-          UpdateOverlayStatus( stepId: m_manualCaptureStepId );
+          UpdateOverlayStatus( stepId: CurrentManualStepId );
           return;
         }
 
-        m_lastManualCaptureTime = Time.unscaledTime;
         m_lastStatus = $"manual_export_ok:{imagePath}";
-        UpdateOverlayStatus( stepId: m_manualCaptureStepId );
+        UpdateOverlayStatus( stepId: CurrentManualStepId );
         return;
       }
 
+      var stepInterval = Mathf.Max( 1, options.AutomaticCaptureEverySteps );
+      var episodeControlText = allowManualEpisodeAdvance ?
+                               options.ManualAdvanceEpisodeKey.ToString() :
+                               "EpisodeManager";
       m_lastStatus =
-        $"manual_export_ready:capture={options.ManualCaptureKey},episode={options.ManualAdvanceEpisodeKey},ep={m_labelExporter.CurrentEpisodeIndex},next_step={m_manualCaptureStepId + 1}";
-      UpdateOverlayStatus( stepId: m_manualCaptureStepId );
+        $"manual_export_ready:auto_every={stepInterval}step,capture={options.ManualCaptureKey},episode={episodeControlText},ep={m_labelExporter.CurrentEpisodeIndex},step={CurrentManualStepId}";
+      UpdateOverlayStatus( stepId: CurrentManualStepId );
     }
 
     [ContextMenu( "Capture Manual Export Sample" )]
@@ -238,15 +284,14 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc
       ResolveReferences();
       EnsureHelpers();
 
-      if ( !TryExportManualSample( "context_menu", out var imagePath, out _, out var error ) ) {
+      if ( !TryExportManualSample( CurrentManualStepId, "context_menu", out var imagePath, out _, out var error ) ) {
         m_lastStatus = $"manual_export_write_failed:{error}";
-        UpdateOverlayStatus( stepId: m_manualCaptureStepId );
+        UpdateOverlayStatus( stepId: CurrentManualStepId );
         return;
       }
 
-      m_lastManualCaptureTime = Time.unscaledTime;
       m_lastStatus = $"manual_export_ok:{imagePath}";
-      UpdateOverlayStatus( stepId: m_manualCaptureStepId );
+      UpdateOverlayStatus( stepId: CurrentManualStepId );
     }
 
     [ContextMenu( "Advance Manual Export Episode" )]
@@ -293,7 +338,7 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc
       UpdateOverlayStatus( stepId: m_stepAckServer.LastRequestStepId );
     }
 
-    private bool TryExportManualSample( string trigger, out string imagePath, out string labelPath, out string error )
+    private bool TryExportManualSample( long stepId, string trigger, out string imagePath, out string labelPath, out string error )
     {
       imagePath = string.Empty;
       labelPath = string.Empty;
@@ -304,14 +349,14 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc
         return false;
       }
 
-      var manualStepId = NextManualCaptureStepId();
-      if ( !TryBuildTrainingFrameSample( manualStepId, out var frameSample, out error ) )
+      var resolvedStepId = System.Math.Max( 0L, stepId );
+      if ( !TryBuildTrainingFrameSample( resolvedStepId, out var frameSample, out error ) )
         return false;
 
       if ( !m_labelExporter.TryExport( frameSample, m_configuration.Dataset, out imagePath, out labelPath, out error ) )
         return false;
 
-      m_lastExportedStepId = manualStepId;
+      m_lastExportedStepId = resolvedStepId;
       if ( !string.IsNullOrWhiteSpace( trigger ) )
         m_lastStatus = $"manual_export_ok:{trigger}:{imagePath}";
       return true;
@@ -321,17 +366,17 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc
     {
       if ( m_labelExporter == null ) {
         m_lastStatus = "manual_export_episode_advance_failed:exporter_missing";
-        UpdateOverlayStatus( stepId: m_manualCaptureStepId );
+        UpdateOverlayStatus( stepId: CurrentManualStepId );
         return;
       }
 
       m_labelExporter.AdvanceEpisode();
-      m_manualCaptureStepId = 0;
+      ResetManualSamplingState();
       m_lastExportedStepId = long.MinValue;
       m_lastObservedStepId = long.MinValue;
       m_resetLatch = false;
       m_lastStatus = $"manual_export_episode_advanced:{trigger}:ep={m_labelExporter.CurrentEpisodeIndex}";
-      UpdateOverlayStatus( stepId: m_manualCaptureStepId );
+      UpdateOverlayStatus( stepId: CurrentManualStepId );
     }
 
     private void HandleEpisodeTransitions()
@@ -346,6 +391,7 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc
           m_labelExporter.AdvanceEpisode();
           m_lastExportedStepId = long.MinValue;
           m_lastObservedStepId = long.MinValue;
+          m_trainingEpisodeBaseStepId = long.MinValue;
           m_resetLatch = true;
         }
 
@@ -357,6 +403,7 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc
         if ( m_lastObservedStepId != long.MinValue && stepId < m_lastObservedStepId ) {
           m_labelExporter.AdvanceEpisode();
           m_lastExportedStepId = long.MinValue;
+          m_trainingEpisodeBaseStepId = long.MinValue;
         }
 
         m_lastObservedStepId = stepId;
@@ -404,6 +451,76 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc
                                          m_overlayDetections,
                                          m_lastMotionIntensity,
                                          m_lastStatus );
+    }
+
+    private void SyncManualEpisodeState()
+    {
+      if ( m_mode != PipelineMode.ManualExport )
+        return;
+
+      var currentEpisodeIndex = m_episodeManager != null ? m_episodeManager.CurrentEpisodeIndex : 0;
+      var isEpisodeRunning = m_episodeManager == null || m_episodeManager.IsEpisodeRunning;
+
+      if ( m_episodeManager != null && m_labelExporter != null && currentEpisodeIndex > m_lastManualEpisodeIndex ) {
+        for ( var episodeIndex = m_lastManualEpisodeIndex; episodeIndex < currentEpisodeIndex; ++episodeIndex )
+          m_labelExporter.AdvanceEpisode();
+
+        ResetManualSamplingState();
+      }
+      else if ( !isEpisodeRunning && m_lastManualEpisodeRunning ) {
+        ResetManualSamplingState();
+      }
+
+      m_lastManualEpisodeIndex = currentEpisodeIndex;
+      m_lastManualEpisodeRunning = isEpisodeRunning;
+    }
+
+    private void UpdateManualAutomaticSampling()
+    {
+      var options = m_configuration.Dataset ?? new RoiEncConfiguration.DatasetOptions();
+      if ( !options.EnableAutomaticStepSampling )
+        return;
+
+      if ( m_episodeManager != null && !m_episodeManager.IsEpisodeRunning )
+        return;
+
+      m_manualFixedStepId += 1;
+      var stepInterval = Mathf.Max( 1, options.AutomaticCaptureEverySteps );
+      if ( ( m_manualFixedStepId + 1 ) % stepInterval == 0 )
+        m_pendingManualAutoCaptureStepId = m_manualFixedStepId;
+    }
+
+    private bool ShouldCaptureTrainingStep( long stepId, RoiEncConfiguration.DatasetOptions options )
+    {
+      if ( stepId < 0 )
+        return false;
+
+      options = options ?? new RoiEncConfiguration.DatasetOptions();
+      if ( !options.EnableAutomaticStepSampling )
+        return true;
+
+      if ( m_trainingEpisodeBaseStepId == long.MinValue )
+        m_trainingEpisodeBaseStepId = stepId;
+
+      var stepOrdinal = stepId - m_trainingEpisodeBaseStepId + 1L;
+      var stepInterval = Mathf.Max( 1, options.AutomaticCaptureEverySteps );
+      return stepOrdinal > 0 && stepOrdinal % stepInterval == 0L;
+    }
+
+    private bool TryConsumePendingManualAutoCaptureStep( out long stepId )
+    {
+      stepId = m_pendingManualAutoCaptureStepId;
+      if ( stepId == long.MinValue )
+        return false;
+
+      m_pendingManualAutoCaptureStepId = long.MinValue;
+      return true;
+    }
+
+    private void ResetManualSamplingState()
+    {
+      m_manualFixedStepId = -1;
+      m_pendingManualAutoCaptureStepId = long.MinValue;
     }
 
     private void EnsureExternalRuntimeProcess()
@@ -467,11 +584,7 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc
       return m_frameCounter;
     }
 
-    private long NextManualCaptureStepId()
-    {
-      m_manualCaptureStepId += 1;
-      return m_manualCaptureStepId;
-    }
+    private long CurrentManualStepId => System.Math.Max( 0L, m_manualFixedStepId );
 
     private static long NowUnixTimeNs()
     {
