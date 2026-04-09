@@ -84,6 +84,7 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
     public string LastError => m_lastError;
     public ExcavatorActuationCommand LastRequestedActuationCommand => m_lastRequestedActuationCommand;
     public bool HasReceivedStepCommand => m_hasReceivedStepCommand;
+    public TrackedCameraWindow FpvCamera => m_fpvCamera;
 
     private void Awake()
     {
@@ -472,6 +473,23 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
         return Simulation.Instance.TimeStep;
 
       return Time.fixedDeltaTime;
+    }
+
+    public bool TryProfileFpvCapture( out double captureMilliseconds, out int payloadBytes )
+    {
+      captureMilliseconds = 0.0;
+      payloadBytes = 0;
+
+      if ( m_fpvCamera == null )
+        return false;
+
+      var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+      var frame = CaptureImageFrame( null );
+      stopwatch.Stop();
+
+      captureMilliseconds = stopwatch.Elapsed.TotalMilliseconds;
+      payloadBytes = frame != null && frame.data != null ? frame.data.Length : 0;
+      return frame != null;
     }
 
     private byte[] CreateErrorResponse( AgxSimMessageType responseType, string error )

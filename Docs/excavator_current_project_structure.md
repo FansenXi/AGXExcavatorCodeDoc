@@ -400,6 +400,28 @@ Unity 组件化输入源基类
 
 ### 4.7 `SimulationBridge`
 
+### 4.8 `ROIEnc`
+
+This subsystem hosts the Phase 1 semantic ROI detection path for the FPV stream.
+
+Current files include:
+
+- `ROIEnc/Core/*`
+- `ROIEnc/Detection/*`
+- `ROIEnc/Training/*`
+- `ROIEnc/Fusion/*`
+- `ROIEnc/Auxiliary/*`
+- `ROIEnc/Debug/*`
+- `ROIEnc/RoiDetectionPipeline.cs`
+
+Responsibilities:
+
+- define shared ROI data structures and configuration
+- export scene-graph training labels in YOLO format
+- launch the external ROI sidecar for runtime overlay + H.264 encoding
+- keep optional smoothing / fusion helpers available for future reuse
+- profile FPV capture cost and raw frame export timing
+
 这一层负责 Unity 与 Python 之间的二进制 step-ack 仿真桥。
 
 当前文件：

@@ -1,5 +1,6 @@
 *.meta
 *.unity
+.venv-roi/
 .vscode/
 AGXUnity_Excavator_Assets/LightingData
 AGXUnity_Excavator_Assets/Physics

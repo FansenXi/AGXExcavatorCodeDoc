@@ -141,6 +141,22 @@ public class DigAreaMeasurement : MonoBehaviour
     return true;
   }
 
+  public bool TryGetMeasurementVolume( out Transform measurementFrame,
+                                       out Vector3 measurementCenterLocal,
+                                       out Vector3 measurementHalfExtents )
+  {
+    ResolveReferences();
+
+    measurementFrame = m_digAreaBox != null ? m_digAreaBox.transform : null;
+    measurementCenterLocal = Vector3.zero;
+    measurementHalfExtents = m_digAreaBox != null ? m_digAreaBox.HalfExtents : Vector3.zero;
+
+    return measurementFrame != null &&
+           measurementHalfExtents.x > 0.0f &&
+           measurementHalfExtents.y > 0.0f &&
+           measurementHalfExtents.z > 0.0f;
+  }
+
   private float MeasureEffectiveBucketDepthBelowPlane( OrientedMeasurementBox bucketBox )
   {
     if ( m_digAreaBox == null )

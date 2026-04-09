@@ -259,6 +259,8 @@ Current Unity values:
 - FPV capture renders directly from the tracked camera into a `RenderTexture`;
   IMGUI overlays such as `ExperimentHUD` and the camera window chrome are not
   included in `image_payload`
+- ROI overlay and H.264 encoding now happen in an external sidecar after
+  `STEP_RESP` is received; protocol `v0` stays raw RGB on the wire
 
 Reward note:
 - for the current V0 stationary digging pipeline, `reward` is a Unity-side

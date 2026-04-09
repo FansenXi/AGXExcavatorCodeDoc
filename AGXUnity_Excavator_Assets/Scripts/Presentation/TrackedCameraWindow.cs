@@ -63,6 +63,10 @@ namespace AGXUnity_Excavator.Scripts.Presentation
     public string ViewName => string.IsNullOrWhiteSpace( m_viewName ) ? gameObject.name : m_viewName;
     public int TextureWidth => m_renderTexture != null ? m_renderTexture.width : Mathf.Max( 128, m_textureWidth );
     public int TextureHeight => m_renderTexture != null ? m_renderTexture.height : Mathf.Max( 72, m_textureHeight );
+    public Rect WindowRect => m_windowRect;
+    public Camera RuntimeCamera => m_camera;
+    public RenderTexture OutputRenderTexture => m_renderTexture;
+    public Transform TrackingTarget => m_runtimeTarget;
 
     public bool IsVisible
     {
@@ -263,6 +267,28 @@ namespace AGXUnity_Excavator.Scripts.Presentation
         m_camera.targetTexture = previousTarget == null ? m_renderTexture : previousTarget;
         m_camera.enabled = wasEnabled;
       }
+    }
+
+    public bool TryGetLiveRenderTexture( out Camera sourceCamera,
+                                         out RenderTexture renderTexture,
+                                         out Transform trackingTarget )
+    {
+      sourceCamera = null;
+      renderTexture = null;
+      trackingTarget = null;
+
+      ResolveReferences();
+      EnsureRenderTexture();
+      UpdateTrackingPose();
+      UpdateCameraState();
+
+      if ( m_camera == null || m_renderTexture == null || m_runtimeTarget == null )
+        return false;
+
+      sourceCamera = m_camera;
+      renderTexture = m_renderTexture;
+      trackingTarget = m_runtimeTarget;
+      return true;
     }
 
     private void EnsureCaptureTexture()
