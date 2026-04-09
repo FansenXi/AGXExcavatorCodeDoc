@@ -39,7 +39,7 @@ public class ResetTerrain : MonoBehaviour
   {
     var terrain = GetComponent<AGXUnity.Model.DeformableTerrain>();
     if ( terrain != null )
-      terrain.ResetHeights();
+      terrain.ResetHeightsAndRecreateNative();
   }
 
   // Update is called once per frame
