@@ -1,0 +1,8 @@
+h5py
+numpy
+opencv-python
+Pillow
+PyYAML
+ultralytics
+onnxruntime
+matplotlib

@@ -11,6 +11,7 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Training
   {
     private const float MinNormalizedArea = 0.002f;
     private static readonly Vector3[] s_boundsCorners = new Vector3[8];
+    private static readonly Vector3[] s_digAreaFootprintCorners = new Vector3[4];
 
     private readonly Component m_context;
     private ExcavatorMachineController m_machineController = null;
@@ -71,14 +72,13 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Training
       }
 
       if ( m_digAreaMeasurement != null &&
-           m_digAreaMeasurement.TryGetMeasurementVolume( out var digAreaFrame, out var digAreaCenterLocal, out var digAreaHalfExtents ) ) {
-        TryAddMeasurementVolumeRoi( camera,
-                                    digAreaFrame,
-                                    digAreaCenterLocal,
-                                    digAreaHalfExtents,
-                                    RoiCategory.DigArea,
-                                    frameSample.frameId,
-                                    results );
+           m_digAreaMeasurement.TryGetFootprintCornersWorld( s_digAreaFootprintCorners ) ) {
+        TryAddWorldPolygonRoi( camera,
+                               s_digAreaFootprintCorners,
+                               RoiCategory.DigArea,
+                               frameSample.frameId,
+                               results,
+                               "dig_area_footprint" );
       }
 
       return true;
@@ -163,6 +163,32 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Training
       } );
     }
 
+    private void TryAddWorldPolygonRoi( Camera camera,
+                                        IReadOnlyList<Vector3> worldCorners,
+                                        RoiCategory category,
+                                        long frameId,
+                                        List<RoiDescriptor> results,
+                                        string debugText )
+    {
+      if ( worldCorners == null || worldCorners.Count == 0 )
+        return;
+
+      var rect = ProjectWorldCornersToTopLeftRect( camera, worldCorners );
+      if ( rect.width * rect.height < MinNormalizedArea )
+        return;
+
+      results.Add( new RoiDescriptor
+      {
+        Category = category,
+        Confidence = 1.0f,
+        FrameId = frameId,
+        NormalizedRect = rect,
+        Priority = 180,
+        Source = RoiSource.SceneGraphLabel,
+        DebugText = debugText ?? "world_polygon"
+      } );
+    }
+
     private static Rect ProjectLocalBoundsToTopLeftRect( Camera camera,
                                                          Transform frame,
                                                          Vector3 centerLocal,
@@ -178,6 +204,38 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Training
       for ( var cornerIndex = 0; cornerIndex < s_boundsCorners.Length; ++cornerIndex ) {
         var worldCorner = frame.TransformPoint( s_boundsCorners[ cornerIndex ] );
         var viewport = camera.WorldToViewportPoint( worldCorner );
+        if ( viewport.z <= 0.0f )
+          continue;
+
+        validCornerCount += 1;
+        minX = Mathf.Min( minX, viewport.x );
+        minY = Mathf.Min( minY, viewport.y );
+        maxX = Mathf.Max( maxX, viewport.x );
+        maxY = Mathf.Max( maxY, viewport.y );
+      }
+
+      if ( validCornerCount == 0 )
+        return default;
+
+      return RoiMathUtility.ClampNormalizedRectTopLeft( new Rect(
+        minX,
+        1.0f - maxY,
+        maxX - minX,
+        maxY - minY ) );
+    }
+
+    private static Rect ProjectWorldCornersToTopLeftRect( Camera camera, IReadOnlyList<Vector3> worldCorners )
+    {
+      if ( camera == null || worldCorners == null || worldCorners.Count == 0 )
+        return default;
+
+      var validCornerCount = 0;
+      var minX = float.PositiveInfinity;
+      var minY = float.PositiveInfinity;
+      var maxX = float.NegativeInfinity;
+      var maxY = float.NegativeInfinity;
+      for ( var cornerIndex = 0; cornerIndex < worldCorners.Count; ++cornerIndex ) {
+        var viewport = camera.WorldToViewportPoint( worldCorners[ cornerIndex ] );
         if ( viewport.z <= 0.0f )
           continue;
 

@@ -22,6 +22,23 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Training
       m_datasetWriter?.AdvanceEpisode();
     }
 
+    public bool TryWriteEpisodeManifest( RoiEncConfiguration.DatasetOptions options,
+                                         string captureMode,
+                                         string[] classLabels,
+                                         out string manifestPath,
+                                         out string error )
+    {
+      manifestPath = string.Empty;
+      error = string.Empty;
+
+      if ( m_datasetWriter == null ) {
+        error = "semantic_label_exporter_dataset_writer_missing";
+        return false;
+      }
+
+      return m_datasetWriter.TryWriteEpisodeManifest( options, captureMode, classLabels, out manifestPath, out error );
+    }
+
     public bool TryExport( RoiFrameSample frameSample,
                            RoiEncConfiguration.DatasetOptions options,
                            out string imagePath,

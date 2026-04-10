@@ -1,0 +1,35 @@
+dataset:
+  raw_dir: "../../ROI_Dataset"
+  hdf5_dir: "../../ROI_HDF5"
+  export_dir: "../../ROI_Export"
+  class_labels:
+    - bucket
+    - excavator_arm
+    - truck
+    - container
+    - dig_area
+
+dedup:
+  method: dhash
+  hash_size: 8
+  threshold: 10
+  lookback_frames: 5
+
+training:
+  base_model: "../../_model_archive/yolo11n.pt"
+  epochs: 100
+  imgsz: 960
+  batch: 16
+  workers: 0
+  output_dir: "../../ROI_Runs"
+  onnx_opset: 17
+  run_name: roi_yolo11n
+
+eval:
+  metrics:
+    - mAP50
+    - mAP50_95
+    - per_class_AP
+  history_csv: "../../ROI_Runs/eval_history.csv"
+  visualize_errors: false
+  error_top_k: 20

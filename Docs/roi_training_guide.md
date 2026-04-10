@@ -6,6 +6,10 @@ Updated: 2026-04-09
 
 Training data export still happens in Unity, but runtime inference now happens in the external ROI sidecar instead of Barracuda.
 
+Operator checklist:
+
+- [roi_training_checklist.md](/C:/Users/fansen/AGXUnityExcavator/Assets/AGXUnity_Excavator/Docs/roi_training_checklist.md)
+
 ## Label Classes
 
 The current class set is:
@@ -21,7 +25,7 @@ The current class set is:
 `RoiDetectionPipeline` writes samples under the same dataset root in both `ManualExport` and `TrainingExport` modes:
 
 ```text
-AGXUnity_Excavator_Assets/ROI_Dataset/
+ROI_Dataset/
   images/
     train/
     val/
@@ -31,6 +35,15 @@ AGXUnity_Excavator_Assets/ROI_Dataset/
 ```
 
 The root folder is configurable through `RoiEncConfiguration.Dataset.RootDirectory`.
+
+The raw `jpg + txt` directory is no longer the final training source of truth.
+The standardized pipeline is now:
+
+1. Unity exports raw YOLO-style scattered files into `ROI_Dataset/`
+2. `tools/roi_dataset_tool.py ingest` packs each episode into `ROI_HDF5/roi_episode_XXXX.hdf5`
+3. `tools/roi_eval.py dataset-quality` scores dataset readiness
+4. `tools/roi_dataset_tool.py export` materializes a deduplicated YOLO view under `ROI_Export/`
+5. `tools/roi_train.py` wraps export -> train -> ONNX export -> model eval
 
 ## Recommended Capture Modes
 
@@ -60,8 +73,10 @@ In `ManualExport`, the exporter follows `EpisodeManager` episodes when that comp
 - default policy: automatic step sampling enabled
 - default interval: every `12` steps
 - `TrainingExport`: captures on the 12th, 24th, 36th... step within each step-ack episode
-- `ManualExport`: captures on the 12th, 24th, 36th... local fixed step within each local episode
-- manual hotkey capture remains available as an override for edge cases
+- `ManualExport`: captures on the 12th, 24th, 36th... local fixed step only after manual recording has been started
+- `F10`: start or stop ROI recording
+- `F11`: seal the current ROI recording episode without starting the next one automatically
+- `R`: reset the task episode only; the next ROI recording still waits for another `F10`
 
 ## Label Sources
 
@@ -84,22 +99,34 @@ Bounding boxes are projected into normalized top-left image coordinates and filt
 ## Recommended Training Loop
 
 1. Run Unity in `ManualExport` mode and drive the excavator with the `EpisodeManager` keyboard source for local collection.
-2. Start an episode and let the exporter capture automatically every 12 local steps.
-3. Use the manual capture hotkey only when you want to force an extra sample outside the regular cadence.
-4. If you later need protocol-aligned samples, switch to `TrainingExport` and collect through step-ack episodes with the same 12-step interval.
-5. Inspect a random subset of exported `jpg/txt` pairs.
-6. Train a detector on the exported dataset.
-7. Export an ONNX model for the external runtime.
-8. Place the ONNX file outside `Assets/`, for example under `_model_archive/`.
-9. Update `tools/roi_runtime_config.yaml` so `detector.model_path` points to that ONNX file.
-10. Run `tools/run_roi_overlay_runtime.ps1 -SelfTest`.
-11. Press Play in Unity with `RoiDetectionPipeline` set to `ExternalOverlayRuntime`.
+2. Let the task episode run, but keep ROI recording idle until the framing and target state are ready.
+3. Press `F10` to start ROI recording, then let the exporter capture automatically every 12 local steps.
+4. Press `F10` again to stop recording, or press `F11` to seal the current recording episode explicitly.
+5. If you reset the task with `R`, start the next ROI recording manually with another `F10`.
+6. If you later need protocol-aligned samples, switch to `TrainingExport` and collect through step-ack episodes with the same 12-step interval.
+7. End the recording so Unity writes `episode_XXXX_manifest.json` into `ROI_Dataset/manifests/`.
+8. Pack the raw episode into HDF5 with `tools/roi_dataset_tool.py ingest`.
+9. Run `tools/roi_eval.py dataset-quality` and inspect the report before training.
+10. Export a deduplicated YOLO view from HDF5, or let `tools/roi_train.py` do it for you.
+11. Train a detector and export ONNX.
+12. Place the ONNX file outside `Assets/`, for example under `_model_archive/`.
+13. Update `tools/roi_runtime_config.yaml` so `detector.model_path` points to that ONNX file.
+14. Run `tools/run_roi_overlay_runtime.ps1 -SelfTest`.
+15. Press Play in Unity with `RoiDetectionPipeline` set to `ExternalOverlayRuntime`.
 
 ## Example Commands
 
 ```bash
-yolo detect train model=yolo11n.pt data=AGXUnity_Excavator_Assets/ROI_Dataset/dataset.yaml epochs=100 imgsz=640
-yolo export model=best.pt format=onnx opset=17
+python tools/roi_dataset_tool.py ingest
+python tools/roi_eval.py dataset-quality
+python tools/roi_dataset_tool.py export
+python tools/roi_train.py --epochs 100 --imgsz 960
+```
+
+Direct model-only evaluation after training:
+
+```bash
+python tools/roi_eval.py model-eval --model ..\..\ROI_Runs\roi_yolo11n\weights\best.pt --imgsz 960
 ```
 
 Suggested runtime placement:
@@ -114,6 +141,8 @@ _model_archive/
 
 - image count matches label count
 - no empty or malformed YOLO rows
+- `tools/roi_dataset_tool.py ingest` creates one `roi_episode_XXXX.hdf5` per episode
+- `tools/roi_eval.py dataset-quality` reports non-empty `train` and `val` splits before training
 - boxes stay inside `[0,1]`
 - bucket and target labels remain visible in the main task phases
 - `tools/run_roi_overlay_runtime.ps1 -SelfTest` succeeds

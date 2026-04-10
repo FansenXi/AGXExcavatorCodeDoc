@@ -157,6 +157,23 @@ public class DigAreaMeasurement : MonoBehaviour
            measurementHalfExtents.z > 0.0f;
   }
 
+  public bool TryGetFootprintCornersWorld( Vector3[] cornersWorld )
+  {
+    ResolveReferences();
+    if ( cornersWorld == null || cornersWorld.Length < 4 || m_digAreaBox == null )
+      return false;
+
+    var halfExtents = m_digAreaBox.HalfExtents;
+    if ( halfExtents.x <= 0.0f || halfExtents.z <= 0.0f )
+      return false;
+
+    cornersWorld[ 0 ] = DigAreaPlaneCornerWorld( -halfExtents.x, -halfExtents.z );
+    cornersWorld[ 1 ] = DigAreaPlaneCornerWorld( -halfExtents.x,  halfExtents.z );
+    cornersWorld[ 2 ] = DigAreaPlaneCornerWorld(  halfExtents.x,  halfExtents.z );
+    cornersWorld[ 3 ] = DigAreaPlaneCornerWorld(  halfExtents.x, -halfExtents.z );
+    return true;
+  }
+
   private float MeasureEffectiveBucketDepthBelowPlane( OrientedMeasurementBox bucketBox )
   {
     if ( m_digAreaBox == null )

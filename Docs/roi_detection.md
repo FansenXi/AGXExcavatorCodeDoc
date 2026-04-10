@@ -41,8 +41,12 @@ We still ship `raw_rgb` from Unity, but ROI visualization and video encoding are
 ## Key Files
 
 - `AGXUnity_Excavator_Assets/Scripts/ROIEnc/RoiDetectionPipeline.cs`
+- `AGXUnity_Excavator_Assets/Scripts/ROIEnc/Training/DatasetWriter.cs`
 - `AGXUnity_Excavator_Assets/Scripts/ROIEnc/Core/RoiExternalRuntimeLauncher.cs`
 - `AGXUnity_Excavator_Assets/Scripts/SimulationBridge/AgxSimStepAckServer.cs`
+- `tools/roi_dataset_tool.py`
+- `tools/roi_eval.py`
+- `tools/roi_train.py`
 - `tools/roi_overlay_runtime.py`
 - `tools/roi_runtime_config.yaml`
 - `tools/run_roi_overlay_runtime.ps1`
@@ -55,7 +59,8 @@ We still ship `raw_rgb` from Unity, but ROI visualization and video encoding are
 - `TrainingExport`
   - waits for `StepReq`
   - captures `rgb24`
-  - writes `jpg + txt` YOLO samples into `AGXUnity_Excavator_Assets/ROI_Dataset`
+  - writes `jpg + txt` YOLO samples into `ROI_Dataset`
+  - writes `episode_XXXX_manifest.json` at episode end so the Python ingest tool can seal an HDF5 episode
 - `ExternalOverlayRuntime`
   - keeps Unity on raw frame export only
   - auto-launches the external sidecar by default
@@ -119,3 +124,4 @@ The preview window can be closed with `Esc` or `q`.
 - Unity no longer renders ROI boxes into the game view; overlay lives in the external preview/output stream.
 - The shipped smoke model is only for pipeline validation; replace `_model_archive/roi_smoke_detector.onnx` with the trained detector when ready.
 - Auxiliary kinematic fallback is still present in C# helpers, but it is not wired into the external sidecar yet.
+- The raw `ROI_Dataset/` directory is only the collection staging area; long-term dataset management now belongs to `ROI_HDF5/` plus the new Python pipeline tools.

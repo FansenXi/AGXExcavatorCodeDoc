@@ -19,7 +19,9 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
     private float m_boomScale = 0.3f;
 
     [SerializeField]
-    private float m_bucketScale = 0.7f;
+    // Keep bucket scale negative so right-stick left maps to bucket curl-in,
+    // which matches the expected ISO/SAE excavator convention.
+    private float m_bucketScale = -0.7f;
 
     [SerializeField]
     private float m_stickScale = -0.7f;

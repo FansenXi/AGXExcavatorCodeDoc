@@ -3,9 +3,11 @@ from __future__ import annotations
 import argparse
 import csv
 import io
+import os
 import socket
 import struct
 import subprocess
+import sys
 import time
 import zlib
 from dataclasses import dataclass, field
@@ -28,6 +30,44 @@ RESET_REQ = 3
 RESET_RESP = 4
 STEP_REQ = 5
 STEP_RESP = 6
+
+_WINDOWS_DLL_DIRECTORY_HANDLES: list[Any] = []
+
+
+def _configure_windows_dll_search_paths() -> None:
+    if os.name != "nt" or not hasattr(os, "add_dll_directory"):
+        return
+
+    site_packages = Path(ort.__file__).resolve().parents[1]
+    candidate_dirs = [
+        site_packages / "nvidia" / "cuda_runtime" / "bin",
+        site_packages / "nvidia" / "cuda_nvrtc" / "bin",
+        site_packages / "nvidia" / "cublas" / "bin",
+        site_packages / "nvidia" / "cudnn" / "bin",
+        site_packages / "nvidia" / "cufft" / "bin",
+        site_packages / "nvidia" / "curand" / "bin",
+        site_packages / "nvidia" / "nvjitlink" / "bin",
+        site_packages / "torch" / "lib",
+    ]
+
+    existing_path_entries = os.environ.get("PATH", "").split(os.pathsep) if os.environ.get("PATH") else []
+    for directory in candidate_dirs:
+        if directory.is_dir():
+            _WINDOWS_DLL_DIRECTORY_HANDLES.append(os.add_dll_directory(str(directory)))
+            if str(directory) not in existing_path_entries:
+                existing_path_entries.insert(0, str(directory))
+
+    os.environ["PATH"] = os.pathsep.join(existing_path_entries)
+
+
+def _format_cuda_provider_error(exception: Exception) -> str:
+    message = str(exception).strip().replace("\r", " ").replace("\n", " ")
+    if not message:
+        message = exception.__class__.__name__
+    return f"roi_detector_cuda_provider_init_failed:{message}"
+
+
+_configure_windows_dll_search_paths()
 
 
 @dataclass
@@ -240,7 +280,19 @@ class OnnxRuntimeRoiDetector:
     def __init__(self, config: DetectorConfig, repo_root: Path) -> None:
         self._config = config
         self._model_path = resolve_path(repo_root, config.model_path)
-        self._session = ort.InferenceSession(str(self._model_path), providers=["CPUExecutionProvider"])
+        preload_dlls = getattr(ort, "preload_dlls", None)
+        if callable(preload_dlls):
+            preload_dlls(directory="")
+        try:
+            self._session = ort.InferenceSession(str(self._model_path), providers=["CUDAExecutionProvider"])
+        except Exception as exception:
+            raise RuntimeError(_format_cuda_provider_error(exception)) from exception
+        self._session_providers = list(self._session.get_providers())
+        if not self._session_providers or self._session_providers[0] != "CUDAExecutionProvider":
+            raise RuntimeError(
+                "roi_detector_cuda_provider_unavailable:"
+                f"providers={self._session_providers}"
+            )
         self._input_name = self._session.get_inputs()[0].name
 
         first_input_shape = self._session.get_inputs()[0].shape
@@ -256,6 +308,14 @@ class OnnxRuntimeRoiDetector:
     @property
     def input_height(self) -> int:
         return self._input_height
+
+    @property
+    def model_path(self) -> Path:
+        return self._model_path
+
+    @property
+    def session_providers(self) -> list[str]:
+        return list(self._session_providers)
 
     def detect(self, frame_rgb: np.ndarray) -> tuple[list[Detection], float]:
         preprocessed = self._prepare_input(frame_rgb)
@@ -289,13 +349,14 @@ class OnnxRuntimeRoiDetector:
         tensor_data = raw_tensor.reshape(-1)
         tensor_shape = [int(dimension) for dimension in raw_tensor.shape]
 
-        explicit = self._try_parse_explicit_detections(tensor_data)
-        if explicit:
-            return explicit
-
         shape_inferred = self._try_parse_yolo_tensor_from_shape(tensor_data, tensor_shape)
         if shape_inferred:
             return shape_inferred
+
+        if self._looks_like_explicit_detection_tensor(tensor_shape):
+            explicit = self._try_parse_explicit_detections(tensor_data)
+            if explicit:
+                return explicit
 
         class_count = max(1, len(self._config.class_labels))
         feature_sizes = [(class_count + 5, True), (class_count + 4, False)]
@@ -308,6 +369,20 @@ class OnnxRuntimeRoiDetector:
                     best = parsed
 
         return best
+
+    @staticmethod
+    def _looks_like_explicit_detection_tensor(tensor_shape: list[int]) -> bool:
+        if not tensor_shape:
+            return False
+
+        non_trivial = [int(dimension) for dimension in tensor_shape if int(dimension) > 1]
+        if not non_trivial:
+            return False
+
+        if len(non_trivial) == 1:
+            return non_trivial[0] == 6
+
+        return 6 in non_trivial
 
     def _try_parse_explicit_detections(self, tensor_data: np.ndarray) -> list[Detection]:
         if tensor_data.size < 6 or tensor_data.size % 6 != 0:
@@ -822,6 +897,7 @@ def create_csv_writer(csv_path: Path) -> tuple[csv.writer, Any]:
 
 def run_self_test(config: RuntimeConfig) -> int:
     detector = OnnxRuntimeRoiDetector(config.detector, config.repo_root)
+    print(f"Loaded ROI detector from {detector.model_path} using providers {detector.session_providers}")
     base_frame = np.zeros((detector.input_height, detector.input_width, 3), dtype=np.uint8)
     cv2.putText(
         base_frame,
@@ -906,6 +982,7 @@ def run_self_test(config: RuntimeConfig) -> int:
 
 def run_runtime(config: RuntimeConfig) -> int:
     detector = OnnxRuntimeRoiDetector(config.detector, config.repo_root)
+    print(f"Loaded ROI detector from {detector.model_path} using providers {detector.session_providers}")
     client = AgxSimClient(config.protocol)
     output_path = resolve_path(config.repo_root, config.output.output_path)
     csv_path = resolve_path(config.repo_root, config.output.csv_log_path)

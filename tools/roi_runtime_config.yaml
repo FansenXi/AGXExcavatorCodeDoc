@@ -8,9 +8,9 @@ protocol:
   action: [0.0, 0.0, 0.0, 0.0]
 
 detector:
-  model_path: ../../_model_archive/roi_smoke_detector.onnx
-  input_width: 576
-  input_height: 576
+  model_path: ../../_model_archive/roi_detector_current.onnx
+  input_width: 960
+  input_height: 960
   confidence_threshold: 0.35
   nms_iou_threshold: 0.5
   output_tensor_name: ""

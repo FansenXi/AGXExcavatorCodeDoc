@@ -16,7 +16,7 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Core
     [Serializable]
     public sealed class DatasetOptions
     {
-      public string RootDirectory = "AGXUnity_Excavator_Assets/ROI_Dataset";
+      public string RootDirectory = "../../ROI_Dataset";
       public int ExportWidth = 1920;
       public int ExportHeight = 1080;
       [Range( 0.05f, 0.95f )]
@@ -37,8 +37,9 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Core
     [Serializable]
     public sealed class DetectionOptions
     {
-      public int ModelInputWidth = 576;
-      public int ModelInputHeight = 384;
+      public string TensorRtEnginePath = "../../_model_archive/roi_detector.engine";
+      public int ModelInputWidth = 640;
+      public int ModelInputHeight = 640;
       public int DetectionIntervalFrames = 2;
       [Range( 0.0f, 1.0f )]
       public float ConfidenceThreshold = 0.35f;
@@ -49,6 +50,8 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Core
       public Vector4 InputScale = Vector4.one;
       public Vector4 InputBias = Vector4.zero;
       public string[] ClassLabels = new[] { "bucket", "excavator_arm", "truck", "container", "dig_area" };
+      [Min( 1 )]
+      public int WarmupIterations = 3;
     }
 
     [Serializable]
@@ -101,7 +104,7 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Core
     public sealed class LoggingOptions
     {
       public bool EnableCsvLogging = false;
-      public string LogDirectory = "AGXUnity_Excavator_Assets/ROI_Logs";
+      public string LogDirectory = "../../ExperimentLogs/roi_detection";
     }
 
     public DatasetOptions Dataset = new DatasetOptions();

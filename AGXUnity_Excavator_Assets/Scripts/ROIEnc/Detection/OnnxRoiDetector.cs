@@ -104,6 +104,11 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Detection
       inputTexture = null;
       error = string.Empty;
 
+      if ( m_backend is NativeTensorRtDetectorBackend && frameSample.sourceTexture != null ) {
+        inputTexture = frameSample.sourceTexture;
+        return true;
+      }
+
       var targetWidth = Mathf.Max( 32, m_configuration.Detection.ModelInputWidth );
       var targetHeight = Mathf.Max( 32, m_configuration.Detection.ModelInputHeight );
       EnsurePreprocessTexture( targetWidth, targetHeight );

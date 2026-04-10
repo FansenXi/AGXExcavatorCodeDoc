@@ -2,6 +2,7 @@ using System;
 using AGXUnity_Excavator.Scripts.Control.Core;
 using AGXUnity_Excavator.Scripts.Control.Sources;
 using AGXUnity_Excavator.Scripts.Experiment;
+using AGXUnity_Excavator.Scripts.ROIEnc;
 using AGXUnity_Excavator.Scripts.SimulationBridge;
 using UnityEngine;
 
@@ -22,6 +23,9 @@ namespace AGXUnity_Excavator.Scripts.Presentation
 
     [SerializeField]
     private AgxSimStepAckServer m_stepAckServer = null;
+
+    [SerializeField]
+    private RoiDetectionPipeline m_roiDetectionPipeline = null;
 
     [SerializeField]
     private Rect m_rect = new Rect( 16.0f, 16.0f, 520.0f, 620.0f );
@@ -123,6 +127,7 @@ namespace AGXUnity_Excavator.Scripts.Presentation
         if ( !string.IsNullOrWhiteSpace( m_episodeManager.CurrentControlLayout ) )
           GUILayout.Label( $"Layout: {m_episodeManager.CurrentControlLayout}", m_style );
         GUILayout.Label( "Controls: R reset, Enter start, Backspace stop, F6/F7 switch source, 1-9 select source, F8/F9 switch target", m_style );
+        DrawRoiRecordingHints();
       }
       else {
         GUILayout.Label( "EpisodeManager: n/a", m_style );
@@ -242,6 +247,7 @@ namespace AGXUnity_Excavator.Scripts.Presentation
 
       m_observationCollector = ExcavatorRigLocator.ResolveComponent( this, m_observationCollector );
       m_stepAckServer = ExcavatorRigLocator.ResolveComponent( this, m_stepAckServer );
+      m_roiDetectionPipeline = ExcavatorRigLocator.ResolveComponent( this, m_roiDetectionPipeline );
 
       m_episodeManager?.RefreshAvailableSources();
 
@@ -286,6 +292,22 @@ namespace AGXUnity_Excavator.Scripts.Presentation
 
         GUILayout.Label( debugLine, m_style );
       }
+    }
+
+    private void DrawRoiRecordingHints()
+    {
+      if ( m_roiDetectionPipeline == null || m_roiDetectionPipeline.Mode != RoiDetectionPipeline.PipelineMode.ManualExport )
+        return;
+
+      var recordingState = m_roiDetectionPipeline.IsManualRecordingActive ?
+                           Colorize( "recording", GoodColor ) :
+                           Colorize( "idle", WarnColor );
+      GUILayout.Label(
+        $"ROI capture: {recordingState}    Dataset episode: {m_roiDetectionPipeline.CurrentDatasetEpisodeIndex}    Auto sample: every {m_roiDetectionPipeline.ManualRecordingStepInterval} steps",
+        m_style );
+      GUILayout.Label(
+        $"ROI controls: {m_roiDetectionPipeline.ManualRecordingToggleKey} start/stop recording, {m_roiDetectionPipeline.ManualRecordingSealKey} seal current recording. Reset only changes the task episode; recording stays off until you start it again.",
+        m_style );
     }
 
     private bool ShouldUseStepAckTelemetry( ActTaskState collectorTaskState )

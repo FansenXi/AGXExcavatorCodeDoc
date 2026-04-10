@@ -1,6 +1,9 @@
+using System.Collections.Generic;
+using System.Diagnostics;
 using AGXUnity_Excavator.Scripts.Control.Core;
 using AGXUnity_Excavator.Scripts.Presentation;
 using AGXUnity_Excavator.Scripts.ROIEnc.Core;
+using AGXUnity_Excavator.Scripts.ROIEnc.Detection.Backend;
 using UnityEngine;
 using UnityDebug = UnityEngine.Debug;
 
@@ -55,6 +58,74 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Debug
       }
       finally {
         process.Dispose();
+      }
+    }
+
+    [ContextMenu( "Run Native TensorRT Self Test" )]
+    public void RunNativeTensorRtSelfTest()
+    {
+      ResolveReferences();
+
+      var backend = new NativeTensorRtDetectorBackend();
+      try {
+        if ( !backend.TryInitialize( null, m_configuration.Detection, out var initError ) ) {
+          m_lastResult = $"native_init_failed:{initError}";
+          UnityDebug.LogWarning( $"Native TensorRT self-test init failed: {initError}", this );
+          return;
+        }
+
+        var testTexture = new RenderTexture(
+            Mathf.Max( 32, m_configuration.Detection.ModelInputWidth ),
+            Mathf.Max( 32, m_configuration.Detection.ModelInputHeight ),
+            0, RenderTextureFormat.ARGB32 );
+        testTexture.Create();
+
+        try {
+          var outputs = new List<RoiBackendTensor>();
+          var request = new RoiBackendExecutionRequest
+          {
+            FlipY = false,
+            Scale = Vector4.one,
+            Bias = Vector4.zero,
+            Channels = 3
+          };
+
+          const int warmupRuns = 3;
+          const int benchmarkRuns = 10;
+
+          for ( var i = 0; i < warmupRuns; ++i ) {
+            if ( !backend.TryExecute( testTexture, request, outputs, out var warmupError ) ) {
+              m_lastResult = $"native_warmup_failed:{warmupError}";
+              UnityDebug.LogWarning( $"Native TensorRT warmup failed: {warmupError}", this );
+              return;
+            }
+          }
+
+          var stopwatch = Stopwatch.StartNew();
+          for ( var i = 0; i < benchmarkRuns; ++i ) {
+            if ( !backend.TryExecute( testTexture, request, outputs, out var benchError ) ) {
+              m_lastResult = $"native_benchmark_failed:{benchError}";
+              UnityDebug.LogWarning( $"Native TensorRT benchmark failed: {benchError}", this );
+              return;
+            }
+          }
+
+          stopwatch.Stop();
+          var avgMs = stopwatch.Elapsed.TotalMilliseconds / benchmarkRuns;
+          var outputElements = outputs.Count > 0 && outputs[ 0 ].Data != null ? outputs[ 0 ].Data.Length : 0;
+
+          m_lastResult = $"native_self_test_ok:avg_ms={avgMs:F2},gpu_infer_ms={backend.LastInferenceMs:F2}," +
+                         $"output_elements={outputElements}";
+          UnityDebug.Log( $"Native TensorRT self-test OK. Average total={avgMs:F2}ms, " +
+                          $"GPU infer={backend.LastInferenceMs:F2}ms, output={outputElements} floats.", this );
+        }
+        finally {
+          testTexture.Release();
+          Object.Destroy( testTexture );
+        }
+      }
+      finally {
+        backend.Dispose();
       }
     }
 

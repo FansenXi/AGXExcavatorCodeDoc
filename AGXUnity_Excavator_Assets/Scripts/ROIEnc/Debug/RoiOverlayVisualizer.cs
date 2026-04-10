@@ -125,7 +125,8 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Debug
 
     private void DrawDebugPanel()
     {
-      GUILayout.BeginArea( m_fallbackOverlayRect, GUI.skin.box );
+      var panelRect = ResolveDebugPanelRect();
+      GUILayout.BeginArea( panelRect, GUI.skin.box );
       GUILayout.Label( "<b>ROI Overlay</b>", m_labelStyle );
       GUILayout.Label( $"Status: {m_statusText}", m_labelStyle );
       GUILayout.Label( $"Frame: {m_frameId}    Step: {m_stepId}", m_labelStyle );
@@ -134,6 +135,20 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Debug
       foreach ( var roi in m_rois )
         GUILayout.Label( $"{roi.Label} [{roi.Source}] conf={roi.Confidence:0.00} rect=({roi.NormalizedRect.x:0.00},{roi.NormalizedRect.y:0.00},{roi.NormalizedRect.width:0.00},{roi.NormalizedRect.height:0.00})", m_labelStyle );
       GUILayout.EndArea();
+    }
+
+    private Rect ResolveDebugPanelRect()
+    {
+      var width = Mathf.Min( m_fallbackOverlayRect.width, Mathf.Max( 240.0f, Screen.width - 16.0f ) );
+      var height = Mathf.Min( m_fallbackOverlayRect.height, Mathf.Max( 120.0f, Screen.height - 16.0f ) );
+      var maxX = Mathf.Max( 8.0f, Screen.width - width - 8.0f );
+      var maxY = Mathf.Max( 8.0f, Screen.height - height - 8.0f );
+
+      return new Rect(
+        Mathf.Clamp( m_fallbackOverlayRect.x, 8.0f, maxX ),
+        Mathf.Clamp( m_fallbackOverlayRect.y, 8.0f, maxY ),
+        width,
+        height );
     }
 
     private static void DrawBoxOutline( Rect rect, Color color, float thickness )

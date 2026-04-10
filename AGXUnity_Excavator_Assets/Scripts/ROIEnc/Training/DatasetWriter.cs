@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -9,14 +10,37 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Training
 {
   public sealed class DatasetWriter : System.IDisposable
   {
+    [Serializable]
+    private sealed class EpisodeManifest
+    {
+      public int episode_index = 0;
+      public int n_frames = 0;
+      public string timestamp = string.Empty;
+      public string capture_mode = string.Empty;
+      public int step_interval = 0;
+      public int export_width = 0;
+      public int export_height = 0;
+      public float validation_split = 0.0f;
+      public bool enable_image_export = true;
+      public int jpeg_quality = 90;
+      public string[] class_labels = Array.Empty<string>();
+      public string[] image_files = Array.Empty<string>();
+      public string[] label_files = Array.Empty<string>();
+    }
+
     private Texture2D m_inputTexture = null;
     private Texture2D m_outputTexture = null;
     private RenderTexture m_resizeTexture = null;
+    private readonly List<string> m_currentEpisodeImagePaths = new List<string>();
+    private readonly List<string> m_currentEpisodeLabelPaths = new List<string>();
+    private long m_currentEpisodeFirstCaptureTimeNs = -1;
+    private long m_currentEpisodeLastCaptureTimeNs = -1;
 
     public int CurrentEpisodeIndex { get; private set; } = 0;
 
     public void AdvanceEpisode()
     {
+      ResetEpisodeTracking();
       CurrentEpisodeIndex += 1;
     }
 
@@ -64,25 +88,72 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Training
       }
 
       File.WriteAllLines( labelPath, BuildYoloLines( labels ), new UTF8Encoding( false ) );
+      TrackWrittenSample( rootDirectory, imagePath, labelPath, frameSample.captureTimeNs, options.EnableImageExport );
       return true;
+    }
+
+    public bool TryWriteEpisodeManifest( RoiEncConfiguration.DatasetOptions options,
+                                         string captureMode,
+                                         string[] classLabels,
+                                         out string manifestPath,
+                                         out string error )
+    {
+      manifestPath = string.Empty;
+      error = string.Empty;
+
+      if ( m_currentEpisodeImagePaths.Count == 0 && m_currentEpisodeLabelPaths.Count == 0 )
+        return true;
+
+      options ??= new RoiEncConfiguration.DatasetOptions();
+      var rootDirectory = RoiPathUtility.ResolveOutputDirectory( options.RootDirectory );
+      var manifestDirectory = Path.Combine( rootDirectory, "manifests" );
+      Directory.CreateDirectory( manifestDirectory );
+
+      manifestPath = Path.Combine( manifestDirectory, $"episode_{CurrentEpisodeIndex:0000}_manifest.json" );
+      var manifest = new EpisodeManifest
+      {
+        episode_index = CurrentEpisodeIndex,
+        n_frames = Mathf.Max( m_currentEpisodeImagePaths.Count, m_currentEpisodeLabelPaths.Count ),
+        timestamp = CaptureTimeNsToIsoString( m_currentEpisodeFirstCaptureTimeNs ),
+        capture_mode = captureMode ?? string.Empty,
+        step_interval = Mathf.Max( 1, options.AutomaticCaptureEverySteps ),
+        export_width = Mathf.Max( 1, options.ExportWidth ),
+        export_height = Mathf.Max( 1, options.ExportHeight ),
+        validation_split = Mathf.Clamp01( options.ValidationSplit ),
+        enable_image_export = options.EnableImageExport,
+        jpeg_quality = Mathf.Clamp( options.JpegQuality, 1, 100 ),
+        class_labels = classLabels ?? Array.Empty<string>(),
+        image_files = m_currentEpisodeImagePaths.ToArray(),
+        label_files = m_currentEpisodeLabelPaths.ToArray()
+      };
+
+      try {
+        using var writer = new StreamWriter( manifestPath, false, new UTF8Encoding( false ) );
+        writer.Write( JsonUtility.ToJson( manifest, true ) );
+        return true;
+      }
+      catch ( Exception exception ) {
+        error = exception.Message;
+        return false;
+      }
     }
 
     public void Dispose()
     {
       if ( m_inputTexture != null ) {
-        Object.Destroy( m_inputTexture );
+        UnityEngine.Object.Destroy( m_inputTexture );
         m_inputTexture = null;
       }
 
       if ( m_outputTexture != null ) {
-        Object.Destroy( m_outputTexture );
+        UnityEngine.Object.Destroy( m_outputTexture );
         m_outputTexture = null;
       }
 
       if ( m_resizeTexture != null ) {
         if ( m_resizeTexture.IsCreated() )
           m_resizeTexture.Release();
-        Object.Destroy( m_resizeTexture );
+        UnityEngine.Object.Destroy( m_resizeTexture );
         m_resizeTexture = null;
       }
     }
@@ -127,7 +198,7 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Training
     {
       if ( m_inputTexture == null || m_inputTexture.width != sourceWidth || m_inputTexture.height != sourceHeight ) {
         if ( m_inputTexture != null )
-          Object.Destroy( m_inputTexture );
+          UnityEngine.Object.Destroy( m_inputTexture );
 
         m_inputTexture = new Texture2D( sourceWidth, sourceHeight, TextureFormat.RGB24, false, false );
       }
@@ -136,7 +207,7 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Training
         if ( m_resizeTexture != null ) {
           if ( m_resizeTexture.IsCreated() )
             m_resizeTexture.Release();
-          Object.Destroy( m_resizeTexture );
+          UnityEngine.Object.Destroy( m_resizeTexture );
         }
 
         m_resizeTexture = new RenderTexture( targetWidth, targetHeight, 0, RenderTextureFormat.ARGB32 );
@@ -145,7 +216,7 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Training
 
       if ( m_outputTexture == null || m_outputTexture.width != targetWidth || m_outputTexture.height != targetHeight ) {
         if ( m_outputTexture != null )
-          Object.Destroy( m_outputTexture );
+          UnityEngine.Object.Destroy( m_outputTexture );
 
         m_outputTexture = new Texture2D( targetWidth, targetHeight, TextureFormat.RGB24, false, false );
       }
@@ -157,8 +228,17 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Training
       if ( validationBucketCount <= 0 )
         return false;
 
-      var hash = Mathf.Abs( episodeIndex.GetHashCode() ) % 100;
-      return hash < validationBucketCount;
+      return ComputeEpisodeSplitBucket( episodeIndex ) < validationBucketCount;
+    }
+
+    private static int ComputeEpisodeSplitBucket( int episodeIndex )
+    {
+      const int modulus = 100;
+      const int multiplier = 61;
+      const int offset = 17;
+
+      var bucket = ( episodeIndex * multiplier + offset ) % modulus;
+      return bucket < 0 ? bucket + modulus : bucket;
     }
 
     private static IEnumerable<string> BuildYoloLines( IReadOnlyList<RoiDescriptor> labels )
@@ -183,6 +263,46 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Training
           rect.width,
           rect.height );
       }
+    }
+
+    private void TrackWrittenSample( string rootDirectory,
+                                     string imagePath,
+                                     string labelPath,
+                                     long captureTimeNs,
+                                     bool imageExportEnabled )
+    {
+      if ( imageExportEnabled && !string.IsNullOrWhiteSpace( imagePath ) ) {
+        var relativeImagePath = Path.GetRelativePath( rootDirectory, imagePath );
+        m_currentEpisodeImagePaths.Add( relativeImagePath.Replace( '\\', '/' ) );
+      }
+
+      if ( !string.IsNullOrWhiteSpace( labelPath ) ) {
+        var relativeLabelPath = Path.GetRelativePath( rootDirectory, labelPath );
+        m_currentEpisodeLabelPaths.Add( relativeLabelPath.Replace( '\\', '/' ) );
+      }
+
+      if ( captureTimeNs > 0 && m_currentEpisodeFirstCaptureTimeNs < 0 )
+        m_currentEpisodeFirstCaptureTimeNs = captureTimeNs;
+
+      if ( captureTimeNs > 0 )
+        m_currentEpisodeLastCaptureTimeNs = captureTimeNs;
+    }
+
+    private void ResetEpisodeTracking()
+    {
+      m_currentEpisodeImagePaths.Clear();
+      m_currentEpisodeLabelPaths.Clear();
+      m_currentEpisodeFirstCaptureTimeNs = -1;
+      m_currentEpisodeLastCaptureTimeNs = -1;
+    }
+
+    private static string CaptureTimeNsToIsoString( long captureTimeNs )
+    {
+      if ( captureTimeNs <= 0 )
+        return DateTimeOffset.UtcNow.ToString( "O", CultureInfo.InvariantCulture );
+
+      var milliseconds = captureTimeNs / 1000000L;
+      return DateTimeOffset.FromUnixTimeMilliseconds( milliseconds ).ToString( "O", CultureInfo.InvariantCulture );
     }
   }
 }
