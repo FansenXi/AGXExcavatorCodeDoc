@@ -10,3 +10,20 @@ AGXUnity_Excavator_Assets/Terrains
 AGXUnity_Excavator_Assets/materials
 AGXUnity_Excavator_Assets/models
 AGXUnity_Excavator_Assets/SkySerie Freebie
+**/build/
+__pycache__/
+*.pyc
+**/__pycache__/
+.ipynb_checkpoints/
+.vscode/settings.json
+.idea/
+.DS_Store
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.development
+.env.test
+*.dll
+*.pt
