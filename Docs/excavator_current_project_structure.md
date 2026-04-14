@@ -1,6 +1,6 @@
 # AGXUnity Excavator Current Project Structure
 
-更新时间：2026-04-01
+更新时间：2026-04-14
 
 ## 1. 文档目的
 
@@ -58,21 +58,35 @@ excavator 与当前激活目标硬表面的每步硬碰撞摘要信号
 - `min_distance_to_dig_area_m` / `bucket_depth_below_dig_area_plane_m` 当前表示
 bucket 量测体相对场景 `DigArea` 的起挖几何信号
 - 当当前激活目标是 `TruckBed` 时，硬碰撞监控范围覆盖整台 `BedTruck`，而不只是 bed / trunk 量测区域
-- 当前默认 evaluator / mission success 使用
-`deposited_mass_in_target_box_kg` 作为最终成功信号，默认阈值为
-`100 kg` 且需保持 `25` 个 control step
+- 当前共享状态字段仍然以
+`deposited_mass_in_target_box_kg`
+作为最终成功信号主轴
+- Repo A 当前业务 baseline 默认使用
+`dump_complete_final_hold`
+口径：
+  - retained mass `>= 300 kg`
+  - residual bucket mass `<= 100 kg`
+  - 连续保持 `25` 个 control step
+- 旧的 `100 kg / 25 step` 规则主要用于更早的 `v0/fulltest` 历史基线
 
 ## 2.2 当前联调 / 运行命令
 
-Repo A 当前主线命令是：
+Repo A 当前业务 baseline 命令是：
 
 ```bash
 conda activate aloha
-python scripts/agx_smoke.py --host 127.0.0.1 --port 5057 --steps 500 --strict
-tb-record-teleop --config testbed/configs/teleop_v0.yaml --input joystick --num-episodes 5
-tb-replay --episode data/agx_teleop/episode_0.hdf5 --config testbed/configs/teleop_v0.yaml --save-video
-tb-train --config testbed/configs/act_agx_v0.yaml
-tb-eval --config testbed/configs/eval_agx_v0.yaml
+python scripts/agx_smoke.py --host 127.0.0.1 --port 5057 --steps 200 --strict
+tb-record-teleop --config testbed/configs/teleop_v1.yaml --input joystick --num-episodes 30
+tb-replay --episode data/agx_teleop_v1/ --config testbed/configs/teleop_v1.yaml --save-video
+tb-train --config testbed/configs/act_agx_v1.yaml
+tb-eval --config testbed/configs/eval_agx_v1.yaml
+```
+
+当前 `fulltest` 数据集上的 `qpos+qvel` 对照仍然保留，命令入口是：
+
+```bash
+tb-train --config testbed/configs/act_agx_fulltest_qvel.yaml
+tb-eval --config testbed/configs/eval_agx_fulltest_qvel.yaml
 ```
 
 命令边界：

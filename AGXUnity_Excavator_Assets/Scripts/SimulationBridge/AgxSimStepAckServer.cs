@@ -33,10 +33,22 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
     /// Latency A/B test toggle — change in Inspector WITHOUT recompiling.
     /// false (default) = Update   → responsive, smooth, no tick-wait jitter
     /// true            = FixedUpdate → bimodal distribution, adds ~0-20ms tick wait
+    /// Only used when m_realtimeMode is false.
     /// </summary>
     [SerializeField]
-    [Tooltip("Latency A/B test: false=Update (smooth), true=FixedUpdate (bimodal jitter)")]
+    [Tooltip("Latency A/B test: false=Update (smooth), true=FixedUpdate (bimodal jitter). Ignored when Realtime Mode is on.")]
     private bool m_useFixedUpdateForRequests = false;
+
+    /// <summary>
+    /// Realtime mode: physics advances at FixedUpdate rate regardless of Python
+    /// step timing.  Last received action is held (zero-order hold) when no new
+    /// command arrives.  Use this for latency experiments where the simulation
+    /// clock must stay synchronized with wall clock.
+    /// </summary>
+    [SerializeField]
+    [Tooltip("Realtime mode: physics runs at FixedUpdate rate with zero-order hold. " +
+             "Sim clock stays synced with wall clock regardless of network delay.")]
+    private bool m_realtimeMode = false;
 
     [SerializeField]
     private bool m_disableEpisodeManagerWhileServing = true;
@@ -80,6 +92,10 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
     private string m_lastWarningsSummary = "none";
     private string m_lastError = string.Empty;
 
+    // Realtime mode state
+    private ExcavatorActuationCommand m_realtimeLastAction;
+    private bool m_realtimePhysicsInitialized = false;
+
     public bool IsListening => m_isListening;
     public string LastRequestTypeName => m_lastRequestTypeName;
     public long LastRequestStepId => m_lastRequestStepId;
@@ -90,10 +106,12 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
     public int LastImagePayloadBytes => m_lastImagePayloadBytes;
     public string LastWarningsSummary => m_lastWarningsSummary;
     public string LastError => m_lastError;
+    public bool RealtimeMode => m_realtimeMode;
 
     private void Awake()
     {
       ResolveReferences();
+      m_realtimeLastAction = ExcavatorActuationCommand.Zero;
     }
 
     private void OnEnable()
@@ -123,6 +141,12 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
 
     private void Update()
     {
+      if ( m_realtimeMode ) {
+        ResolveReferences();
+        ProcessPendingRequestsRealtime();
+        return;
+      }
+
       if ( m_useFixedUpdateForRequests ) return;
       ResolveReferences();
       ProcessPendingRequests();
@@ -130,10 +154,130 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
 
     private void FixedUpdate()
     {
+      if ( m_realtimeMode ) {
+        RealtimeFixedUpdate();
+        return;
+      }
+
       if ( !m_useFixedUpdateForRequests ) return;
       ResolveReferences();
       ProcessPendingRequests();
     }
+
+    // ── Realtime mode ─────────────────────────────────────────────────────────
+
+    private void RealtimeFixedUpdate()
+    {
+      ResolveReferences();
+
+      if ( !m_realtimePhysicsInitialized ) {
+        var warnings = new List<string>();
+        EnsureManualStepping( warnings );
+        m_realtimePhysicsInitialized = true;
+        if ( m_enableDebugLogs )
+          Debug.Log( "AGX sim step-ack server: realtime mode initialized — physics will advance every FixedUpdate", this );
+      }
+
+      m_machineController?.ApplyActuationCommand( m_realtimeLastAction );
+
+      if ( Simulation.HasInstance )
+        Simulation.Instance.DoStep();
+    }
+
+    private void ProcessPendingRequestsRealtime()
+    {
+      while ( m_pendingRequests.TryDequeue( out var request ) ) {
+        RecordIncomingRequestDebug( request );
+
+        switch ( request.Type ) {
+          case AgxSimMessageType.GetInfoReq:
+            QueueResponse( CreateInfoResponse() );
+            break;
+          case AgxSimMessageType.ResetReq:
+            m_realtimeLastAction = ExcavatorActuationCommand.Zero;
+            m_realtimePhysicsInitialized = false;
+            QueueResponse( CreateResetResponse( request.Payload ) );
+            break;
+          case AgxSimMessageType.StepReq:
+            QueueResponse( CreateRealtimeStepResponse( request.Payload, request.ReceivedAtNs ) );
+            break;
+          default:
+            Debug.LogWarning( $"AGX sim step-ack server encountered unsupported pending request: {request.Type}", this );
+            break;
+        }
+      }
+    }
+
+    private byte[] CreateRealtimeStepResponse( AgxSimRequestPayload request, long reqReceivedAtNs = -1 )
+    {
+      if ( request == null )
+        return CreateErrorResponse( AgxSimMessageType.StepResp, "missing_payload" );
+
+      if ( request.action == null || request.action.Length < 4 )
+        return CreateErrorResponse( AgxSimMessageType.StepResp, "action_dim_must_be_4" );
+
+      var t_queue_exit = AgxSimTimestamp.NowNs();
+
+      m_realtimeLastAction = new ExcavatorActuationCommand
+      {
+        Swing  = request.action[ 0 ],
+        Boom   = request.action[ 1 ],
+        Stick  = request.action[ 2 ],
+        Bucket = request.action[ 3 ]
+      }.ClampAxes();
+
+      var observation = m_observationCollector != null ?
+                        m_observationCollector.Collect( OperatorCommand.Zero ) :
+                        new ActObservation();
+
+      var t_image_ready = AgxSimTimestamp.NowNs();
+
+      var warnings = new List<string>();
+      var payload = CreateBasePayload();
+      payload.step_id   = request.step_id;
+      payload.qpos = new[]
+      {
+        observation.actuator_state != null ? observation.actuator_state.swing_position_norm  : 0.0f,
+        observation.actuator_state != null ? observation.actuator_state.boom_position_norm   : 0.0f,
+        observation.actuator_state != null ? observation.actuator_state.stick_position_norm  : 0.0f,
+        observation.actuator_state != null ? observation.actuator_state.bucket_position_norm : 0.0f
+      };
+      payload.qvel = new[]
+      {
+        observation.actuator_state != null ? observation.actuator_state.swing_speed  : 0.0f,
+        observation.actuator_state != null ? observation.actuator_state.boom_speed   : 0.0f,
+        observation.actuator_state != null ? observation.actuator_state.stick_speed  : 0.0f,
+        observation.actuator_state != null ? observation.actuator_state.bucket_speed : 0.0f
+      };
+      payload.env_state = new[]
+      {
+        observation.task_state != null ? observation.task_state.mass_in_bucket_kg                   : 0.0f,
+        observation.task_state != null ? observation.task_state.excavated_mass_kg                   : 0.0f,
+        observation.task_state != null ? observation.task_state.mass_in_target_box_kg               : 0.0f,
+        observation.task_state != null ? observation.task_state.deposited_mass_in_target_box_kg     : 0.0f,
+        observation.task_state != null ? observation.task_state.min_distance_to_target_m            : -1.0f,
+        observation.task_state != null ? observation.task_state.target_hard_collision_count          : 0.0f,
+        observation.task_state != null ? observation.task_state.target_contact_max_normal_force_n   : 0.0f,
+        observation.task_state != null ? observation.task_state.min_distance_to_dig_area_m          : -1.0f,
+        observation.task_state != null ? observation.task_state.bucket_depth_below_dig_area_plane_m : 0.0f
+      };
+      payload.reward      = observation.task_state != null ? observation.task_state.deposited_mass_in_target_box_kg : 0.0f;
+      payload.sim_time_ns = observation != null ? (long)Math.Round( observation.sim_time_sec * 1000000000.0 ) : -1;
+      payload.image_fpv   = CaptureImageFrame( warnings );
+      payload.warnings    = warnings.ToArray();
+
+      payload.t_req_recv_ns     = reqReceivedAtNs;
+      payload.t_queue_exit_ns   = t_queue_exit;
+      payload.t_physics_done_ns = t_queue_exit;   // no physics in this call
+      payload.t_image_ready_ns  = t_image_ready;
+      payload.t_resp_queued_ns  = AgxSimTimestamp.NowNs();
+
+      RecordStepResponseDebug( payload );
+
+      return AgxSimBinaryProtocol.SerializeResponse( AgxSimMessageType.StepResp, payload );
+    }
+
+    // ── Original synchronous mode (unchanged) ─────────────────────────────────
 
     public void StartServer()
     {
@@ -277,6 +421,8 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
       }
     }
 
+    // ── Response builders ─────────────────────────────────────────────────────
+
     private byte[] CreateInfoResponse()
     {
       var payload = CreateBasePayload();
@@ -419,6 +565,8 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
 
       return AgxSimBinaryProtocol.SerializeResponse( AgxSimMessageType.StepResp, payload );
     }
+
+    // ── Shared helpers ────────────────────────────────────────────────────────
 
     private void EnsureManualStepping( List<string> warnings )
     {
@@ -607,6 +755,8 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
       m_episodeManager = ExcavatorRigLocator.ResolveComponent( this, m_episodeManager );
       m_fpvCamera = ExcavatorRigLocator.ResolveComponent( this, m_fpvCamera );
     }
+
+    // ── Debug logging ─────────────────────────────────────────────────────────
 
     private void RecordIncomingRequestDebug( PendingRequest request )
     {

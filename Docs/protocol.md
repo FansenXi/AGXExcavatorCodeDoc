@@ -1,7 +1,7 @@
 # AGXUnity Step-Ack Binary Protocol
 
 **Status:** current implementation truth source for Unity side<br>
-**Last updated:** 2026-03-26
+**Last updated:** 2026-04-14
 **Implementation files:**
 - `AGXUnity_Excavator_Assets/Scripts/SimulationBridge/AgxSimProtocol.cs`
 - `AGXUnity_Excavator_Assets/Scripts/SimulationBridge/AgxSimStepAckServer.cs`
@@ -32,6 +32,9 @@ Current control semantics:
 - action order: `[swing_speed_cmd, boom_speed_cmd, stick_speed_cmd, bucket_speed_cmd]`
 - V0 task scope is fixed-position / stationary digging; drive / steer / track
   motion are intentionally excluded from the current step-ack action space
+- request consumption mode is runtime-configurable on the Unity side:
+  `Update`, `FixedUpdate`, or dedicated realtime path
+- this scheduling choice does not change the binary field layout in this document
 
 Current observation semantics:
 - qpos order: `[swing_position_norm, boom_position_norm, stick_position_norm, bucket_position_norm]`
@@ -232,7 +235,11 @@ Current behavior:
 - Unity reset path prefers `SceneResetService.ResetScene(resetTerrain, resetPose)` and only falls back to `EpisodeManager.ResetEpisode(...)` for full resets
 - when `AgxSimStepAckServer` is configured to disable `EpisodeManager` while serving, the reset path may still arm the manual input-cut state for later hand-back, but the HUD "Release Controls" popup is only shown while `EpisodeManager` itself is enabled
 - terrain reset is handled by `ResetTerrain` / `SceneResetService`; the excavation metrics component no longer mutates terrain heights during reset
-- pending step-ack requests are consumed on Unity `FixedUpdate`, so external step-ack teleop stays aligned with `Time.fixedDeltaTime` instead of Editor render-frame jitter
+- pending step-ack requests may be consumed on Unity `Update` or `FixedUpdate`,
+  depending on `AgxSimStepAckServer` runtime configuration
+- current recommended baseline uses `Update`
+- dedicated realtime experiments may use a separate realtime path without
+  changing the response payload layout documented here
 
 ## 9. STEP_RESP Payload
 
