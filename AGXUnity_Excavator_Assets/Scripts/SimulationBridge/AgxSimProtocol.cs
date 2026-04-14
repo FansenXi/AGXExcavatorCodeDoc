@@ -91,28 +91,6 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
     public AgxSimImageFrame image_fpv = null;
     public float reward = 0.0f;
     public long sim_time_ns = -1;
-
-    // ── Per-step latency breakdown timestamps (UTC ns, same epoch as Python time.time_ns()) ──
-    // -1 means not measured / unavailable.
-    public long t_req_recv_ns     = -1;  // TCP thread: STEP_REQ fully received
-    public long t_queue_exit_ns   = -1;  // Update thread: dequeued, starting processing
-    public long t_physics_done_ns = -1;  // After Simulation.Instance.DoStep()
-    public long t_image_ready_ns  = -1;  // After ObservationCollector.Collect() (image captured)
-    public long t_resp_queued_ns  = -1;  // Just before QueueResponse() (serialization done)
-  }
-
-  internal static class AgxSimTimestamp
-  {
-    /// <summary>
-    /// UTC nanoseconds since Unix epoch — matches Python's time.time_ns().
-    /// DateTime.UtcNow.Ticks gives 100ns intervals since 0001-01-01;
-    /// UnixEpochTicks converts the origin to 1970-01-01.
-    /// </summary>
-    public static long NowNs()
-    {
-      const long UnixEpochTicks = 621_355_968_000_000_000L;
-      return ( DateTime.UtcNow.Ticks - UnixEpochTicks ) * 100L;
-    }
   }
 
   internal static class AgxSimBinaryProtocol
@@ -315,13 +293,6 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
       writer.Write( payload.reward );
       writer.Write( payload.sim_time_ns );
       WriteStringArray( writer, payload.warnings );
-
-      // Latency breakdown timestamps (appended after warnings for backward compat)
-      writer.Write( payload.t_req_recv_ns );
-      writer.Write( payload.t_queue_exit_ns );
-      writer.Write( payload.t_physics_done_ns );
-      writer.Write( payload.t_image_ready_ns );
-      writer.Write( payload.t_resp_queued_ns );
     }
 
     private static void WriteCommonResponsePrefix( BinaryWriter writer, AgxSimResponsePayload payload )
