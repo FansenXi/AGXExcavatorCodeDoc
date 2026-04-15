@@ -621,7 +621,7 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc
       if ( requestType == "ResetReq" ) {
         if ( !m_resetLatch ) {
           TryWriteCurrentEpisodeManifest( "step_ack_reset" );
-          m_labelExporter.AdvanceEpisode();
+          m_labelExporter.AdvanceEpisode( m_configuration != null ? m_configuration.Dataset : null );
           m_lastExportedStepId = long.MinValue;
           m_lastObservedStepId = long.MinValue;
           m_trainingEpisodeBaseStepId = long.MinValue;
@@ -635,7 +635,7 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc
       if ( requestType == "StepReq" && stepId >= 0 ) {
         if ( m_lastObservedStepId != long.MinValue && stepId < m_lastObservedStepId ) {
           TryWriteCurrentEpisodeManifest( "step_ack_rewind" );
-          m_labelExporter.AdvanceEpisode();
+          m_labelExporter.AdvanceEpisode( m_configuration != null ? m_configuration.Dataset : null );
           m_lastExportedStepId = long.MinValue;
           m_trainingEpisodeBaseStepId = long.MinValue;
         }
@@ -846,7 +846,7 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc
         return;
       }
 
-      m_labelExporter.AdvanceEpisode();
+      m_labelExporter.AdvanceEpisode( m_configuration != null ? m_configuration.Dataset : null );
       m_manualRecordingActive = true;
       ResetManualSamplingState();
       m_lastExportedStepId = long.MinValue;

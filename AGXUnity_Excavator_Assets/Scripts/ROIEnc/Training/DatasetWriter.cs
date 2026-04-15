@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 using AGXUnity_Excavator.Scripts.ROIEnc.Core;
 using UnityEngine;
 
@@ -35,11 +36,17 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Training
     private readonly List<string> m_currentEpisodeLabelPaths = new List<string>();
     private long m_currentEpisodeFirstCaptureTimeNs = -1;
     private long m_currentEpisodeLastCaptureTimeNs = -1;
+    private bool m_hasInitializedEpisodeIndex = false;
+    private string m_initializedRootDirectory = string.Empty;
+
+    private static readonly Regex EpisodeManifestPattern = new Regex( @"^episode_(\d+)_manifest\.json$", RegexOptions.Compiled | RegexOptions.IgnoreCase );
+    private static readonly Regex EpisodeSamplePattern = new Regex( @"^episode_(\d+)_step_\d+_frame_\d+$", RegexOptions.Compiled | RegexOptions.IgnoreCase );
 
     public int CurrentEpisodeIndex { get; private set; } = 0;
 
-    public void AdvanceEpisode()
+    public void AdvanceEpisode( RoiEncConfiguration.DatasetOptions options = null )
     {
+      EnsureEpisodeIndexInitialized( options );
       ResetEpisodeTracking();
       CurrentEpisodeIndex += 1;
     }
@@ -294,6 +301,54 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Training
       m_currentEpisodeLabelPaths.Clear();
       m_currentEpisodeFirstCaptureTimeNs = -1;
       m_currentEpisodeLastCaptureTimeNs = -1;
+    }
+
+    private void EnsureEpisodeIndexInitialized( RoiEncConfiguration.DatasetOptions options )
+    {
+      options ??= new RoiEncConfiguration.DatasetOptions();
+      var rootDirectory = RoiPathUtility.ResolveOutputDirectory( options.RootDirectory );
+      if ( m_hasInitializedEpisodeIndex &&
+           string.Equals( m_initializedRootDirectory, rootDirectory, StringComparison.OrdinalIgnoreCase ) ) {
+        return;
+      }
+
+      CurrentEpisodeIndex = DiscoverMaxEpisodeIndex( rootDirectory );
+      m_initializedRootDirectory = rootDirectory;
+      m_hasInitializedEpisodeIndex = true;
+    }
+
+    private static int DiscoverMaxEpisodeIndex( string rootDirectory )
+    {
+      if ( string.IsNullOrWhiteSpace( rootDirectory ) || !Directory.Exists( rootDirectory ) )
+        return 0;
+
+      var maxEpisodeIndex = 0;
+      maxEpisodeIndex = Mathf.Max( maxEpisodeIndex, DiscoverMaxEpisodeIndexInDirectory( Path.Combine( rootDirectory, "manifests" ), EpisodeManifestPattern ) );
+      maxEpisodeIndex = Mathf.Max( maxEpisodeIndex, DiscoverMaxEpisodeIndexInDirectory( Path.Combine( rootDirectory, "images" ), EpisodeSamplePattern ) );
+      maxEpisodeIndex = Mathf.Max( maxEpisodeIndex, DiscoverMaxEpisodeIndexInDirectory( Path.Combine( rootDirectory, "labels" ), EpisodeSamplePattern ) );
+      return maxEpisodeIndex;
+    }
+
+    private static int DiscoverMaxEpisodeIndexInDirectory( string directoryPath, Regex pattern )
+    {
+      if ( string.IsNullOrWhiteSpace( directoryPath ) || !Directory.Exists( directoryPath ) || pattern == null )
+        return 0;
+
+      var maxEpisodeIndex = 0;
+      foreach ( var filePath in Directory.EnumerateFiles( directoryPath, "*", SearchOption.AllDirectories ) ) {
+        var fileName = Path.GetFileName( filePath );
+        if ( string.IsNullOrWhiteSpace( fileName ) )
+          continue;
+
+        var match = pattern.Match( fileName );
+        if ( !match.Success || match.Groups.Count < 2 )
+          continue;
+
+        if ( int.TryParse( match.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedEpisodeIndex ) )
+          maxEpisodeIndex = Mathf.Max( maxEpisodeIndex, parsedEpisodeIndex );
+      }
+
+      return maxEpisodeIndex;
     }
 
     private static string CaptureTimeNsToIsoString( long captureTimeNs )

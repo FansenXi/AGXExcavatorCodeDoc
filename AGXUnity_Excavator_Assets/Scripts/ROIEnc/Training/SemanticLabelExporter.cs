@@ -17,9 +17,9 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Training
 
     public int CurrentEpisodeIndex => m_datasetWriter != null ? m_datasetWriter.CurrentEpisodeIndex : 0;
 
-    public void AdvanceEpisode()
+    public void AdvanceEpisode( RoiEncConfiguration.DatasetOptions options = null )
     {
-      m_datasetWriter?.AdvanceEpisode();
+      m_datasetWriter?.AdvanceEpisode( options );
     }
 
     public bool TryWriteEpisodeManifest( RoiEncConfiguration.DatasetOptions options,
