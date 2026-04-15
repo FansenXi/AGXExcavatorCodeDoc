@@ -11,8 +11,6 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Training
   {
     private const float MinNormalizedArea = 0.002f;
     private static readonly Vector3[] s_boundsCorners = new Vector3[8];
-    private static readonly Vector3[] s_digAreaFootprintCorners = new Vector3[4];
-
     private readonly Component m_context;
     private ExcavatorMachineController m_machineController = null;
     private SwitchableTargetMassSensor m_targetMassSensor = null;
@@ -69,16 +67,6 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Training
                                     targetCategory,
                                     frameSample.frameId,
                                     results );
-      }
-
-      if ( m_digAreaMeasurement != null &&
-           m_digAreaMeasurement.TryGetFootprintCornersWorld( s_digAreaFootprintCorners ) ) {
-        TryAddWorldPolygonRoi( camera,
-                               s_digAreaFootprintCorners,
-                               RoiCategory.DigArea,
-                               frameSample.frameId,
-                               results,
-                               "dig_area_footprint" );
       }
 
       return true;

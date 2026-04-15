@@ -45,7 +45,6 @@ DEFAULT_CLASS_LABELS = [
     "excavator_arm",
     "truck",
     "container",
-    "dig_area",
 ]
 
 
@@ -55,4 +54,3 @@ def roi_episode_filename(episode_index: int) -> str:
 
 def roi_episode_path(hdf5_dir: str | Path, episode_index: int) -> Path:
     return Path(hdf5_dir) / roi_episode_filename(episode_index)
-

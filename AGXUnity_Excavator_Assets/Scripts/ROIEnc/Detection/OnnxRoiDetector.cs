@@ -200,14 +200,20 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Detection
       if ( bestTensor == null || bestTensor.Data == null || bestTensor.Data.Length == 0 )
         return;
 
-      if ( TryParseExplicitDetections( bestTensor, frameId, m_parseScratchA ) ) {
+      // Shape-guided YOLO parsing first — this uses the [1, featureSize, candidates]
+      // shape provided by the backend and is the most reliable path.
+      // Explicit [N,6] detections must win before any YOLO tensor heuristic.
+      if ( IsExplicitDetectionShape( bestTensor ) &&
+           TryParseExplicitDetections( bestTensor, frameId, m_parseScratchA ) ) {
         CopyResults( m_parseScratchA, results );
         return;
       }
 
+      // Raw YOLO tensor parsing is only for non-explicit detector outputs.
       if ( TryParseYoloTensorFromShape( bestTensor, frameId, results ) )
         return;
 
+      // Brute-force YOLO parsing as last resort.
       var classCount = Mathf.Max( 1, m_configuration.Detection.ClassLabels != null ? m_configuration.Detection.ClassLabels.Length : 0 );
       var featureSizeWithObjectness = classCount + 5;
       var featureSizeWithoutObjectness = classCount + 4;
@@ -217,6 +223,23 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Detection
       TryParseYoloTensor( bestTensor, frameId, featureSizeWithObjectness, true, true, m_parseScratchB, ref bestCount, results );
       TryParseYoloTensor( bestTensor, frameId, featureSizeWithoutObjectness, false, false, m_parseScratchA, ref bestCount, results );
       TryParseYoloTensor( bestTensor, frameId, featureSizeWithoutObjectness, false, true, m_parseScratchB, ref bestCount, results );
+    }
+
+    private static bool IsExplicitDetectionShape( RoiBackendTensor tensor )
+    {
+      if ( tensor == null || tensor.Data == null || tensor.Data.Length < 6 || tensor.Data.Length % 6 != 0 )
+        return false;
+
+      // If the backend provided a shape, only accept [N,6] or [1,N,6].
+      if ( tensor.Shape != null && tensor.Shape.Length >= 2 ) {
+        var lastDim = tensor.Shape[ tensor.Shape.Length - 1 ];
+        return lastDim == 6;
+      }
+
+      // No shape info — allow the heuristic for backward compat,
+      // but cap at a reasonable detection count to avoid misinterpreting
+      // raw tensors with >2000 "detections".
+      return tensor.Data.Length / 6 <= 2000;
     }
 
     private bool TryParseYoloTensorFromShape( RoiBackendTensor tensor, long frameId, List<RoiDescriptor> results )
@@ -291,6 +314,9 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Detection
     {
       results.Clear();
       if ( tensor == null || tensor.Data == null || tensor.Data.Length < 6 || tensor.Data.Length % 6 != 0 )
+        return false;
+
+      if ( tensor.Shape == null || tensor.Shape.Length != 2 || tensor.Shape[ 1 ] != 6 )
         return false;
 
       var accepted = 0;

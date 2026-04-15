@@ -197,7 +197,8 @@ namespace AGXUnity_Excavator.Scripts.Presentation
       var height = Mathf.Max( 72, m_textureHeight );
       if ( m_renderTexture != null &&
            m_renderTexture.width == width &&
-           m_renderTexture.height == height ) {
+           m_renderTexture.height == height &&
+           !m_renderTexture.sRGB ) {
         if ( m_camera.targetTexture != m_renderTexture )
           m_camera.targetTexture = m_renderTexture;
         return;
@@ -205,11 +206,19 @@ namespace AGXUnity_Excavator.Scripts.Presentation
 
       ReleaseRenderTexture();
 
-      m_renderTexture = new RenderTexture( width, height, 24, RenderTextureFormat.ARGB32 )
+      // Use an explicit linear render texture for CUDA-D3D11 interop.
+      m_renderTexture = new RenderTexture( width, height, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear )
       {
         name = $"{name}_{ViewName}_WindowRT"
       };
+      m_renderTexture.antiAliasing = 1;
+      m_renderTexture.useMipMap = false;
+      m_renderTexture.autoGenerateMips = false;
+      m_renderTexture.wrapMode = TextureWrapMode.Clamp;
+      m_renderTexture.filterMode = FilterMode.Bilinear;
       m_renderTexture.Create();
+      m_camera.allowHDR = false;
+      m_camera.allowMSAA = false;
       m_camera.targetTexture = m_renderTexture;
     }
 

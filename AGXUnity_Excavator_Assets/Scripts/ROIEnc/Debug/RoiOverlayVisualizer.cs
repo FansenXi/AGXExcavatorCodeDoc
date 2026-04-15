@@ -10,25 +10,15 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Debug
     private readonly List<RoiDescriptor> m_rois = new List<RoiDescriptor>();
 
     private TrackedCameraWindow m_cameraWindow = null;
-    private Rect m_fallbackOverlayRect = new Rect( 16.0f, 660.0f, 520.0f, 180.0f );
     private bool m_enabled = true;
-    private bool m_drawLabels = true;
-    private bool m_drawDebugPanel = true;
-    private long m_frameId = -1;
-    private long m_stepId = -1;
-    private float m_motionIntensity = 0.0f;
-    private string m_statusText = "idle";
-    private GUIStyle m_panelStyle = null;
     private GUIStyle m_labelStyle = null;
+    private Texture2D m_whiteTexture = null;
 
     public void Configure( TrackedCameraWindow cameraWindow, RoiEncConfiguration.OverlayOptions options )
     {
       m_cameraWindow = cameraWindow;
       options = options ?? new RoiEncConfiguration.OverlayOptions();
       m_enabled = options.Enabled;
-      m_drawLabels = options.DrawLabels;
-      m_drawDebugPanel = options.DrawDebugPanel;
-      m_fallbackOverlayRect = options.FallbackOverlayRect;
     }
 
     public void UpdateOverlay( long frameId,
@@ -37,131 +27,126 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Debug
                                float motionIntensity,
                                string statusText )
     {
-      m_frameId = frameId;
-      m_stepId = stepId;
-      m_motionIntensity = motionIntensity;
-      m_statusText = string.IsNullOrWhiteSpace( statusText ) ? "ok" : statusText;
-
       m_rois.Clear();
       if ( rois == null )
         return;
 
       foreach ( var roi in rois ) {
-        if ( roi != null )
+        if ( roi != null && roi.IsValid )
           m_rois.Add( roi.Clone() );
       }
     }
 
     private void OnGUI()
     {
-      if ( !m_enabled )
+      if ( !m_enabled || m_cameraWindow == null || !m_cameraWindow.IsVisible || m_rois.Count == 0 )
         return;
 
       EnsureStyles();
-      var contentRect = ResolveContentRect();
-      if ( contentRect.width > 0.0f && contentRect.height > 0.0f )
-        DrawRoiBoxes( contentRect );
+      var imageRect = ResolveImageRect();
+      if ( imageRect.width <= 1.0f || imageRect.height <= 1.0f )
+        return;
 
-      if ( m_drawDebugPanel )
-        DrawDebugPanel();
-    }
-
-    private void EnsureStyles()
-    {
-      if ( m_panelStyle == null ) {
-        m_panelStyle = new GUIStyle( GUI.skin.box )
-        {
-          alignment = TextAnchor.UpperLeft,
-          richText = true,
-          wordWrap = true
-        };
-      }
-
-      if ( m_labelStyle == null ) {
-        m_labelStyle = new GUIStyle( GUI.skin.label )
-        {
-          alignment = TextAnchor.UpperLeft,
-          richText = true,
-          normal = { textColor = Color.white }
-        };
+      foreach ( var roi in m_rois ) {
+        DrawRoi( imageRect, roi );
       }
     }
 
-    private Rect ResolveContentRect()
+    private Rect ResolveImageRect()
     {
-      if ( m_cameraWindow == null || !m_cameraWindow.IsVisible )
-        return default;
-
       var windowRect = m_cameraWindow.WindowRect;
-      return new Rect(
+      var contentRect = new Rect(
         windowRect.x + 8.0f,
         windowRect.y + 24.0f,
         Mathf.Max( 32.0f, windowRect.width - 16.0f ),
         Mathf.Max( 32.0f, windowRect.height - 32.0f ) );
+
+      var textureWidth = Mathf.Max( 1, m_cameraWindow.TextureWidth );
+      var textureHeight = Mathf.Max( 1, m_cameraWindow.TextureHeight );
+      var scale = Mathf.Min( contentRect.width / textureWidth, contentRect.height / textureHeight );
+      var fittedWidth = textureWidth * scale;
+      var fittedHeight = textureHeight * scale;
+      var offsetX = contentRect.x + 0.5f * ( contentRect.width - fittedWidth );
+      var offsetY = contentRect.y + 0.5f * ( contentRect.height - fittedHeight );
+      return new Rect( offsetX, offsetY, fittedWidth, fittedHeight );
     }
 
-    private void DrawRoiBoxes( Rect contentRect )
+    private void DrawRoi( Rect imageRect, RoiDescriptor roi )
     {
-      foreach ( var roi in m_rois ) {
-        if ( roi == null || !roi.IsValid )
-          continue;
+      var normalized = roi.NormalizedRect;
+      var rect = new Rect(
+        imageRect.x + normalized.x * imageRect.width,
+        imageRect.y + normalized.y * imageRect.height,
+        normalized.width * imageRect.width,
+        normalized.height * imageRect.height );
 
-        var pixelRect = new Rect(
-          contentRect.x + roi.NormalizedRect.x * contentRect.width,
-          contentRect.y + roi.NormalizedRect.y * contentRect.height,
-          roi.NormalizedRect.width * contentRect.width,
-          roi.NormalizedRect.height * contentRect.height );
-        DrawBoxOutline( pixelRect, RoiCategoryUtility.ColorFor( roi.Category ), 2.0f );
+      var color = RoiCategoryUtility.ColorFor( roi.Category );
+      var borderThickness = roi.Source == RoiSource.RuleRoi ? 3.0f : 2.0f;
+      DrawRectOutline( rect, color, borderThickness );
 
-        if ( !m_drawLabels )
-          continue;
-
-        GUI.Label(
-          new Rect( pixelRect.x + 2.0f, pixelRect.y - 18.0f, Mathf.Max( 120.0f, pixelRect.width ), 18.0f ),
-          $"{roi.Label} {roi.Confidence:0.00}",
-          m_labelStyle );
-      }
+      var sourceTag = roi.Source == RoiSource.RuleRoi ? "Rule" : "Visual";
+      var label = $"{roi.Label} [{sourceTag}] {roi.Confidence:F2}";
+      DrawLabel( rect, label, color );
     }
 
-    private void DrawDebugPanel()
+    private void DrawRectOutline( Rect rect, Color color, float thickness )
     {
-      var panelRect = ResolveDebugPanelRect();
-      GUILayout.BeginArea( panelRect, GUI.skin.box );
-      GUILayout.Label( "<b>ROI Overlay</b>", m_labelStyle );
-      GUILayout.Label( $"Status: {m_statusText}", m_labelStyle );
-      GUILayout.Label( $"Frame: {m_frameId}    Step: {m_stepId}", m_labelStyle );
-      GUILayout.Label( $"Motion intensity: {m_motionIntensity:0.000}", m_labelStyle );
-      GUILayout.Label( $"ROI count: {m_rois.Count}", m_labelStyle );
-      foreach ( var roi in m_rois )
-        GUILayout.Label( $"{roi.Label} [{roi.Source}] conf={roi.Confidence:0.00} rect=({roi.NormalizedRect.x:0.00},{roi.NormalizedRect.y:0.00},{roi.NormalizedRect.width:0.00},{roi.NormalizedRect.height:0.00})", m_labelStyle );
-      GUILayout.EndArea();
+      DrawFilledRect( new Rect( rect.xMin, rect.yMin, rect.width, thickness ), color );
+      DrawFilledRect( new Rect( rect.xMin, rect.yMax - thickness, rect.width, thickness ), color );
+      DrawFilledRect( new Rect( rect.xMin, rect.yMin, thickness, rect.height ), color );
+      DrawFilledRect( new Rect( rect.xMax - thickness, rect.yMin, thickness, rect.height ), color );
     }
 
-    private Rect ResolveDebugPanelRect()
+    private void DrawLabel( Rect rect, string text, Color color )
     {
-      var width = Mathf.Min( m_fallbackOverlayRect.width, Mathf.Max( 240.0f, Screen.width - 16.0f ) );
-      var height = Mathf.Min( m_fallbackOverlayRect.height, Mathf.Max( 120.0f, Screen.height - 16.0f ) );
-      var maxX = Mathf.Max( 8.0f, Screen.width - width - 8.0f );
-      var maxY = Mathf.Max( 8.0f, Screen.height - height - 8.0f );
+      var size = m_labelStyle.CalcSize( new GUIContent( text ) );
+      var labelRect = new Rect(
+        rect.xMin,
+        Mathf.Max( 0.0f, rect.yMin - size.y - 4.0f ),
+        size.x + 8.0f,
+        size.y + 4.0f );
 
-      return new Rect(
-        Mathf.Clamp( m_fallbackOverlayRect.x, 8.0f, maxX ),
-        Mathf.Clamp( m_fallbackOverlayRect.y, 8.0f, maxY ),
-        width,
-        height );
+      DrawFilledRect( labelRect, color );
+      GUI.Label( new Rect( labelRect.x + 4.0f, labelRect.y + 2.0f, size.x, size.y ), text, m_labelStyle );
     }
 
-    private static void DrawBoxOutline( Rect rect, Color color, float thickness )
+    private void DrawFilledRect( Rect rect, Color color )
     {
-      var previousColor = GUI.color;
+      var previous = GUI.color;
       GUI.color = color;
+      GUI.DrawTexture( rect, m_whiteTexture );
+      GUI.color = previous;
+    }
 
-      GUI.DrawTexture( new Rect( rect.xMin, rect.yMin, rect.width, thickness ), Texture2D.whiteTexture );
-      GUI.DrawTexture( new Rect( rect.xMin, rect.yMax - thickness, rect.width, thickness ), Texture2D.whiteTexture );
-      GUI.DrawTexture( new Rect( rect.xMin, rect.yMin, thickness, rect.height ), Texture2D.whiteTexture );
-      GUI.DrawTexture( new Rect( rect.xMax - thickness, rect.yMin, thickness, rect.height ), Texture2D.whiteTexture );
+    private void EnsureStyles()
+    {
+      if ( m_whiteTexture == null ) {
+        m_whiteTexture = new Texture2D( 1, 1, TextureFormat.RGBA32, false )
+        {
+          hideFlags = HideFlags.HideAndDontSave
+        };
+        m_whiteTexture.SetPixel( 0, 0, Color.white );
+        m_whiteTexture.Apply( false, true );
+      }
 
-      GUI.color = previousColor;
+      if ( m_labelStyle != null )
+        return;
+
+      m_labelStyle = new GUIStyle( GUI.skin.label )
+      {
+        fontSize = 11,
+        richText = false,
+        wordWrap = false,
+        normal = { textColor = Color.black }
+      };
+    }
+
+    private void OnDestroy()
+    {
+      if ( m_whiteTexture != null ) {
+        Destroy( m_whiteTexture );
+        m_whiteTexture = null;
+      }
     }
   }
 }

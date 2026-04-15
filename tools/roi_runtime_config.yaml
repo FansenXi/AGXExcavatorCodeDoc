@@ -9,8 +9,8 @@ protocol:
 
 detector:
   model_path: ../../_model_archive/roi_detector_current.onnx
-  input_width: 960
-  input_height: 960
+  input_width: 640
+  input_height: 640
   confidence_threshold: 0.35
   nms_iou_threshold: 0.5
   output_tensor_name: ""
@@ -19,7 +19,6 @@ detector:
     - excavator_arm
     - truck
     - container
-    - dig_area
   max_expected_joint_velocity: 1.5
 
 output:

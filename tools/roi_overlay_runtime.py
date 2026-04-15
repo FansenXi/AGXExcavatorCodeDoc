@@ -83,14 +83,14 @@ class ProtocolConfig:
 
 @dataclass
 class DetectorConfig:
-    model_path: str = "../../_model_archive/roi_smoke_detector.onnx"
-    input_width: int = 576
-    input_height: int = 576
+    model_path: str = "../../_model_archive/roi_detector_current.onnx"
+    input_width: int = 640
+    input_height: int = 640
     confidence_threshold: float = 0.35
     nms_iou_threshold: float = 0.5
     output_tensor_name: str = ""
     class_labels: list[str] = field(
-        default_factory=lambda: ["bucket", "excavator_arm", "truck", "container", "dig_area"]
+        default_factory=lambda: ["bucket", "excavator_arm", "truck", "container"]
     )
     max_expected_joint_velocity: float = 1.5
 
@@ -349,14 +349,14 @@ class OnnxRuntimeRoiDetector:
         tensor_data = raw_tensor.reshape(-1)
         tensor_shape = [int(dimension) for dimension in raw_tensor.shape]
 
-        shape_inferred = self._try_parse_yolo_tensor_from_shape(tensor_data, tensor_shape)
-        if shape_inferred:
-            return shape_inferred
-
         if self._looks_like_explicit_detection_tensor(tensor_shape):
             explicit = self._try_parse_explicit_detections(tensor_data)
             if explicit:
                 return explicit
+
+        shape_inferred = self._try_parse_yolo_tensor_from_shape(tensor_data, tensor_shape)
+        if shape_inferred:
+            return shape_inferred
 
         class_count = max(1, len(self._config.class_labels))
         feature_sizes = [(class_count + 5, True), (class_count + 4, False)]

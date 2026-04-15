@@ -61,3 +61,44 @@ void launch_preprocess_kernel(cudaArray_t src_array,
 
     cudaDestroyTextureObject(tex_obj);
 }
+
+// ---- Linear RGBA8 variant (for CPU readback path) ----
+
+__global__ void preprocess_rgba_linear_to_chw_rgb(
+        const unsigned char* __restrict__ src,
+        int src_w, int src_h,
+        float* __restrict__ dst,
+        int dst_w, int dst_h) {
+    const int x = blockIdx.x * blockDim.x + threadIdx.x;
+    const int y = blockIdx.y * blockDim.y + threadIdx.y;
+    if (x >= dst_w || y >= dst_h) return;
+
+    const float sx = (static_cast<float>(x) + 0.5f) * src_w / dst_w;
+    const float sy = (static_cast<float>(y) + 0.5f) * src_h / dst_h;
+    const int ix = min(static_cast<int>(sx), src_w - 1);
+    const int iy = min(static_cast<int>(sy), src_h - 1);
+
+    const int src_idx = (iy * src_w + ix) * 4;
+    const float r = src[src_idx + 0] / 255.0f;
+    const float g = src[src_idx + 1] / 255.0f;
+    const float b = src[src_idx + 2] / 255.0f;
+
+    const int plane_size = dst_w * dst_h;
+    const int dst_idx = y * dst_w + x;
+    dst[0 * plane_size + dst_idx] = r;
+    dst[1 * plane_size + dst_idx] = g;
+    dst[2 * plane_size + dst_idx] = b;
+}
+
+void launch_preprocess_rgba_linear(const unsigned char* d_rgba,
+                                   int src_w, int src_h,
+                                   float* d_output,
+                                   int dst_w, int dst_h,
+                                   cudaStream_t stream) {
+    dim3 block(16, 16);
+    dim3 grid((dst_w + block.x - 1) / block.x,
+              (dst_h + block.y - 1) / block.y);
+
+    preprocess_rgba_linear_to_chw_rgb<<<grid, block, 0, stream>>>(
+            d_rgba, src_w, src_h, d_output, dst_w, dst_h);
+}

@@ -68,6 +68,7 @@ target_link_libraries(trt_roi_backend
     PRIVATE CUDA::cuda_driver
     PRIVATE "${NVINFER_LIB}"
     PRIVATE d3d11
+    PRIVATE dxgi
 )
 
 # Build for the GPU architecture of RTX 5060 (Blackwell sm_120) and common

@@ -61,12 +61,12 @@ DEFAULT_PIPELINE_CONFIG: dict[str, Any] = {
     "training": {
         "base_model": "../../_model_archive/yolo11n.pt",
         "epochs": 100,
-        "imgsz": 960,
+        "imgsz": 640,
         "batch": 16,
         "workers": 0,
         "output_dir": "../../ROI_Runs",
         "onnx_opset": 17,
-        "run_name": "roi_yolo11n",
+        "run_name": "roi_yolo11n_4class",
     },
     "eval": {
         "metrics": ["mAP50", "mAP50_95", "per_class_AP"],
@@ -570,7 +570,7 @@ def write_json_report(report: dict[str, Any], path: str | Path) -> Path:
 def append_eval_history(row: dict[str, Any], csv_path: str | Path) -> Path:
     csv_path = Path(csv_path)
     csv_path.parent.mkdir(parents=True, exist_ok=True)
-    fieldnames = [
+    default_fieldnames = [
         "timestamp",
         "model_name",
         "n_train_frames",
@@ -578,14 +578,29 @@ def append_eval_history(row: dict[str, Any], csv_path: str | Path) -> Path:
         "dedup_rate",
         "mAP50",
         "mAP50_95",
-        "AP_bucket",
-        "AP_excavator_arm",
-        "AP_truck",
-        "AP_container",
-        "AP_dig_area",
         "inference_fps",
         "notes",
     ]
+    ap_fieldnames = [f"AP_{label}" for label in DEFAULT_CLASS_LABELS]
+    insert_index = default_fieldnames.index("inference_fps")
+    default_fieldnames[insert_index:insert_index] = ap_fieldnames
+
+    fieldnames = list(default_fieldnames)
+    if csv_path.exists():
+        with open(csv_path, "r", encoding="utf-8", newline="") as handle:
+            reader = csv.reader(handle)
+            existing_header = next(reader, [])
+        if existing_header:
+            fieldnames = list(existing_header)
+
+    for column_name in default_fieldnames:
+        if column_name not in fieldnames:
+            fieldnames.append(column_name)
+
+    for column_name in row.keys():
+        if column_name not in fieldnames:
+            fieldnames.append(column_name)
+
     needs_header = not csv_path.exists()
     with open(csv_path, "a", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)

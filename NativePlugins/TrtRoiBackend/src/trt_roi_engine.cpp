@@ -2,6 +2,7 @@
 
 #include <fstream>
 #include <cstring>
+#include <vector>
 
 void TrtRoiEngine::Logger::log(Severity severity, const char* msg) noexcept {
     if (severity <= Severity::kWARNING) {
@@ -63,12 +64,26 @@ bool TrtRoiEngine::load(const std::string& engine_path, std::string& error) {
             output_binding_ = i;
             auto dims = engine_->getTensorShape(name);
             output_elements_ = 1;
-            for (int d = 0; d < dims.nbDims; ++d)
+            std::vector<int> non_trivial_dims;
+            non_trivial_dims.reserve(dims.nbDims);
+            for (int d = 0; d < dims.nbDims; ++d) {
                 output_elements_ *= dims.d[d];
+                if (dims.d[d] > 1)
+                    non_trivial_dims.push_back(dims.d[d]);
+            }
+
+            if (non_trivial_dims.size() >= 2) {
+                const int first = non_trivial_dims[non_trivial_dims.size() - 2];
+                const int second = non_trivial_dims[non_trivial_dims.size() - 1];
+                output_feature_major_ = first <= second;
+                output_feature_size_ = output_feature_major_ ? first : second;
+                output_candidate_count_ = output_feature_major_ ? second : first;
+            }
         }
     }
 
-    if (input_binding_ < 0 || output_binding_ < 0 || input_w_ <= 0 || input_h_ <= 0) {
+    if (input_binding_ < 0 || output_binding_ < 0 || input_w_ <= 0 || input_h_ <= 0 ||
+        output_feature_size_ <= 0 || output_candidate_count_ <= 0) {
         error = "engine has unexpected IO layout";
         release();
         return false;
@@ -95,6 +110,9 @@ void TrtRoiEngine::release() {
     input_w_ = 0;
     input_h_ = 0;
     output_elements_ = 0;
+    output_feature_size_ = 0;
+    output_candidate_count_ = 0;
+    output_feature_major_ = true;
 }
 
 bool TrtRoiEngine::infer(float* d_input, float* d_output, float& infer_ms, std::string& error) {

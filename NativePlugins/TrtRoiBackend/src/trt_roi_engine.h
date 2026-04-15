@@ -25,6 +25,9 @@ public:
     int input_height() const { return input_h_; }
     int input_channels() const { return input_c_; }
     int output_element_count() const { return output_elements_; }
+    int output_feature_size() const { return output_feature_size_; }
+    int output_candidate_count() const { return output_candidate_count_; }
+    bool output_feature_major() const { return output_feature_major_; }
 
 private:
     class Logger : public nvinfer1::ILogger {
@@ -45,6 +48,9 @@ private:
     int input_h_ = 0;
     int input_w_ = 0;
     int output_elements_ = 0;
+    int output_feature_size_ = 0;
+    int output_candidate_count_ = 0;
+    bool output_feature_major_ = true;
 
     int input_binding_ = -1;
     int output_binding_ = -1;

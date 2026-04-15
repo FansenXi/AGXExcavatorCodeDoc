@@ -7,7 +7,6 @@ dataset:
     - excavator_arm
     - truck
     - container
-    - dig_area
 
 dedup:
   method: dhash
@@ -18,12 +17,12 @@ dedup:
 training:
   base_model: "../../_model_archive/yolo11n.pt"
   epochs: 100
-  imgsz: 960
+  imgsz: 640
   batch: 16
   workers: 0
   output_dir: "../../ROI_Runs"
   onnx_opset: 17
-  run_name: roi_yolo11n
+  run_name: roi_yolo11n_4class
 
 eval:
   metrics:

@@ -62,6 +62,9 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc
     private RoiOverlayVisualizer m_overlayVisualizer = null;
 
     [SerializeField]
+    private RoiInfoWindow m_infoWindow = null;
+
+    [SerializeField]
     private string m_lastStatus = "idle";
 
     private SceneGraphLabelGenerator m_sceneGraphLabelGenerator = null;
@@ -70,12 +73,16 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc
     private readonly List<RoiDescriptor> m_overlayDetections = new List<RoiDescriptor>();
 
     private OnnxRoiDetector m_nativeDetector = null;
+    private RuleRoiProvider m_ruleRoiProvider = null;
     private RoiTemporalSmoother m_temporalSmoother = null;
     private RoiFusionPipeline m_fusionPipeline = null;
     private MotionIntensityEstimator m_motionEstimator = null;
     private readonly List<RoiDescriptor> m_rawDetections = new List<RoiDescriptor>();
     private readonly List<RoiDescriptor> m_smoothedDetections = new List<RoiDescriptor>();
+    private readonly List<RoiDescriptor> m_ruleRois = new List<RoiDescriptor>();
+    private readonly List<RoiDescriptor> m_groundTruthRois = new List<RoiDescriptor>();
     private readonly List<RoiDescriptor> m_fusedDetections = new List<RoiDescriptor>();
+    private readonly RoiLiveEvaluation m_liveEvaluation = new RoiLiveEvaluation();
     private long m_nativeDetectionFrameSkipCounter = 0;
     private float m_lastNativeInferenceMs = 0.0f;
 
@@ -178,14 +185,25 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc
       if ( m_overlayVisualizer == null )
         m_overlayVisualizer = GetComponent<RoiOverlayVisualizer>();
 
+      if ( m_infoWindow == null )
+        m_infoWindow = GetComponent<RoiInfoWindow>();
+
       if ( m_overlayVisualizer == null && m_mode != PipelineMode.Disabled )
         m_overlayVisualizer = gameObject.AddComponent<RoiOverlayVisualizer>();
+
+      if ( m_infoWindow == null && m_mode != PipelineMode.Disabled )
+        m_infoWindow = gameObject.AddComponent<RoiInfoWindow>();
     }
 
     private void EnsureHelpers()
     {
       if ( m_sceneGraphLabelGenerator == null )
         m_sceneGraphLabelGenerator = new SceneGraphLabelGenerator( this, m_machineController, m_targetMassSensor, m_digAreaMeasurement );
+
+      if ( m_ruleRoiProvider == null )
+        m_ruleRoiProvider = new RuleRoiProvider( this, m_digAreaMeasurement, m_configuration.RuleRoi );
+      else
+        m_ruleRoiProvider.UpdateOptions( m_configuration.RuleRoi );
 
       if ( m_datasetWriter == null )
         m_datasetWriter = new DatasetWriter();
@@ -206,6 +224,7 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc
 
       m_nativeDetector?.Dispose();
       m_nativeDetector = null;
+      m_ruleRoiProvider = null;
       m_temporalSmoother = null;
       m_fusionPipeline = null;
       m_motionEstimator = null;
@@ -390,6 +409,24 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc
 
       var frameId = NextFrameId();
       var stepId = m_stepAckServer != null ? m_stepAckServer.LastRequestStepId : -1L;
+      if ( !m_fpvCamera.TryGetLiveRenderTexture( out var sourceCamera, out var renderTexture, out _ ) ||
+           renderTexture == null ) {
+        m_lastStatus = "native_detection_render_texture_unavailable";
+        UpdateOverlayStatus( frameId, stepId );
+        return;
+      }
+
+      var liveFrameSample = new RoiFrameSample
+      {
+        frameId = frameId,
+        stepId = stepId,
+        captureTimeNs = NowUnixTimeNs(),
+        width = renderTexture.width,
+        height = renderTexture.height,
+        sourceTexture = renderTexture,
+        sourceCamera = sourceCamera != null ? sourceCamera : m_fpvCamera.RuntimeCamera,
+        sourceWindow = m_fpvCamera
+      };
 
       if ( shouldRunDetection ) {
         m_nativeDetectionFrameSkipCounter = 0;
@@ -397,35 +434,14 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc
         if ( !m_nativeDetector.IsReady )
           m_lastStatus = "native_detection_initializing";
 
-        if ( !m_fpvCamera.TryGetLiveRenderTexture( out var sourceCamera, out var renderTexture, out _ ) ||
-             renderTexture == null ) {
-          m_lastStatus = "native_detection_render_texture_unavailable";
-          UpdateOverlayStatus( frameId, stepId );
-          return;
-        }
-
-        var frameSample = new RoiFrameSample
-        {
-          frameId = frameId,
-          stepId = stepId,
-          captureTimeNs = NowUnixTimeNs(),
-          width = renderTexture.width,
-          height = renderTexture.height,
-          sourceTexture = renderTexture,
-          sourceCamera = sourceCamera != null ? sourceCamera : m_fpvCamera.RuntimeCamera,
-          sourceWindow = m_fpvCamera
-        };
-
         m_rawDetections.Clear();
-        if ( !m_nativeDetector.TryGetRois( frameSample, m_rawDetections, out var detectError ) ) {
+        if ( !m_nativeDetector.TryGetRois( liveFrameSample, m_rawDetections, out var detectError ) ) {
           m_lastStatus = $"native_detection_failed:{detectError}";
           UpdateOverlayStatus( frameId, stepId );
           return;
         }
 
-        m_lastNativeInferenceMs = m_nativeDetector.IsReady
-                                    ? GetNativeBackendInferenceMs()
-                                    : 0.0f;
+        UpdateNativeBackendDiagnostics();
       }
 
       if ( m_temporalSmoother == null )
@@ -435,12 +451,15 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc
                                  m_configuration.Smoothing,
                                  m_smoothedDetections );
 
+      RefreshRuleRois( liveFrameSample );
+      RefreshGroundTruthRois( liveFrameSample );
+
       if ( m_fusionPipeline == null )
         m_fusionPipeline = new RoiFusionPipeline();
 
-      var sourceCamera2 = m_fpvCamera.RuntimeCamera;
+      var sourceCamera2 = liveFrameSample.sourceCamera != null ? liveFrameSample.sourceCamera : m_fpvCamera.RuntimeCamera;
       m_fusionPipeline.Fuse( sourceCamera2, m_machineController, frameId,
-                             m_smoothedDetections, m_configuration.Fusion,
+                             m_smoothedDetections, m_ruleRois, m_configuration.Fusion,
                              m_fusedDetections );
 
       if ( m_motionEstimator == null )
@@ -452,13 +471,34 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc
       m_overlayDetections.Clear();
       m_overlayDetections.AddRange( m_fusedDetections );
 
+      if ( TryGetNativeBackend( out var nativeBackend ) ) {
+        RoiLiveEvaluator.Evaluate( m_overlayDetections,
+                                   m_groundTruthRois,
+                                   nativeBackend.LastRawCandidateCount,
+                                   nativeBackend.LastThresholdKeptCount,
+                                   nativeBackend.LastNmsKeptCount,
+                                   nativeBackend.LastPostprocessMs,
+                                   m_liveEvaluation );
+      }
+      else {
+        RoiLiveEvaluator.Evaluate( m_overlayDetections,
+                                   m_groundTruthRois,
+                                   0,
+                                   0,
+                                   0,
+                                   0.0f,
+                                   m_liveEvaluation );
+      }
+
       preserveFailureStatus = !shouldRunDetection &&
                               !string.IsNullOrEmpty( m_lastStatus ) &&
                               m_lastStatus.StartsWith( "native_detection_failed:", StringComparison.Ordinal );
 
       if ( !preserveFailureStatus ) {
         m_lastStatus = $"native_detection_ok:rois={m_overlayDetections.Count},infer_ms={m_lastNativeInferenceMs:F2}," +
-                       $"motion={m_lastMotionIntensity:F3},interval={intervalFrames}";
+                       $"post_ms={m_liveEvaluation.PostprocessMs:F2},raw={m_liveEvaluation.RawCandidateCount}," +
+                       $"filter={m_liveEvaluation.ThresholdKeptCount},nms={m_liveEvaluation.NmsKeptCount}," +
+                       $"unknown={m_liveEvaluation.UnknownCount},motion={m_lastMotionIntensity:F3},interval={intervalFrames}";
       }
 
       UpdateOverlayStatus( frameId, stepId );
@@ -476,22 +516,62 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc
       }
     }
 
-    private float GetNativeBackendInferenceMs()
+    private bool TryGetNativeBackend( out Detection.Backend.NativeTensorRtDetectorBackend nativeBackend )
     {
+      nativeBackend = null;
+
       try {
         var field = typeof( OnnxRoiDetector ).GetField( "m_backend",
                       System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance );
-        if ( field == null )
-          return 0.0f;
+        if ( field == null || m_nativeDetector == null )
+          return false;
 
         var backend = field.GetValue( m_nativeDetector );
-        if ( backend is Detection.Backend.NativeTensorRtDetectorBackend nativeBackend )
-          return nativeBackend.LastInferenceMs;
+        nativeBackend = backend as Detection.Backend.NativeTensorRtDetectorBackend;
+        return nativeBackend != null;
       }
       catch ( Exception ) {
+        nativeBackend = null;
       }
 
-      return 0.0f;
+      return false;
+    }
+
+    private void UpdateNativeBackendDiagnostics()
+    {
+      if ( TryGetNativeBackend( out var nativeBackend ) ) {
+        m_lastNativeInferenceMs = nativeBackend.LastInferenceMs;
+        return;
+      }
+
+      m_lastNativeInferenceMs = 0.0f;
+    }
+
+    private void RefreshRuleRois( RoiFrameSample frameSample )
+    {
+      m_ruleRois.Clear();
+      if ( m_ruleRoiProvider == null )
+        return;
+
+      if ( !m_ruleRoiProvider.TryGetRois( frameSample, m_ruleRois, out _ ) )
+        m_ruleRois.Clear();
+    }
+
+    private void RefreshGroundTruthRois( RoiFrameSample frameSample )
+    {
+      m_groundTruthRois.Clear();
+
+      if ( m_sceneGraphLabelGenerator != null &&
+           m_sceneGraphLabelGenerator.TryGetRois( frameSample, m_groundTruthRois, out _ ) ) {
+      }
+
+      if ( m_ruleRois.Count == 0 )
+        return;
+
+      foreach ( var ruleRoi in m_ruleRois ) {
+        if ( ruleRoi != null )
+          m_groundTruthRois.Add( ruleRoi.Clone() );
+      }
     }
 
     private bool TryExportManualSample( long stepId, string trigger, out string imagePath, out string labelPath, out string error )
@@ -596,15 +676,25 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc
 
     private void UpdateOverlayStatus( long frameId = -1, long stepId = -1 )
     {
-      if ( m_overlayVisualizer == null )
-        return;
+      var resolvedFrame = frameId >= 0 ? frameId : m_frameCounter;
+      var resolvedStep  = stepId >= 0 ? stepId : ( m_stepAckServer != null ? m_stepAckServer.LastRequestStepId : -1 );
 
-      m_overlayVisualizer.Configure( m_fpvCamera, m_configuration.Overlay );
-      m_overlayVisualizer.UpdateOverlay( frameId >= 0 ? frameId : m_frameCounter,
-                                         stepId >= 0 ? stepId : ( m_stepAckServer != null ? m_stepAckServer.LastRequestStepId : -1 ),
-                                         m_overlayDetections,
-                                         m_lastMotionIntensity,
-                                         m_lastStatus );
+      if ( m_overlayVisualizer != null ) {
+        m_overlayVisualizer.Configure( m_fpvCamera, m_configuration.Overlay );
+        m_overlayVisualizer.UpdateOverlay( resolvedFrame, resolvedStep,
+                                           m_overlayDetections,
+                                           m_lastMotionIntensity,
+                                           m_lastStatus );
+      }
+
+      if ( m_infoWindow != null ) {
+        m_infoWindow.UpdateInfo( resolvedFrame, resolvedStep,
+                                 m_overlayDetections,
+                                 m_lastNativeInferenceMs,
+                                 m_lastMotionIntensity,
+                                 m_lastStatus,
+                                 m_liveEvaluation );
+      }
     }
 
     private void SyncManualEpisodeState()

@@ -49,9 +49,19 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Core
       public YoloOutputLayout OutputLayout = YoloOutputLayout.Auto;
       public Vector4 InputScale = Vector4.one;
       public Vector4 InputBias = Vector4.zero;
-      public string[] ClassLabels = new[] { "bucket", "excavator_arm", "truck", "container", "dig_area" };
+      public string[] ClassLabels = new[] { "bucket", "excavator_arm", "truck", "container" };
       [Min( 1 )]
       public int WarmupIterations = 3;
+    }
+
+    [Serializable]
+    public sealed class RuleRoiOptions
+    {
+      public bool EnableDigAreaFootprint = true;
+      [Range( 0.0f, 1.0f )]
+      public float DigAreaConfidence = 1.0f;
+      [Min( 0.0f )]
+      public float MinNormalizedArea = 0.002f;
     }
 
     [Serializable]
@@ -109,6 +119,7 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Core
 
     public DatasetOptions Dataset = new DatasetOptions();
     public DetectionOptions Detection = new DetectionOptions();
+    public RuleRoiOptions RuleRoi = new RuleRoiOptions();
     public SmoothingOptions Smoothing = new SmoothingOptions();
     public FusionOptions Fusion = new FusionOptions();
     public ExternalRuntimeOptions ExternalRuntime = new ExternalRuntimeOptions();

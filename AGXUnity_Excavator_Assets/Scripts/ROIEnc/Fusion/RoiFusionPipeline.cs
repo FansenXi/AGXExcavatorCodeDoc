@@ -16,6 +16,7 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Fusion
                       ExcavatorMachineController machineController,
                       long frameId,
                       List<RoiDescriptor> sourceDetections,
+                      List<RoiDescriptor> ruleRois,
                       RoiEncConfiguration.FusionOptions options,
                       List<RoiDescriptor> fusedResults )
     {
@@ -33,6 +34,15 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Fusion
           clone.Source = clone.Source == RoiSource.Unknown ? RoiSource.Fusion : clone.Source;
           fusedResults.Add( clone );
           hasBucket |= clone.Category == RoiCategory.Bucket;
+        }
+      }
+
+      if ( ruleRois != null ) {
+        foreach ( var ruleRoi in ruleRois ) {
+          if ( ruleRoi == null )
+            continue;
+
+          fusedResults.Add( ruleRoi.Clone() );
         }
       }
 

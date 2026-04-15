@@ -1,127 +1,105 @@
-# ROI Detection Pipeline
+# ROI Detection
 
-Updated: 2026-04-08
+Updated: 2026-04-10
 
-## Scope
+## Summary
 
-The runtime ROI path no longer runs inference inside Unity.
+The formal runtime path is now Unity-internal native TensorRT.
 
-Unity now stops at:
+- visual model classes:
+  - `bucket`
+  - `excavator_arm`
+  - `truck`
+  - `container`
+- `dig_area` is not a model class
+- `dig_area` is emitted as a rule ROI from `DigAreaMeasurement`
 
-1. `TrackedCameraWindow` renders the FPV camera.
-2. `AgxSimStepAckServer` exports the post-step frame as `raw_rgb` inside `STEP_RESP`.
-3. `RoiDetectionPipeline` either:
-   - exports training labels in Unity, or
-   - launches the external ROI sidecar when Play starts.
+The external Python sidecar is no longer the primary low-latency path.
 
-The external sidecar now handles:
+## Runtime Data Flow
 
-1. decoding `STEP_RESP.image_payload`
-2. ONNX Runtime inference
-3. ROI box drawing
-4. motion-intensity HUD
-5. H.264 encoding
-6. CSV logging
+1. `TrackedCameraWindow` renders FPV to a `RenderTexture`.
+2. `NativeTensorRtDetectorBackend` downsamples to model input size and feeds the native TensorRT plugin.
+3. The native plugin runs:
+   - preprocess
+   - TensorRT inference
+   - bbox decode
+   - confidence filter
+   - per-class NMS
+4. The plugin returns explicit detections as `[N,6] = x1,y1,x2,y2,score,class_id`.
+5. `OnnxRoiDetector` consumes explicit detections for the native backend.
+6. `RuleRoiProvider` adds `dig_area` as a rule ROI.
+7. `RoiFusionPipeline` merges visual detections and rule ROI.
+8. `RoiOverlayVisualizer` draws boxes in the FPV window.
+9. `RoiInfoWindow` shows live debug stats and per-class matching.
 
-## Runtime Architecture
+## Output Contract
 
-```mermaid
-flowchart LR
-  Unity["Unity Play Mode"] --> StepAck["AgxSimStepAckServer<br/>STEP_RESP raw_rgb"]
-  StepAck --> Sidecar["tools/roi_overlay_runtime.py"]
-  Sidecar --> Infer["ONNX Runtime"]
-  Infer --> Overlay["ROI overlay + HUD"]
-  Overlay --> Video["H.264 output"]
-  Overlay --> Csv["CSV log"]
-```
+The native backend must return explicit detections only.
 
-This keeps the protocol unchanged at `agx-sim/v0`.
-We still ship `raw_rgb` from Unity, but ROI visualization and video encoding are now outside the editor process.
+- `class_id` range: `0..3`
+- labels:
+  - `0 = bucket`
+  - `1 = excavator_arm`
+  - `2 = truck`
+  - `3 = container`
+
+`Unknown` should not appear during normal visual detection. If it does, treat it as a contract or mapping bug.
+
+## Rule ROI
+
+`dig_area` comes from the rule ROI path.
+
+- source component: `DigAreaMeasurement`
+- provider: `RuleRoiProvider`
+- runtime source tag: `RuleRoi`
+- output category label: `dig_area`
+
+This keeps the visual model focused on appearance-driven targets while preserving a stable region ROI.
+
+## Unity Modes
+
+- `ManualExport`
+  - local data collection
+- `TrainingExport`
+  - step-ack aligned export
+- `NativeDetection`
+  - formal runtime detection path
+- `ExternalOverlayRuntime`
+  - legacy helper path only
+
+## Live Debug
+
+Two Unity debug views matter:
+
+- `RoiOverlayVisualizer`
+  - draws boxes in the FPV window
+  - tags each ROI as `Visual` or `Rule`
+- `RoiInfoWindow`
+  - shows:
+    - `infer_ms`
+    - native `raw / filter / nms / final`
+    - `unknown` count
+    - per-class `pred / gt / match / miss / fp`
 
 ## Key Files
 
 - `AGXUnity_Excavator_Assets/Scripts/ROIEnc/RoiDetectionPipeline.cs`
-- `AGXUnity_Excavator_Assets/Scripts/ROIEnc/Training/DatasetWriter.cs`
-- `AGXUnity_Excavator_Assets/Scripts/ROIEnc/Core/RoiExternalRuntimeLauncher.cs`
-- `AGXUnity_Excavator_Assets/Scripts/SimulationBridge/AgxSimStepAckServer.cs`
-- `tools/roi_dataset_tool.py`
-- `tools/roi_eval.py`
-- `tools/roi_train.py`
-- `tools/roi_overlay_runtime.py`
-- `tools/roi_runtime_config.yaml`
-- `tools/run_roi_overlay_runtime.ps1`
-- `_model_archive/roi_smoke_detector.onnx`
+- `AGXUnity_Excavator_Assets/Scripts/ROIEnc/Detection/OnnxRoiDetector.cs`
+- `AGXUnity_Excavator_Assets/Scripts/ROIEnc/Detection/Backend/NativeTensorRtDetectorBackend.cs`
+- `AGXUnity_Excavator_Assets/Scripts/ROIEnc/Auxiliary/RuleRoiProvider.cs`
+- `AGXUnity_Excavator_Assets/Scripts/ROIEnc/Fusion/RoiFusionPipeline.cs`
+- `AGXUnity_Excavator_Assets/Scripts/ROIEnc/Debug/RoiOverlayVisualizer.cs`
+- `AGXUnity_Excavator_Assets/Scripts/ROIEnc/Debug/RoiInfoWindow.cs`
+- `NativePlugins/TrtRoiBackend/src/trt_roi_api.cpp`
+- `NativePlugins/TrtRoiBackend/src/trt_roi_engine.cpp`
 
-## Unity Modes
+## Runtime Acceptance
 
-- `Disabled`
-  - ROI helpers stay idle.
-- `TrainingExport`
-  - waits for `StepReq`
-  - captures `rgb24`
-  - writes `jpg + txt` YOLO samples into `ROI_Dataset`
-  - writes `episode_XXXX_manifest.json` at episode end so the Python ingest tool can seal an HDF5 episode
-- `ExternalOverlayRuntime`
-  - keeps Unity on raw frame export only
-  - auto-launches the external sidecar by default
-  - shows runtime status through `RoiOverlayVisualizer`
-- `ManualExport`
-  - keeps the existing dataset capture workflow
+The runtime is considered healthy when:
 
-## External Sidecar Contract
-
-`tools/roi_overlay_runtime.py` expects:
-
-- `STEP_RESP.image_format = "raw_rgb"`
-- `image_payload = width * height * 3`
-- top-to-bottom row order
-- RGB channel order
-
-The ONNX output contract stays compatible with the previous C# parser:
-
-- explicit detections: repeated `[x1, y1, x2, y2, score, class]`
-- or YOLO-style candidate tensors
-
-The parser in the sidecar mirrors the heuristics that previously lived in `OnnxRoiDetector`.
-
-## Model Placement
-
-Runtime models should live outside `Assets/` now.
-
-Default smoke-test model:
-
-- `_model_archive/roi_smoke_detector.onnx`
-
-That avoids Unity trying to import `.onnx` assets after the Barracuda package was removed.
-
-## Smoke Test
-
-Use either:
-
-- Unity component context menu: `InferenceBackendSmokeRunner -> Run External ROI Self Test`
-- shell: `tools/run_roi_overlay_runtime.ps1 -SelfTest`
-
-The self-test writes:
-
-- `ExperimentLogs/roi_overlay_runtime/roi_overlay_runtime_selftest.h264`
-- `ExperimentLogs/roi_overlay_runtime/roi_overlay_runtime_selftest.csv`
-
-## One-Click Runtime Test
-
-1. Open `AGXUnity_Excavator.unity`.
-2. Ensure `RoiDetectRig -> RoiDetectionPipeline` is in `ExternalOverlayRuntime`.
-3. Press Play.
-
-By default the sidecar starts automatically and writes:
-
-- `ExperimentLogs/roi_overlay_runtime/roi_overlay_runtime.h264`
-- `ExperimentLogs/roi_overlay_runtime/roi_overlay_runtime.csv`
-
-The preview window can be closed with `Esc` or `q`.
-
-## Current Limitations
-
-- Unity no longer renders ROI boxes into the game view; overlay lives in the external preview/output stream.
-- The shipped smoke model is only for pipeline validation; replace `_model_archive/roi_smoke_detector.onnx` with the trained detector when ready.
-- Auxiliary kinematic fallback is still present in C# helpers, but it is not wired into the external sidecar yet.
-- The raw `ROI_Dataset/` directory is only the collection staging area; long-term dataset management now belongs to `ROI_HDF5/` plus the new Python pipeline tools.
+- `ROI count` is near the visible object count
+- `Unknown = 0`
+- `dig_area` appears as `Rule`, not as visual detection
+- native stats show `raw >> final`
+- `infer_ms` is stable on the native TensorRT path

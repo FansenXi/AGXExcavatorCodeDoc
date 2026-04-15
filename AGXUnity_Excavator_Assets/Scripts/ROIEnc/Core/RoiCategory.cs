@@ -20,7 +20,8 @@ namespace AGXUnity_Excavator.Scripts.ROIEnc.Core
     SceneGraphLabel = 2,
     KinematicFallback = 3,
     MotionEstimator = 4,
-    Fusion = 5
+    Fusion = 5,
+    RuleRoi = 6
   }
 
   public enum RoiDetectionExperimentGroup
