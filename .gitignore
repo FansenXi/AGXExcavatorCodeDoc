@@ -27,3 +27,4 @@ __pycache__/
 .env.test
 *.dll
 *.pt
+v2_plan.md
