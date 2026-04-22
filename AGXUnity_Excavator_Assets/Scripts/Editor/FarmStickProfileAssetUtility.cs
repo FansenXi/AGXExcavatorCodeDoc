@@ -9,19 +9,22 @@ namespace AGXUnity_Excavator.Scripts.Editor
 {
   public static class FarmStickProfileAssetUtility
   {
-    [MenuItem( "Tools/AGX Excavator/Create FarmStick Default Profiles" )]
+    [MenuItem( "Tools/AGX Excavator/Create Or Refresh FarmStick Default Profiles" )]
     public static void CreateDefaultProfiles()
     {
       var targetDirectory = GetTargetDirectory();
       EnsureDirectoryExists( targetDirectory );
 
       var rightProfile = CreateOrUpdateProfileAsset( targetDirectory, "FarmStick_Excavator_Right_Default.asset", FarmStickHandedness.Right );
-      CreateOrUpdateProfileAsset( targetDirectory, "FarmStick_Excavator_Left_Default.asset", FarmStickHandedness.Left );
+      var leftProfile = CreateOrUpdateProfileAsset( targetDirectory, "FarmStick_Excavator_Left_Default.asset", FarmStickHandedness.Left );
 
       AssetDatabase.SaveAssets();
       AssetDatabase.Refresh();
       EditorUtility.FocusProjectWindow();
       Selection.activeObject = rightProfile;
+      Debug.Log(
+        $"FarmStick default profiles refreshed: right='{AssetDatabase.GetAssetPath( rightProfile )}', left='{AssetDatabase.GetAssetPath( leftProfile )}'.",
+        rightProfile );
     }
 
     private static FarmStickControlProfile CreateOrUpdateProfileAsset( string targetDirectory,
@@ -38,6 +41,7 @@ namespace AGXUnity_Excavator.Scripts.Editor
         profile = ScriptableObject.CreateInstance<FarmStickControlProfile>();
         profile.ApplyDefaultExcavatorLayout( handedness );
         AssetDatabase.CreateAsset( profile, assetPath );
+        EditorUtility.SetDirty( profile );
       }
       else {
         profile.ApplyDefaultExcavatorLayout( handedness );

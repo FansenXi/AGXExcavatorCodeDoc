@@ -38,9 +38,11 @@ namespace AGXUnity_Excavator.Scripts.Editor
 
       EditorGUILayout.Space();
       EditorGUILayout.LabelField( "Joystick Sensitivity", EditorStyles.boldLabel );
-      EditorGUILayout.HelpBox( "Usage labels follow the default ISO excavator mapping.", MessageType.None );
-      DrawSensitivitySlider( m_leftStickXSensitivity, "Swing Sensitivity" );
-      DrawSensitivitySlider( m_leftStickYSensitivity, "Stick Sensitivity" );
+      EditorGUILayout.HelpBox(
+        "Usage labels follow the current Chinese excavator FarmStick mapping: left X = stick (inverted), left Y = swing (inverted), right X = bucket (inverted), right Y = boom.",
+        MessageType.None );
+      DrawSensitivitySlider( m_leftStickXSensitivity, "Stick Sensitivity (Left X, Inverted)" );
+      DrawSensitivitySlider( m_leftStickYSensitivity, "Swing Sensitivity (Left Y, Inverted)" );
       DrawSensitivitySlider( m_rightStickXSensitivity, "Bucket Sensitivity" );
       DrawSensitivitySlider( m_rightStickYSensitivity, "Boom Sensitivity" );
 
