@@ -318,11 +318,13 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
         "Template profile for Thrustmaster SimTask FarmStick.\n" +
         "Official hardware mapping exposes 33 buttons and 8 axes: Axis 1/2 main stick, Axis 3 twist, Axis 4/5 mini-stick, Axis 6/7/8 thumb controls.\n" +
         "This Linux default profile uses the control names currently reported by Unity Input System: Stick/x, Stick/y, RotateX, RotateY, Throttle and Rudder.\n" +
+        "Current excavator routing is aligned to the real machine: the swing/stick side uses an inverted Y for swing and an inverted X for stick, while the boom/bucket side uses Y for boom and an inverted X for bucket.\n" +
+        "In dual-FarmStick mode that means left main Y->Swing (inverted), left main X->Stick (inverted), right main Y->Boom, right main X->Bucket (inverted).\n" +
         "If your platform reports different control names, use the diagnostics menu to inspect the live controls and retarget the bindings.\n" +
         "The default excavator travel mapping uses the two rocker axes in Work mode: Axis 7 (Throttle) for Drive and Axis 8 (Rudder) for Steer.\n" +
         "Switch the FarmStick to Work mode if you want analog rocker axes; in Drive mode those controls become buttons 27-30 and Linux may not expose them individually.\n" +
         "The FarmStick MODE button is official button 31. On Linux it may appear as an Unknown button or may not be exposed; this profile defaults the software stick-mode switch to Unknown so you can test that path quickly.\n" +
-        "When the stick-mode switch is active, the main stick and mini-stick roles are swapped so the main stick can drive boom/bucket instead of swing/stick.\n" +
+        "When the stick-mode switch is active in single-device mode, the main stick and mini-stick roles are swapped while preserving that same Y/X excavator mapping.\n" +
         $"Reset Episode defaults to '{DefaultResetEpisodeButtonPath}', which is intended to be a spare base button on the generic joystick layout. If your platform reports different button names, use the diagnostics menu to inspect the live controls and retarget the reset binding.\n" +
         "Start/stop episode buttons stay disabled by default because Unity's Linux joystick layout does not expose the FarmStick's official button 19-33 numbering consistently across machines.\n" +
         "Run Thrustmaster hardware calibration first; use this profile only for residual deadzone, inversion and range tuning.";

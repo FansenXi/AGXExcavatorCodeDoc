@@ -155,10 +155,11 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       var summaryBuilder = new StringBuilder( 512 );
       var command = OperatorCommand.Zero;
 
-      command.LeftStickX = ReadAxisBinding( leftBindings.LeftStickX, ref m_lastRawInputSnapshot.LeftStickX, summaryBuilder, "Left" );
-      command.LeftStickY = ReadAxisBinding( leftBindings.LeftStickY, ref m_lastRawInputSnapshot.LeftStickY, summaryBuilder, "Left" );
-      command.RightStickX = ReadAxisBinding( rightBindings.LeftStickX, ref m_lastRawInputSnapshot.RightStickX, summaryBuilder, "Right" );
-      command.RightStickY = ReadAxisBinding( rightBindings.LeftStickY, ref m_lastRawInputSnapshot.RightStickY, summaryBuilder, "Right" );
+      var leftMainX = ReadAxisBinding( leftBindings.LeftStickX, ref m_lastRawInputSnapshot.LeftStickX, summaryBuilder, "Left" );
+      var leftMainY = ReadAxisBinding( leftBindings.LeftStickY, ref m_lastRawInputSnapshot.LeftStickY, summaryBuilder, "Left" );
+      var rightMainX = ReadAxisBinding( rightBindings.LeftStickX, ref m_lastRawInputSnapshot.RightStickX, summaryBuilder, "Right" );
+      var rightMainY = ReadAxisBinding( rightBindings.LeftStickY, ref m_lastRawInputSnapshot.RightStickY, summaryBuilder, "Right" );
+      AssignExcavatorJoystickMapping( leftMainX, leftMainY, rightMainX, rightMainY, ref command );
 
       var leftTrackSnapshot = 0.0f;
       var rightTrackSnapshot = 0.0f;
@@ -1020,26 +1021,36 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
                                     ref OperatorCommand command )
     {
       if ( m_stickModeSwapActive ) {
-        command.LeftStickX = miniStickX;
-        command.LeftStickY = miniStickY;
-        command.RightStickX = mainStickX;
-        command.RightStickY = mainStickY;
+        AssignExcavatorJoystickMapping( miniStickX, miniStickY, mainStickX, mainStickY, ref command );
       }
       else {
-        command.LeftStickX = mainStickX;
-        command.LeftStickY = mainStickY;
-        command.RightStickX = miniStickX;
-        command.RightStickY = miniStickY;
+        AssignExcavatorJoystickMapping( mainStickX, mainStickY, miniStickX, miniStickY, ref command );
       }
+    }
+
+    private static void AssignExcavatorJoystickMapping( float swingStickX,
+                                                        float swingStickY,
+                                                        float boomBucketStickX,
+                                                        float boomBucketStickY,
+                                                        ref OperatorCommand command )
+    {
+      // Real excavator-aligned FarmStick layout:
+      // Y on the swing/stick side drives swing, X drives stick.
+      // Swing and stick are both inverted here to match the current real machine.
+      // Y on the boom/bucket side drives boom, X drives bucket with inverted direction.
+      command.LeftStickX = -swingStickY;
+      command.LeftStickY = -swingStickX;
+      command.RightStickX = -boomBucketStickX;
+      command.RightStickY = boomBucketStickY;
     }
 
     private string BuildBindingStatus( string status )
     {
       var modeLabel = IsDualStickConfigured ?
-                      m_usedStableDualDeviceAssignmentFallback ? "Dual Main Sticks + Track Levers (stable device order)" :
-                                                                  "Dual Main Sticks + Track Levers" :
-                      m_stickModeSwapActive ? "Main->Boom/Bucket" :
-                                              "Main->Swing/Stick";
+                      m_usedStableDualDeviceAssignmentFallback ? "Dual Main Sticks + Track Levers (stable device order, Left Y->Swing[inverted]/X->Stick[inverted]; Right Y->Boom/X->Bucket[inverted])" :
+                                                                  "Dual Main Sticks + Track Levers (Left Y->Swing[inverted]/X->Stick[inverted]; Right Y->Boom/X->Bucket[inverted])" :
+                      m_stickModeSwapActive ? "Main(Y->Boom/X->Bucket[inverted]), Mini(Y->Swing[inverted]/X->Stick[inverted])" :
+                                              "Main(Y->Swing[inverted]/X->Stick[inverted]), Mini(Y->Boom/X->Bucket[inverted])";
       return string.IsNullOrWhiteSpace( status ) ? modeLabel : $"{status} | {modeLabel}";
     }
 
@@ -1047,7 +1058,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
     {
       AppendSummaryPrefix( builder );
       if ( IsDualStickConfigured ) {
-        builder.Append( "Routing=Left main->Swing/Stick, Right main->Boom/Bucket, Left/Right drive levers->tracks" );
+        builder.Append( "Routing=Left main(Y->Swing[inverted]/X->Stick[inverted]), Right main(Y->Boom/X->Bucket[inverted]), Left/Right drive levers->tracks" );
         if ( m_usedStableDualDeviceAssignmentFallback ) {
           builder.Append( " (stable device order" );
           if ( m_swapDualStickAssignments )
@@ -1059,7 +1070,9 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       }
 
       builder.Append( "Stick Mode=" );
-      builder.Append( m_stickModeSwapActive ? "Main->Boom/Bucket" : "Main->Swing/Stick" );
+      builder.Append( m_stickModeSwapActive ?
+                      "Main(Y->Boom/X->Bucket[inverted]), Mini(Y->Swing[inverted]/X->Stick[inverted])" :
+                      "Main(Y->Swing[inverted]/X->Stick[inverted]), Mini(Y->Boom/X->Bucket[inverted])" );
     }
 
     private static string CombineDualBindingStatus( string deviceStatus, string leftStatus, string rightStatus )
