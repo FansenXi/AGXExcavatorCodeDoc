@@ -1,0 +1,35 @@
+diff --git a/Assets/AGXUnity/AGXUnity/Model/DeformableTerrain.cs b/Assets/AGXUnity/AGXUnity/Model/DeformableTerrain.cs
+--- a/Assets/AGXUnity/AGXUnity/Model/DeformableTerrain.cs
++++ b/Assets/AGXUnity/AGXUnity/Model/DeformableTerrain.cs
+@@ -68,6 +68,31 @@ namespace AGXUnity.Model
+       PropertySynchronizer.Synchronize( this );
+     }
+ 
++    /// <summary>
++    /// Restores the initial Unity terrain data and recreates the native terrain
++    /// instance so any dynamic soil mass/particles are cleared as part of reset.
++    /// </summary>
++    public void ResetHeightsAndRecreateNative()
++    {
++      if ( TerrainProperties != null )
++        TerrainProperties.Unregister( this );
++
++      if ( Simulation.HasInstance && Native != null )
++        GetSimulation()?.remove( Native );
++
++      Native = null;
++
++      ResetTerrainDataHeightsAndTransform();
++      InitializeNative();
++
++      PropertySynchronizer.Synchronize( this );
++      SetEnable( isActiveAndEnabled );
++
++      // Terrain-dependent renderers/material overlays subscribe to terrain
++      // modification callbacks, so force a full refresh after the native reset.
++      TriggerModifyAllCells();
++    }
++
+     /// <summary>
+     /// If, e.g., OnDestroy wasn't called to reset the heights of the
+     /// terrain this method can recover some data of the previous terrain

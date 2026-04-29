@@ -48,6 +48,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 5e4be7d5-91a8-a366-e667-1dc0773b75af
 --- !u!114 &529722453490557611
 MonoBehaviour:
@@ -61,6 +62,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e01f271d05be96f44852cb49dfac5711, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   <MassProperties>k__BackingField:
     <RigidBody>k__BackingField: {fileID: 529722453490557611}
     m_mass:
@@ -135,6 +137,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: f14abe20-d81e-2384-0fb0-d7e75a20a5ae
 --- !u!114 &2649065962098238606
 MonoBehaviour:
@@ -148,6 +151,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e01f271d05be96f44852cb49dfac5711, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   <MassProperties>k__BackingField:
     <RigidBody>k__BackingField: {fileID: 2649065962098238606}
     m_mass:
@@ -271,6 +275,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a39fce5ca1a43ed488bf0d4d38bbabea, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_shape: {fileID: 6952183590146311303}
 --- !u!114 &7353794650581360751
 MonoBehaviour:
@@ -284,6 +289,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f51c5940a8ebcfc4997616eb2929ad13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_component: {fileID: 6952183590146311303}
 --- !u!1 &208188854229956375
 GameObject:
@@ -331,6 +337,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: c94e81b0-5a6c-14ed-866d-6c2fd6948d9b
 --- !u!114 &6082458381860935249
 MonoBehaviour:
@@ -344,11 +351,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6a9ab00a2b035f9478e3faf9f46c0b2a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 1
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: -3839855690064508710, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: -3839855690064508710, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_halfExtents: {x: 0.29132694, y: 0.05208, z: 0.7466215}
 --- !u!114 &245348914945664880
 MonoBehaviour:
@@ -362,6 +369,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -415,6 +423,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7bdef33d0498fdc419f450dba40fdc9d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_tireRigidBody: {fileID: 7384774256426227237}
   m_tireRadius: 0.5174882
   m_rimRigidBody: {fileID: 529722453490557611}
@@ -469,6 +478,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: c2456ee9-9668-a97e-e775-a7f14b7aa79f
 --- !u!114 &3871933556005931961
 MonoBehaviour:
@@ -482,6 +492,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e01f271d05be96f44852cb49dfac5711, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   <MassProperties>k__BackingField:
     <RigidBody>k__BackingField: {fileID: 3871933556005931961}
     m_mass:
@@ -555,6 +566,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f51c5940a8ebcfc4997616eb2929ad13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_component: {fileID: 7334898972661231130}
 --- !u!114 &2030428454382413168
 MonoBehaviour:
@@ -568,6 +580,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ae391dd7479f7994cbb3267af606ce65, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_shape: {fileID: 7334898972661231130}
 --- !u!33 &2512818948980826613
 MeshFilter:
@@ -666,6 +679,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 41433139-d399-23fc-b9b6-e84cf6af52ae
 --- !u!114 &1172336319022634729
 MonoBehaviour:
@@ -679,6 +693,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e01f271d05be96f44852cb49dfac5711, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   <MassProperties>k__BackingField:
     <RigidBody>k__BackingField: {fileID: 1172336319022634729}
     m_mass:
@@ -751,6 +766,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 53427295-f7e7-3791-214b-5d89cc0f2c81
 --- !u!114 &1100645496727832345
 MonoBehaviour:
@@ -764,11 +780,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6a9ab00a2b035f9478e3faf9f46c0b2a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 1
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: -3839855690064508710, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: -3839855690064508710, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_halfExtents: {x: 0.75839335, y: 0.0349, z: 2.2643464}
 --- !u!114 &5051236491055632646
 MonoBehaviour:
@@ -782,6 +798,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -830,6 +847,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b9b4d0f676963d549beea62f91bc1976, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_attachmentPairComponent:
     m_referenceFrame:
       m_parent: {fileID: 7421688849481132222}
@@ -1023,6 +1041,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b9b4d0f676963d549beea62f91bc1976, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_attachmentPairComponent:
     m_referenceFrame:
       m_parent: {fileID: 5499112879226952821}
@@ -1313,6 +1332,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f51c5940a8ebcfc4997616eb2929ad13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_component: {fileID: 8109459787942094991}
 --- !u!114 &4645201649051994892
 MonoBehaviour:
@@ -1326,6 +1346,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ae391dd7479f7994cbb3267af606ce65, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_shape: {fileID: 8109459787942094991}
 --- !u!33 &2704165032685638905
 MeshFilter:
@@ -1424,6 +1445,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f51c5940a8ebcfc4997616eb2929ad13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_component: {fileID: 8610783211453975904}
 --- !u!114 &7594661457780658369
 MonoBehaviour:
@@ -1437,6 +1459,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ae391dd7479f7994cbb3267af606ce65, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_shape: {fileID: 8610783211453975904}
 --- !u!33 &1829097346570196236
 MeshFilter:
@@ -1535,6 +1558,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 72410787-10b8-2434-168b-97550e26f89f
 --- !u!114 &3702130889180495245
 MonoBehaviour:
@@ -1548,11 +1572,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85e5dfc463eef1d499cfc0f62bd45311, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 0
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_legacySourceObject: {fileID: 0}
   m_sourceObjects:
   - {fileID: 8226833497452930314, guid: 01f274bb7b5cd8048bfa8b867e80a37d, type: 2}
@@ -1577,6 +1601,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -1628,6 +1653,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f51c5940a8ebcfc4997616eb2929ad13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_component: {fileID: 834732193265233252}
 --- !u!114 &7571862709007018991
 MonoBehaviour:
@@ -1641,6 +1667,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ae391dd7479f7994cbb3267af606ce65, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_shape: {fileID: 834732193265233252}
 --- !u!33 &698968417896218214
 MeshFilter:
@@ -1739,6 +1766,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f51c5940a8ebcfc4997616eb2929ad13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_component: {fileID: 9057463767012747854}
 --- !u!114 &1055618709156072893
 MonoBehaviour:
@@ -1752,6 +1780,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ae391dd7479f7994cbb3267af606ce65, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_shape: {fileID: 9057463767012747854}
 --- !u!33 &8240817074639545864
 MeshFilter:
@@ -1850,6 +1879,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f51c5940a8ebcfc4997616eb2929ad13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_component: {fileID: 3702130889180495245}
 --- !u!114 &2407555152332339449
 MonoBehaviour:
@@ -1863,6 +1893,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ae391dd7479f7994cbb3267af606ce65, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_shape: {fileID: 3702130889180495245}
 --- !u!33 &427970431764035582
 MeshFilter:
@@ -1961,6 +1992,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: c945dcb7-dad0-3450-b791-4e1dbc66ecae
 --- !u!114 &3248999641861523327
 MonoBehaviour:
@@ -1974,11 +2006,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9aae0ffb0ed1bdd4ebf40b6a09a3f861, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 0
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_radius: 0.14
   m_height: 0.08415508
 --- !u!114 &7340347809079110379
@@ -1993,6 +2025,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -2044,6 +2077,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f51c5940a8ebcfc4997616eb2929ad13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_component: {fileID: 1101577020600748467}
 --- !u!114 &5996733161180790398
 MonoBehaviour:
@@ -2057,6 +2091,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ae391dd7479f7994cbb3267af606ce65, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_shape: {fileID: 1101577020600748467}
 --- !u!33 &2444894421530025170
 MeshFilter:
@@ -2157,6 +2192,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7bdef33d0498fdc419f450dba40fdc9d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_tireRigidBody: {fileID: 6419643354615118129}
   m_tireRadius: 0.5174882
   m_rimRigidBody: {fileID: 5290168612120868505}
@@ -2210,6 +2246,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 6547bf83-e2b5-735e-5f56-eec96035c9ac
 --- !u!114 &7874467273145905567
 MonoBehaviour:
@@ -2223,11 +2260,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85e5dfc463eef1d499cfc0f62bd45311, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 0
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_legacySourceObject: {fileID: 0}
   m_sourceObjects:
   - {fileID: 3589739834082567989, guid: 01f274bb7b5cd8048bfa8b867e80a37d, type: 2}
@@ -2252,6 +2289,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -2301,6 +2339,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 5d46a4d4-0030-f37f-2e13-618a8aca9d89
 --- !u!114 &6346467266614579452
 MonoBehaviour:
@@ -2314,6 +2353,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b9b4d0f676963d549beea62f91bc1976, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_attachmentPairComponent:
     m_referenceFrame:
       m_parent: {fileID: 357477911131853948}
@@ -2322,8 +2362,7 @@ MonoBehaviour:
     m_connectedFrame:
       m_parent: {fileID: 7421688849481132222}
       m_localPosition: {x: 0, y: 0.0000033974648, z: 0.065729156}
-      m_localRotation: {x: 0.00000003051511, y: 0.00000000262798, z: 0.0000000023092555,
-        w: 1}
+      m_localRotation: {x: 0.00000003051511, y: 0.00000000262798, z: 0.0000000023092555, w: 1}
     m_synchronized: 0
   m_type: 0
   m_collisionsState: 0
@@ -2502,6 +2541,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 634113ec-8b7d-60eb-174a-c00dfa01b79a
 --- !u!114 &2337908998258472420
 MonoBehaviour:
@@ -2515,6 +2555,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b9b4d0f676963d549beea62f91bc1976, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_attachmentPairComponent:
     m_referenceFrame:
       m_parent: {fileID: 5972620339051722827}
@@ -2703,6 +2744,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: d747f0f7-b379-6b19-95bb-d0fc847b0a87
 --- !u!114 &802684352202679300
 MonoBehaviour:
@@ -2716,11 +2758,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6a9ab00a2b035f9478e3faf9f46c0b2a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 1
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_halfExtents: {x: 1.188, y: 0.900075, z: 0.94656}
 --- !u!114 &8977060200691045101
 MonoBehaviour:
@@ -2734,6 +2776,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -2784,6 +2827,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 0745a38b-6e40-8a81-ee2a-62dff5c6d995
 --- !u!114 &3564704172613733743
 MonoBehaviour:
@@ -2797,11 +2841,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6a9ab00a2b035f9478e3faf9f46c0b2a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 1
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: -3839855690064508710, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: -3839855690064508710, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_halfExtents: {x: 1.275, y: 0.04165, z: 0.75}
 --- !u!114 &559880196968463630
 MonoBehaviour:
@@ -2815,6 +2859,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -2865,6 +2910,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 794f254d-4b5a-19e2-1b42-06827bb85d93
 --- !u!114 &2070793262756999369
 MonoBehaviour:
@@ -2878,6 +2924,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9aae0ffb0ed1bdd4ebf40b6a09a3f861, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 1
   m_isSensor: 0
   m_enableMassProperties: 1
@@ -2896,6 +2943,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -2947,6 +2995,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 6d443d66-b6d2-3711-1d31-9c998948caa3
 --- !u!114 &3584180517013766670
 MonoBehaviour:
@@ -2960,11 +3009,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85e5dfc463eef1d499cfc0f62bd45311, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 0
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_legacySourceObject: {fileID: 0}
   m_sourceObjects:
   - {fileID: -5928944199771188375, guid: 01f274bb7b5cd8048bfa8b867e80a37d, type: 2}
@@ -2989,6 +3038,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -3040,6 +3090,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f51c5940a8ebcfc4997616eb2929ad13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_component: {fileID: 3248999641861523327}
 --- !u!114 &9082046600570162595
 MonoBehaviour:
@@ -3053,6 +3104,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ae391dd7479f7994cbb3267af606ce65, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_shape: {fileID: 3248999641861523327}
 --- !u!33 &3579802447728879620
 MeshFilter:
@@ -3149,6 +3201,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 3a4d3c91-e1b8-9fea-01d1-0e95767a789a
 --- !u!114 &3792147729197550956
 MonoBehaviour:
@@ -3162,6 +3215,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b9b4d0f676963d549beea62f91bc1976, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_attachmentPairComponent:
     m_referenceFrame:
       m_parent: {fileID: 74903477686802629}
@@ -3170,8 +3224,7 @@ MonoBehaviour:
     m_connectedFrame:
       m_parent: {fileID: 8943620567877802450}
       m_localPosition: {x: -0.0000014305115, y: -0.0000021457672, z: -0.06572677}
-      m_localRotation: {x: 0.00000003051511, y: 0.00000000262798, z: 0.0000000023092555,
-        w: 1}
+      m_localRotation: {x: 0.00000003051511, y: 0.00000000262798, z: 0.0000000023092555, w: 1}
     m_synchronized: 0
   m_type: 0
   m_collisionsState: 0
@@ -3352,6 +3405,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: ed481843-f86c-7a67-f305-93c76160fd9f
 --- !u!114 &1486526530090200514
 MonoBehaviour:
@@ -3365,11 +3419,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85e5dfc463eef1d499cfc0f62bd45311, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 0
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_legacySourceObject: {fileID: 0}
   m_sourceObjects:
   - {fileID: 6844430369593430273, guid: 01f274bb7b5cd8048bfa8b867e80a37d, type: 2}
@@ -3394,6 +3448,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -3445,6 +3500,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 594951c1-3bcd-6fad-532c-04fb30883fa3
 --- !u!114 &9163745754951185910
 MonoBehaviour:
@@ -3458,6 +3514,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e01f271d05be96f44852cb49dfac5711, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   <MassProperties>k__BackingField:
     <RigidBody>k__BackingField: {fileID: 9163745754951185910}
     m_mass:
@@ -3528,6 +3585,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e01f271d05be96f44852cb49dfac5711, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   <MassProperties>k__BackingField:
     <RigidBody>k__BackingField: {fileID: 2103034046484443535}
     m_mass:
@@ -3601,6 +3659,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 7c40cfbe-87d9-4854-c9ba-9df69a5ab788
 --- !u!114 &1101577020600748467
 MonoBehaviour:
@@ -3614,11 +3673,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85e5dfc463eef1d499cfc0f62bd45311, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 0
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_legacySourceObject: {fileID: 0}
   m_sourceObjects:
   - {fileID: 2465791069195967927, guid: 01f274bb7b5cd8048bfa8b867e80a37d, type: 2}
@@ -3643,6 +3702,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -3691,6 +3751,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b9b4d0f676963d549beea62f91bc1976, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_attachmentPairComponent:
     m_referenceFrame:
       m_parent: {fileID: 6039764747909799937}
@@ -3982,6 +4043,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 694c31d2-0414-f5d7-9062-f457d1c8f7a9
 --- !u!114 &6096190683488664603
 MonoBehaviour:
@@ -3995,6 +4057,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e01f271d05be96f44852cb49dfac5711, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   <MassProperties>k__BackingField:
     <RigidBody>k__BackingField: {fileID: 6096190683488664603}
     m_mass:
@@ -4068,6 +4131,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f51c5940a8ebcfc4997616eb2929ad13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_component: {fileID: 5206339630571963005}
 --- !u!114 &3548872280024665372
 MonoBehaviour:
@@ -4081,6 +4145,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ae391dd7479f7994cbb3267af606ce65, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_shape: {fileID: 5206339630571963005}
 --- !u!33 &5791577519494332940
 MeshFilter:
@@ -4179,6 +4244,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f51c5940a8ebcfc4997616eb2929ad13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_component: {fileID: 9149806370023466738}
 --- !u!114 &978120836524476852
 MonoBehaviour:
@@ -4192,6 +4258,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ae391dd7479f7994cbb3267af606ce65, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_shape: {fileID: 9149806370023466738}
 --- !u!33 &9144471662373610942
 MeshFilter:
@@ -4290,6 +4357,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f51c5940a8ebcfc4997616eb2929ad13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_component: {fileID: 1292842933154396904}
 --- !u!114 &475494492528648471
 MonoBehaviour:
@@ -4303,6 +4371,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ae391dd7479f7994cbb3267af606ce65, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_shape: {fileID: 1292842933154396904}
 --- !u!33 &7322650360228351147
 MeshFilter:
@@ -4401,6 +4470,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: d7416571-914a-0d53-6202-bea44a031790
 --- !u!114 &6866520763717946934
 MonoBehaviour:
@@ -4414,6 +4484,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e01f271d05be96f44852cb49dfac5711, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   <MassProperties>k__BackingField:
     <RigidBody>k__BackingField: {fileID: 6866520763717946934}
     m_mass:
@@ -4485,6 +4556,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 3a4754ec-0a82-d3ac-949a-28e3e1680ea2
 --- !u!114 &9001405959613333395
 MonoBehaviour:
@@ -4498,6 +4570,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b9b4d0f676963d549beea62f91bc1976, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_attachmentPairComponent:
     m_referenceFrame:
       m_parent: {fileID: 6249077155577029333}
@@ -4506,8 +4579,7 @@ MonoBehaviour:
     m_connectedFrame:
       m_parent: {fileID: 2580312916676715177}
       m_localPosition: {x: 0.0000009536743, y: 0.0000034570694, z: 0.065729156}
-      m_localRotation: {x: 0.00000003051511, y: 0.00000000262798, z: 0.0000000023092555,
-        w: 1}
+      m_localRotation: {x: 0.00000003051511, y: 0.00000000262798, z: 0.0000000023092555, w: 1}
     m_synchronized: 0
   m_type: 0
   m_collisionsState: 0
@@ -4687,6 +4759,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 21471e0a-eec0-f477-9c26-565e41777bb0
 --- !u!114 &4412612094564241579
 MonoBehaviour:
@@ -4700,11 +4773,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6a9ab00a2b035f9478e3faf9f46c0b2a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 1
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: -3839855690064508710, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: -3839855690064508710, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_halfExtents: {x: 0.29132694, y: 0.05208, z: 0.7466215}
 --- !u!114 &5909799952711504010
 MonoBehaviour:
@@ -4718,6 +4791,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -4769,6 +4843,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 3c46c718-bb4f-83d1-8de4-c22e24fcf9ab
 --- !u!114 &9149806370023466738
 MonoBehaviour:
@@ -4782,11 +4857,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85e5dfc463eef1d499cfc0f62bd45311, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 0
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_legacySourceObject: {fileID: 0}
   m_sourceObjects:
   - {fileID: 5738252860590729949, guid: 01f274bb7b5cd8048bfa8b867e80a37d, type: 2}
@@ -4811,6 +4886,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -4862,6 +4938,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 114a211d-b6d2-1da4-f1d2-6b684c4dc2af
 --- !u!114 &5577903029994164378
 MonoBehaviour:
@@ -4875,6 +4952,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e01f271d05be96f44852cb49dfac5711, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   <MassProperties>k__BackingField:
     <RigidBody>k__BackingField: {fileID: 5577903029994164378}
     m_mass:
@@ -4948,6 +5026,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f51c5940a8ebcfc4997616eb2929ad13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_component: {fileID: 889370866732374895}
 --- !u!114 &4926548273532974695
 MonoBehaviour:
@@ -4961,6 +5040,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ae391dd7479f7994cbb3267af606ce65, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_shape: {fileID: 889370866732374895}
 --- !u!33 &4610708705072383818
 MeshFilter:
@@ -5059,6 +5139,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f51c5940a8ebcfc4997616eb2929ad13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_component: {fileID: 3913346566488820765}
 --- !u!114 &8345468333934827790
 MonoBehaviour:
@@ -5072,6 +5153,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ae391dd7479f7994cbb3267af606ce65, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_shape: {fileID: 3913346566488820765}
 --- !u!33 &6779345637659662162
 MeshFilter:
@@ -5169,6 +5251,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 434a8407-1ac2-51a4-8571-3cd0df6c4180
 --- !u!114 &7286033592985510788
 MonoBehaviour:
@@ -5182,6 +5265,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9aae0ffb0ed1bdd4ebf40b6a09a3f861, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 1
   m_isSensor: 0
   m_enableMassProperties: 1
@@ -5200,6 +5284,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -5251,6 +5336,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 3f4f90d3-1356-3dcc-3fdd-250a6ee92e9a
 --- !u!114 &8610783211453975904
 MonoBehaviour:
@@ -5264,11 +5350,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85e5dfc463eef1d499cfc0f62bd45311, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 0
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_legacySourceObject: {fileID: 0}
   m_sourceObjects:
   - {fileID: 1656639049753808536, guid: 01f274bb7b5cd8048bfa8b867e80a37d, type: 2}
@@ -5293,6 +5379,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -5343,6 +5430,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 3546d86e-8218-77ca-c849-9610337c7da0
 --- !u!114 &1692018518943834662
 MonoBehaviour:
@@ -5356,6 +5444,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9aae0ffb0ed1bdd4ebf40b6a09a3f861, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 1
   m_isSensor: 0
   m_enableMassProperties: 1
@@ -5374,6 +5463,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -5425,6 +5515,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f51c5940a8ebcfc4997616eb2929ad13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_component: {fileID: 346600259185243602}
 --- !u!114 &677484639258871308
 MonoBehaviour:
@@ -5438,6 +5529,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ae391dd7479f7994cbb3267af606ce65, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_shape: {fileID: 346600259185243602}
 --- !u!33 &1213312445055704092
 MeshFilter:
@@ -5536,6 +5628,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 824b48da-11ee-3e6c-3053-29c49bf5e080
 --- !u!114 &7334898972661231130
 MonoBehaviour:
@@ -5549,11 +5642,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85e5dfc463eef1d499cfc0f62bd45311, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 0
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_legacySourceObject: {fileID: 0}
   m_sourceObjects:
   - {fileID: 3178477905477504111, guid: 01f274bb7b5cd8048bfa8b867e80a37d, type: 2}
@@ -5578,6 +5671,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -5629,6 +5723,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: c94f8098-108e-fb2e-0676-40644a6267b6
 --- !u!114 &4195631291549512313
 MonoBehaviour:
@@ -5642,11 +5737,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85e5dfc463eef1d499cfc0f62bd45311, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 0
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_legacySourceObject: {fileID: 0}
   m_sourceObjects:
   - {fileID: 6729384073529557291, guid: 01f274bb7b5cd8048bfa8b867e80a37d, type: 2}
@@ -5671,6 +5766,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -5722,6 +5818,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 73474292-0d8b-08c4-d080-1848bc810897
 --- !u!114 &324183474512521659
 MonoBehaviour:
@@ -5735,11 +5832,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85e5dfc463eef1d499cfc0f62bd45311, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 0
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_legacySourceObject: {fileID: 0}
   m_sourceObjects:
   - {fileID: -8342920333347279635, guid: 01f274bb7b5cd8048bfa8b867e80a37d, type: 2}
@@ -5764,6 +5861,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -5813,6 +5911,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: da483806-df97-a461-ef3f-c45bf765d295
 --- !u!114 &8929272096548210266
 MonoBehaviour:
@@ -5826,6 +5925,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b9b4d0f676963d549beea62f91bc1976, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_attachmentPairComponent:
     m_referenceFrame:
       m_parent: {fileID: 8079603492654892190}
@@ -6012,6 +6112,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b9b4d0f676963d549beea62f91bc1976, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_attachmentPairComponent:
     m_referenceFrame:
       m_parent: {fileID: 8943620567877802450}
@@ -6208,6 +6309,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 7a4414e2-cd12-98ff-673d-6f8b8a6c859b
 --- !u!114 &3552251389342649091
 MonoBehaviour:
@@ -6221,11 +6323,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85e5dfc463eef1d499cfc0f62bd45311, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 0
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_legacySourceObject: {fileID: 0}
   m_sourceObjects:
   - {fileID: -2212926965533332968, guid: 01f274bb7b5cd8048bfa8b867e80a37d, type: 2}
@@ -6250,6 +6352,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -6301,6 +6404,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f51c5940a8ebcfc4997616eb2929ad13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_component: {fileID: 3584180517013766670}
 --- !u!114 &8684531882532209741
 MonoBehaviour:
@@ -6314,6 +6418,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ae391dd7479f7994cbb3267af606ce65, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_shape: {fileID: 3584180517013766670}
 --- !u!33 &6761923161847961808
 MeshFilter:
@@ -6412,6 +6517,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f51c5940a8ebcfc4997616eb2929ad13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_component: {fileID: 2611328706264329687}
 --- !u!114 &546191448601198998
 MonoBehaviour:
@@ -6425,6 +6531,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ae391dd7479f7994cbb3267af606ce65, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_shape: {fileID: 2611328706264329687}
 --- !u!33 &5281665468601554107
 MeshFilter:
@@ -6523,6 +6630,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 5741db9d-78cd-2a2f-f74b-30f88544638d
 --- !u!114 &6134714761260066162
 MonoBehaviour:
@@ -6536,11 +6644,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85e5dfc463eef1d499cfc0f62bd45311, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 0
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_legacySourceObject: {fileID: 0}
   m_sourceObjects:
   - {fileID: 4209458260583829960, guid: 01f274bb7b5cd8048bfa8b867e80a37d, type: 2}
@@ -6565,6 +6673,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -6614,6 +6723,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 054b896a-eab4-0054-ca93-2bec1408e9a6
 --- !u!114 &8888103960300498422
 MonoBehaviour:
@@ -6627,6 +6737,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b9b4d0f676963d549beea62f91bc1976, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_attachmentPairComponent:
     m_referenceFrame:
       m_parent: {fileID: 3192119261491399294}
@@ -6635,8 +6746,7 @@ MonoBehaviour:
     m_connectedFrame:
       m_parent: {fileID: 6039764747909799937}
       m_localPosition: {x: -0.006015539, y: 0.0000004172325, z: -0.013322834}
-      m_localRotation: {x: 0.00000003051511, y: 0.00000000262798, z: 0.0000000023092555,
-        w: 1}
+      m_localRotation: {x: 0.00000003051511, y: 0.00000000262798, z: 0.0000000023092555, w: 1}
     m_synchronized: 0
   m_type: 0
   m_collisionsState: 0
@@ -6816,6 +6926,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: e843103c-efc2-9d74-33ea-5b224505eb9a
 --- !u!114 &6741681921259850246
 MonoBehaviour:
@@ -6829,11 +6940,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6a9ab00a2b035f9478e3faf9f46c0b2a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 1
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: -3839855690064508710, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: -3839855690064508710, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_halfExtents: {x: 0.75839335, y: 0.0349, z: 2.2643464}
 --- !u!114 &3299969516615752239
 MonoBehaviour:
@@ -6847,6 +6958,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -6898,6 +7010,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: e7415113-3e87-c824-9cd7-04f69105ecbb
 --- !u!114 &889370866732374895
 MonoBehaviour:
@@ -6911,11 +7024,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85e5dfc463eef1d499cfc0f62bd45311, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 0
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_legacySourceObject: {fileID: 0}
   m_sourceObjects:
   - {fileID: -6689177183609855998, guid: 01f274bb7b5cd8048bfa8b867e80a37d, type: 2}
@@ -6940,6 +7053,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -6989,6 +7103,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 8b42dfa8-ed5a-5c29-53c6-ac0cfdad0ba1
 --- !u!114 &1341508179493960299
 MonoBehaviour:
@@ -7002,6 +7117,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b9b4d0f676963d549beea62f91bc1976, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_attachmentPairComponent:
     m_referenceFrame:
       m_parent: {fileID: 6121748332449500413}
@@ -7190,6 +7306,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 1a40fdb9-092f-bc9f-a9a4-3dc893b9c785
 --- !u!114 &8769876268264679746
 MonoBehaviour:
@@ -7203,11 +7320,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6a9ab00a2b035f9478e3faf9f46c0b2a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 1
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: -3839855690064508710, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: -3839855690064508710, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_halfExtents: {x: 1.1967041, y: 0.060335, z: 0.6431229}
 --- !u!114 &3015969234136268778
 MonoBehaviour:
@@ -7221,6 +7338,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -7272,6 +7390,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: d840d698-ed02-73fe-e455-37b810739ab7
 --- !u!114 &1336378253732129733
 MonoBehaviour:
@@ -7285,11 +7404,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85e5dfc463eef1d499cfc0f62bd45311, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 0
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_legacySourceObject: {fileID: 0}
   m_sourceObjects:
   - {fileID: 3532674769259349722, guid: 01f274bb7b5cd8048bfa8b867e80a37d, type: 2}
@@ -7314,6 +7433,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -7414,10 +7534,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 332e36fc5e9bdf1469bb179fe69330f3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_material: {fileID: 11400000, guid: 55d4be2d84c0bcd49b65b83806a4743a, type: 2}
   m_particleMaterial: {fileID: 0}
-  m_defaultTerrainMaterial: {fileID: 11400000, guid: c5352ce109cc605489d205bd20974824,
-    type: 2}
+  m_defaultTerrainMaterial: {fileID: 11400000, guid: c5352ce109cc605489d205bd20974824, type: 2}
   m_terrainProperties: {fileID: 0}
   m_maximumDepth: 0
   m_sizeMeters: {x: 5, y: 2.5}
@@ -7469,6 +7589,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b9b4d0f676963d549beea62f91bc1976, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_attachmentPairComponent:
     m_referenceFrame:
       m_parent: {fileID: 2580312916676715177}
@@ -7664,6 +7785,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: fe48da38-870e-e9e4-a91c-12866254b09c
 --- !u!114 &8269069983209047270
 MonoBehaviour:
@@ -7677,6 +7799,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9aae0ffb0ed1bdd4ebf40b6a09a3f861, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 1
   m_isSensor: 0
   m_enableMassProperties: 1
@@ -7695,6 +7818,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -7746,6 +7870,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 874290c6-26c7-2724-0a5c-5d6c390db9a9
 --- !u!114 &2611328706264329687
 MonoBehaviour:
@@ -7759,11 +7884,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85e5dfc463eef1d499cfc0f62bd45311, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 0
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_legacySourceObject: {fileID: 0}
   m_sourceObjects:
   - {fileID: 2438987077175213189, guid: 01f274bb7b5cd8048bfa8b867e80a37d, type: 2}
@@ -7788,6 +7913,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -7836,6 +7962,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e01f271d05be96f44852cb49dfac5711, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   <MassProperties>k__BackingField:
     <RigidBody>k__BackingField: {fileID: 3209777619284356939}
     m_mass:
@@ -7909,6 +8036,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 3149dcba-52e0-7d28-baff-8d732117409d
 --- !u!114 &7384774256426227237
 MonoBehaviour:
@@ -7922,6 +8050,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e01f271d05be96f44852cb49dfac5711, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   <MassProperties>k__BackingField:
     <RigidBody>k__BackingField: {fileID: 7384774256426227237}
     m_mass:
@@ -7997,6 +8126,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7bdef33d0498fdc419f450dba40fdc9d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_tireRigidBody: {fileID: 5577903029994164378}
   m_tireRadius: 0.5174882
   m_rimRigidBody: {fileID: 3792573365571509686}
@@ -8048,6 +8178,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 4c4ef814-e2ab-b270-684e-0094ad51cdb4
 --- !u!114 &7628397542380107446
 MonoBehaviour:
@@ -8061,6 +8192,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b9b4d0f676963d549beea62f91bc1976, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_attachmentPairComponent:
     m_referenceFrame:
       m_parent: {fileID: 9133677217232970134}
@@ -8069,8 +8201,7 @@ MonoBehaviour:
     m_connectedFrame:
       m_parent: {fileID: 7007668538073865397}
       m_localPosition: {x: -0.0000019073486, y: -0.0000021457672, z: -0.06572677}
-      m_localRotation: {x: 0.00000003051511, y: 0.00000000262798, z: 0.0000000023092555,
-        w: 1}
+      m_localRotation: {x: 0.00000003051511, y: 0.00000000262798, z: 0.0000000023092555, w: 1}
     m_synchronized: 0
   m_type: 0
   m_collisionsState: 0
@@ -8251,6 +8382,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 1e4dc6e3-5c0d-a5ef-fbae-e1e76982d396
 --- !u!114 &834732193265233252
 MonoBehaviour:
@@ -8264,11 +8396,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85e5dfc463eef1d499cfc0f62bd45311, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 0
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_legacySourceObject: {fileID: 0}
   m_sourceObjects:
   - {fileID: -9044176053400015092, guid: 01f274bb7b5cd8048bfa8b867e80a37d, type: 2}
@@ -8293,6 +8425,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -8394,6 +8527,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a39fce5ca1a43ed488bf0d4d38bbabea, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_shape: {fileID: 4148153392005064487}
 --- !u!114 &167346983101984705
 MonoBehaviour:
@@ -8407,6 +8541,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f51c5940a8ebcfc4997616eb2929ad13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_component: {fileID: 4148153392005064487}
 --- !u!1 &5683371726366580577
 GameObject:
@@ -8453,6 +8588,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9aae0ffb0ed1bdd4ebf40b6a09a3f861, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 1
   m_isSensor: 0
   m_enableMassProperties: 1
@@ -8471,6 +8607,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 386ebcbdc8800e04cb2c40500a0d24b3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_storedLossyScale: {x: 1, y: 1, z: 1}
   m_topRadius: 0
   m_bottomRadius: 0
@@ -8522,6 +8659,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6a9ab00a2b035f9478e3faf9f46c0b2a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 1
   m_isSensor: 1
   m_enableMassProperties: 1
@@ -8539,6 +8677,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 07ec3f0dd050cac4b9f9ddce6c4559c0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
 --- !u!1 &5812223756014036555
 GameObject:
   m_ObjectHideFlags: 0
@@ -8585,6 +8724,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: a246b619-e15a-91e4-d925-f13808d4f8a7
 --- !u!114 &4461082326171209033
 MonoBehaviour:
@@ -8598,6 +8738,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9aae0ffb0ed1bdd4ebf40b6a09a3f861, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 1
   m_isSensor: 0
   m_enableMassProperties: 1
@@ -8616,6 +8757,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -8673,6 +8815,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: bf4c7d57-9f59-259f-6037-9376454c03a8
 --- !u!114 &268574636689057669
 MonoBehaviour:
@@ -8686,6 +8829,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e01f271d05be96f44852cb49dfac5711, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   <MassProperties>k__BackingField:
     <RigidBody>k__BackingField: {fileID: 268574636689057669}
     m_mass:
@@ -8759,6 +8903,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 3b49a555-e652-7029-636b-a864807730a2
 --- !u!114 &21563119212072512
 MonoBehaviour:
@@ -8772,11 +8917,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85e5dfc463eef1d499cfc0f62bd45311, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 0
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_legacySourceObject: {fileID: 0}
   m_sourceObjects:
   - {fileID: 3822372430523500069, guid: 01f274bb7b5cd8048bfa8b867e80a37d, type: 2}
@@ -8801,6 +8946,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -8860,6 +9006,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 8c46d489-2fea-dfd6-9285-881d44d984a7
 --- !u!114 &7745846636945489693
 MonoBehaviour:
@@ -8873,6 +9020,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e01f271d05be96f44852cb49dfac5711, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   <MassProperties>k__BackingField:
     <RigidBody>k__BackingField: {fileID: 7745846636945489693}
     m_mass:
@@ -8943,6 +9091,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e01f271d05be96f44852cb49dfac5711, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   <MassProperties>k__BackingField:
     <RigidBody>k__BackingField: {fileID: 362283496108969894}
     m_mass:
@@ -9015,6 +9164,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 0543a79d-941e-60d5-338f-64c3979c15a5
 --- !u!114 &6087372634087379087
 MonoBehaviour:
@@ -9028,6 +9178,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e01f271d05be96f44852cb49dfac5711, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   <MassProperties>k__BackingField:
     <RigidBody>k__BackingField: {fileID: 6087372634087379087}
     m_mass:
@@ -9099,6 +9250,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: d84dc8ea-16af-0476-4efc-30009a2fa984
 --- !u!114 &220405579947932303
 MonoBehaviour:
@@ -9112,6 +9264,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b9b4d0f676963d549beea62f91bc1976, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_attachmentPairComponent:
     m_referenceFrame:
       m_parent: {fileID: 8079603492654892190}
@@ -9301,6 +9454,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f51c5940a8ebcfc4997616eb2929ad13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_component: {fileID: 7874467273145905567}
 --- !u!114 &5938987483580387164
 MonoBehaviour:
@@ -9314,6 +9468,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ae391dd7479f7994cbb3267af606ce65, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_shape: {fileID: 7874467273145905567}
 --- !u!33 &6924070858823930618
 MeshFilter:
@@ -9410,6 +9565,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: f446fda4-6bf5-7746-5937-42c5ff20e285
 --- !u!114 &4180660439488142790
 MonoBehaviour:
@@ -9423,6 +9579,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b9b4d0f676963d549beea62f91bc1976, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_attachmentPairComponent:
     m_referenceFrame:
       m_parent: {fileID: 5972620339051722827}
@@ -9612,6 +9769,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 7d4ab1d5-f36a-7b0d-f956-fccab2c5449f
 --- !u!114 &3792573365571509686
 MonoBehaviour:
@@ -9625,6 +9783,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e01f271d05be96f44852cb49dfac5711, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   <MassProperties>k__BackingField:
     <RigidBody>k__BackingField: {fileID: 3792573365571509686}
     m_mass:
@@ -9713,6 +9872,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7f48b02c560f3e84199c58150312aa93, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_dataDirectoryId: cd6cae511981d5f4fb92ff0f9777e561
   m_disabledGroups:
   - First: Truck_Body Id:133191
@@ -9745,8 +9905,7 @@ MonoBehaviour:
     Second: Rear1LeftRim Id:134063
   - First: Truck_Body Id:133191
     Second: Rear1LeftRim Id:134063
-  m_solverSettings: {fileID: 827968432928716352, guid: 0d1981440e700e0459a8a77d5875cadf,
-    type: 2}
+  m_solverSettings: {fileID: 827968432928716352, guid: 0d1981440e700e0459a8a77d5875cadf, type: 2}
 --- !u!114 &3635566431186612885
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -9759,6 +9918,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 22cca06b779d144469b4d273e2499152, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   Steering: 0
   AckermanPercentage: 50
   SteeringRatio: 3
@@ -9774,8 +9934,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 547791e61bab0b743bf3b73c03b245ae, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  inputAsset: {fileID: -944628639613478452, guid: 4a1e5dc13771eb941b014e657daacd7a,
-    type: 3}
+  inputAsset: {fileID: -944628639613478452, guid: 4a1e5dc13771eb941b014e657daacd7a, type: 3}
   DumpFailureVolume: {fileID: 4202444509192080118}
   BrakeFriction: 1
 --- !u!114 &5535717662762186962
@@ -9790,6 +9949,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cf67c2f61c970ef458e57be4a6de8c74, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   LeftFrontHinge: {fileID: 3230192067018160662}
   RightFrontHinge: {fileID: 8888103960300498422}
   MaxMotorTorque: 1000
@@ -9848,6 +10008,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 7c459a49-de2e-c51e-0c3c-e81dca0b4ba5
 --- !u!114 &1292842933154396904
 MonoBehaviour:
@@ -9861,11 +10022,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85e5dfc463eef1d499cfc0f62bd45311, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 0
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_legacySourceObject: {fileID: 0}
   m_sourceObjects:
   - {fileID: -7951432499547487739, guid: 01f274bb7b5cd8048bfa8b867e80a37d, type: 2}
@@ -9890,6 +10051,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -9941,6 +10103,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f51c5940a8ebcfc4997616eb2929ad13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_component: {fileID: 7242525607375587929}
 --- !u!114 &8804418032836927863
 MonoBehaviour:
@@ -9954,6 +10117,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ae391dd7479f7994cbb3267af606ce65, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_shape: {fileID: 7242525607375587929}
 --- !u!33 &2154998690358859997
 MeshFilter:
@@ -10052,6 +10216,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f51c5940a8ebcfc4997616eb2929ad13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_component: {fileID: 5794021551503171905}
 --- !u!114 &5442773702799762217
 MonoBehaviour:
@@ -10065,6 +10230,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ae391dd7479f7994cbb3267af606ce65, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_shape: {fileID: 5794021551503171905}
 --- !u!33 &4553904161415197476
 MeshFilter:
@@ -10162,6 +10328,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 444c4a9e-ff40-2461-5d56-3d7513377ca0
 --- !u!114 &7809738749849610675
 MonoBehaviour:
@@ -10175,11 +10342,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6a9ab00a2b035f9478e3faf9f46c0b2a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 0
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: -3839855690064508710, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: -3839855690064508710, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_halfExtents: {x: 1.27092, y: 0.054035, z: 2.5}
 --- !u!114 &6443445568844675554
 MonoBehaviour:
@@ -10193,6 +10360,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -10242,6 +10410,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9aae0ffb0ed1bdd4ebf40b6a09a3f861, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 1
   m_isSensor: 0
   m_enableMassProperties: 1
@@ -10260,6 +10429,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 386ebcbdc8800e04cb2c40500a0d24b3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_storedLossyScale: {x: 1, y: 1, z: 1}
   m_topRadius: 0
   m_bottomRadius: 0
@@ -10311,6 +10481,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6a9ab00a2b035f9478e3faf9f46c0b2a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 1
   m_isSensor: 1
   m_enableMassProperties: 1
@@ -10328,6 +10499,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 07ec3f0dd050cac4b9f9ddce6c4559c0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
 --- !u!1 &6997668872328353898
 GameObject:
   m_ObjectHideFlags: 0
@@ -10375,6 +10547,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f51c5940a8ebcfc4997616eb2929ad13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_component: {fileID: 324183474512521659}
 --- !u!114 &6253408595002532307
 MonoBehaviour:
@@ -10388,6 +10561,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ae391dd7479f7994cbb3267af606ce65, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_shape: {fileID: 324183474512521659}
 --- !u!33 &2503537847217829436
 MeshFilter:
@@ -10483,6 +10657,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e01f271d05be96f44852cb49dfac5711, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   <MassProperties>k__BackingField:
     <RigidBody>k__BackingField: {fileID: 1091967324946297845}
     m_mass:
@@ -10556,6 +10731,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 244923fb-ee25-f6b2-81d9-876d4f0494a5
 --- !u!114 &145586103326932422
 MonoBehaviour:
@@ -10569,11 +10745,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85e5dfc463eef1d499cfc0f62bd45311, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 0
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_legacySourceObject: {fileID: 0}
   m_sourceObjects:
   - {fileID: -6904497021143027123, guid: 01f274bb7b5cd8048bfa8b867e80a37d, type: 2}
@@ -10598,6 +10774,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -10649,6 +10826,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f51c5940a8ebcfc4997616eb2929ad13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_component: {fileID: 145586103326932422}
 --- !u!114 &8152170811822450261
 MonoBehaviour:
@@ -10662,6 +10840,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ae391dd7479f7994cbb3267af606ce65, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_shape: {fileID: 145586103326932422}
 --- !u!33 &1899975309297682224
 MeshFilter:
@@ -10758,6 +10937,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9aae0ffb0ed1bdd4ebf40b6a09a3f861, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 1
   m_isSensor: 0
   m_enableMassProperties: 1
@@ -10776,6 +10956,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 386ebcbdc8800e04cb2c40500a0d24b3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_storedLossyScale: {x: 1, y: 1, z: 1}
   m_topRadius: 0
   m_bottomRadius: 0
@@ -10825,6 +11006,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e01f271d05be96f44852cb49dfac5711, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   <MassProperties>k__BackingField:
     <RigidBody>k__BackingField: {fileID: 111081773651373282}
     m_mass:
@@ -10895,6 +11077,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b9b4d0f676963d549beea62f91bc1976, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_attachmentPairComponent:
     m_referenceFrame:
       m_parent: {fileID: 7007668538073865397}
@@ -11089,6 +11272,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9aae0ffb0ed1bdd4ebf40b6a09a3f861, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 1
   m_isSensor: 0
   m_enableMassProperties: 1
@@ -11107,6 +11291,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 386ebcbdc8800e04cb2c40500a0d24b3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_storedLossyScale: {x: 1, y: 1, z: 1}
   m_topRadius: 0
   m_bottomRadius: 0
@@ -11161,6 +11346,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7bdef33d0498fdc419f450dba40fdc9d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_tireRigidBody: {fileID: 1172336319022634729}
   m_tireRadius: 0.5174882
   m_rimRigidBody: {fileID: 3871933556005931961}
@@ -11214,6 +11400,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f51c5940a8ebcfc4997616eb2929ad13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_component: {fileID: 4195631291549512313}
 --- !u!114 &8369759235143810574
 MonoBehaviour:
@@ -11227,6 +11414,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ae391dd7479f7994cbb3267af606ce65, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_shape: {fileID: 4195631291549512313}
 --- !u!33 &2897751055238102227
 MeshFilter:
@@ -11325,6 +11513,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 5d46b579-8d42-373a-3f64-fe49ceebae83
 --- !u!114 &5794021551503171905
 MonoBehaviour:
@@ -11338,11 +11527,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85e5dfc463eef1d499cfc0f62bd45311, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 0
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_legacySourceObject: {fileID: 0}
   m_sourceObjects:
   - {fileID: -549682067502423940, guid: 01f274bb7b5cd8048bfa8b867e80a37d, type: 2}
@@ -11367,6 +11556,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -11418,6 +11608,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: b94d737a-cf05-fbe7-d57e-9f8943b6a4ae
 --- !u!114 &5206339630571963005
 MonoBehaviour:
@@ -11431,11 +11622,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85e5dfc463eef1d499cfc0f62bd45311, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 0
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_legacySourceObject: {fileID: 0}
   m_sourceObjects:
   - {fileID: 4443118829055631201, guid: 01f274bb7b5cd8048bfa8b867e80a37d, type: 2}
@@ -11460,6 +11651,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -11509,6 +11701,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: ba4d93ad-5034-a0d6-b869-174d023c46ae
 --- !u!114 &3230192067018160662
 MonoBehaviour:
@@ -11522,6 +11715,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b9b4d0f676963d549beea62f91bc1976, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_attachmentPairComponent:
     m_referenceFrame:
       m_parent: {fileID: 3035769866049120147}
@@ -11711,6 +11905,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: c84e4f42-7d7d-a9df-6067-c0deea91d591
 --- !u!114 &6419643354615118129
 MonoBehaviour:
@@ -11724,6 +11919,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e01f271d05be96f44852cb49dfac5711, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   <MassProperties>k__BackingField:
     <RigidBody>k__BackingField: {fileID: 6419643354615118129}
     m_mass:
@@ -11797,6 +11993,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f51c5940a8ebcfc4997616eb2929ad13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_component: {fileID: 3552251389342649091}
 --- !u!114 &8462433932276543550
 MonoBehaviour:
@@ -11810,6 +12007,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ae391dd7479f7994cbb3267af606ce65, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_shape: {fileID: 3552251389342649091}
 --- !u!33 &7416524505788613366
 MeshFilter:
@@ -11908,6 +12106,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: d14eaeff-5fcf-c447-ead6-cae653d4048b
 --- !u!114 &346600259185243602
 MonoBehaviour:
@@ -11921,11 +12120,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85e5dfc463eef1d499cfc0f62bd45311, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 0
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_legacySourceObject: {fileID: 0}
   m_sourceObjects:
   - {fileID: -7638419370624491223, guid: 01f274bb7b5cd8048bfa8b867e80a37d, type: 2}
@@ -11950,6 +12149,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -12001,6 +12201,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 4b43e2ad-08a1-7296-c45d-560d2b764080
 --- !u!114 &4219185637558584212
 MonoBehaviour:
@@ -12014,6 +12215,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e01f271d05be96f44852cb49dfac5711, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   <MassProperties>k__BackingField:
     <RigidBody>k__BackingField: {fileID: 4219185637558584212}
     m_mass:
@@ -12087,6 +12289,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: ab49f813-23ce-5fc9-fff7-9a17ab0ea0ae
 --- !u!114 &9057463767012747854
 MonoBehaviour:
@@ -12100,11 +12303,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85e5dfc463eef1d499cfc0f62bd45311, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 0
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_legacySourceObject: {fileID: 0}
   m_sourceObjects:
   - {fileID: -1228260023239211234, guid: 01f274bb7b5cd8048bfa8b867e80a37d, type: 2}
@@ -12129,6 +12332,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -12182,6 +12386,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7bdef33d0498fdc419f450dba40fdc9d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_tireRigidBody: {fileID: 6866520763717946934}
   m_tireRadius: 0.5174882
   m_rimRigidBody: {fileID: 2649065962098238606}
@@ -12235,6 +12440,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f51c5940a8ebcfc4997616eb2929ad13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_component: {fileID: 21563119212072512}
 --- !u!114 &8429589623288210788
 MonoBehaviour:
@@ -12248,6 +12454,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ae391dd7479f7994cbb3267af606ce65, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_shape: {fileID: 21563119212072512}
 --- !u!33 &7232564361376923033
 MeshFilter:
@@ -12344,6 +12551,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9aae0ffb0ed1bdd4ebf40b6a09a3f861, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 1
   m_isSensor: 0
   m_enableMassProperties: 1
@@ -12362,6 +12570,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 386ebcbdc8800e04cb2c40500a0d24b3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_storedLossyScale: {x: 1, y: 1, z: 1}
   m_topRadius: 0
   m_bottomRadius: 0
@@ -12414,6 +12623,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f51c5940a8ebcfc4997616eb2929ad13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_component: {fileID: 1336378253732129733}
 --- !u!114 &5345030603034212404
 MonoBehaviour:
@@ -12427,6 +12637,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ae391dd7479f7994cbb3267af606ce65, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_shape: {fileID: 1336378253732129733}
 --- !u!33 &42406345580778948
 MeshFilter:
@@ -12522,6 +12733,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6a9ab00a2b035f9478e3faf9f46c0b2a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 1
   m_isSensor: 0
   m_enableMassProperties: 1
@@ -12574,6 +12786,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f51c5940a8ebcfc4997616eb2929ad13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_component: {fileID: 1486526530090200514}
 --- !u!114 &7947852453301716477
 MonoBehaviour:
@@ -12587,6 +12800,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ae391dd7479f7994cbb3267af606ce65, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_shape: {fileID: 1486526530090200514}
 --- !u!33 &5904661498162539655
 MeshFilter:
@@ -12685,6 +12899,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f51c5940a8ebcfc4997616eb2929ad13, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_component: {fileID: 6134714761260066162}
 --- !u!114 &7570919684229089456
 MonoBehaviour:
@@ -12698,6 +12913,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ae391dd7479f7994cbb3267af606ce65, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_shape: {fileID: 6134714761260066162}
 --- !u!33 &3719908951127791442
 MeshFilter:
@@ -12796,6 +13012,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: c74cc9d2-7734-493e-3555-c4299374369b
 --- !u!114 &7242525607375587929
 MonoBehaviour:
@@ -12809,11 +13026,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9aae0ffb0ed1bdd4ebf40b6a09a3f861, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 0
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_radius: 0.32631212
   m_height: 0.3385963
 --- !u!114 &7434740872108373741
@@ -12828,6 +13045,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -12881,6 +13099,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7bdef33d0498fdc419f450dba40fdc9d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_tireRigidBody: {fileID: 9163745754951185910}
   m_tireRadius: 0.5174882
   m_rimRigidBody: {fileID: 6096190683488664603}
@@ -12933,6 +13152,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 1e4562c3-a2f1-6c9b-1581-0d2aa0e741b2
 --- !u!114 &8439793861872666336
 MonoBehaviour:
@@ -12946,6 +13166,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9aae0ffb0ed1bdd4ebf40b6a09a3f861, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 1
   m_isSensor: 0
   m_enableMassProperties: 1
@@ -12964,6 +13185,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -13015,6 +13237,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 35410ac2-41bc-611c-16c7-b42e9bd218a9
 --- !u!114 &3913346566488820765
 MonoBehaviour:
@@ -13028,11 +13251,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85e5dfc463eef1d499cfc0f62bd45311, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 0
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_legacySourceObject: {fileID: 0}
   m_sourceObjects:
   - {fileID: 4386925126154629852, guid: 01f274bb7b5cd8048bfa8b867e80a37d, type: 2}
@@ -13057,6 +13280,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
@@ -13105,6 +13329,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e01f271d05be96f44852cb49dfac5711, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   <MassProperties>k__BackingField:
     <RigidBody>k__BackingField: {fileID: 1921396178426936728}
     m_mass:
@@ -13179,6 +13404,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: db43c48e-0902-cbb1-75de-d3f15cd49eb7
 --- !u!114 &5290168612120868505
 MonoBehaviour:
@@ -13192,6 +13418,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e01f271d05be96f44852cb49dfac5711, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   <MassProperties>k__BackingField:
     <RigidBody>k__BackingField: {fileID: 5290168612120868505}
     m_mass:
@@ -13265,6 +13492,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b109cd320b38b04c98260cb185d67ad, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_str: 4e4e3169-b9c1-9121-94a0-b80cb84becab
 --- !u!114 &8109459787942094991
 MonoBehaviour:
@@ -13278,11 +13506,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 85e5dfc463eef1d499cfc0f62bd45311, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_collisionsEnabled: 0
   m_isSensor: 0
   m_enableMassProperties: 1
-  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40,
-    type: 2}
+  m_material: {fileID: 8899170466229817207, guid: a912f94604404bc40a26502088a9af40, type: 2}
   m_legacySourceObject: {fileID: 0}
   m_sourceObjects:
   - {fileID: -8787137871845761335, guid: 01f274bb7b5cd8048bfa8b867e80a37d, type: 2}
@@ -13307,6 +13535,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02154add39258904391d0dc50e080671, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  m_serializationVersion: 1
   m_groups:
   - <PropagateToChildren>k__BackingField: 0
     <ForceContactUpdate>k__BackingField: 0
