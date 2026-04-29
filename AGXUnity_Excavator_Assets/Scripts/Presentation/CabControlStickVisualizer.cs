@@ -35,6 +35,9 @@ namespace AGXUnity_Excavator.Scripts.Presentation
       [SerializeField]
       public float VerticalAngle = 14.0f;
 
+      [SerializeField]
+      public bool SwapInputAxes = false;
+
       [NonSerialized]
       public Vector3 RestBaseLocal = Vector3.zero;
 
@@ -57,11 +60,13 @@ namespace AGXUnity_Excavator.Scripts.Presentation
     private EpisodeManager m_episodeManager = null;
 
     [SerializeField]
+    // The current machine's left lever is physically crossed relative to the logical X/Y stick axes.
     private StickBinding m_leftStick = new StickBinding
     {
       NameContains = "stickLeft",
       HorizontalAngle = 12.0f,
-      VerticalAngle = 14.0f
+      VerticalAngle = 14.0f,
+      SwapInputAxes = true
     };
 
     [SerializeField]
@@ -196,8 +201,10 @@ namespace AGXUnity_Excavator.Scripts.Presentation
       if ( !stick.Initialized || stick.Transform == null )
         return;
 
-      var mappedHorizontalAxis = -Mathf.Clamp( verticalAxis, -1.0f, 1.0f );
-      var mappedVerticalAxis = Mathf.Clamp( horizontalAxis, -1.0f, 1.0f );
+      var clampedHorizontalAxis = Mathf.Clamp( horizontalAxis, -1.0f, 1.0f );
+      var clampedVerticalAxis = Mathf.Clamp( verticalAxis, -1.0f, 1.0f );
+      var mappedHorizontalAxis = stick.SwapInputAxes ? -clampedHorizontalAxis : -clampedVerticalAxis;
+      var mappedVerticalAxis = stick.SwapInputAxes ? clampedVerticalAxis : clampedHorizontalAxis;
       var horizontalAngle = stick.HorizontalAngle * mappedHorizontalAxis * ( stick.InvertHorizontal ? -1.0f : 1.0f );
       var verticalAngle = stick.VerticalAngle * mappedVerticalAxis * ( stick.InvertVertical ? -1.0f : 1.0f );
       var localTilt = Quaternion.AngleAxis( horizontalAngle, Vector3.forward ) *
