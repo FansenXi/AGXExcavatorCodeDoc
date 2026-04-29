@@ -1,0 +1,156 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c0e7908136b0cbce0b1958732196f836, type: 3}
+  m_Name: FarmStick_Excavator_Left_Default
+  m_EditorClassIdentifier: 
+  m_displayName: FarmStick Excavator Left Default
+  m_setupNotes: 'Template profile for Thrustmaster SimTask FarmStick.
+
+    Official
+    hardware mapping exposes 33 buttons and 8 axes: Axis 1/2 main stick, Axis 3 twist,
+    Axis 4/5 mini-stick, Axis 6/7/8 thumb controls.
+
+    This Linux default
+    profile uses the control names currently reported by Unity Input System:
+    Stick/x, Stick/y, RotateX, RotateY, Throttle and Rudder.
+
+    Current
+    excavator routing is aligned to the real machine: the swing/stick side uses
+    an inverted Y for swing and an inverted X for stick, while the boom/bucket
+    side uses Y for boom and an inverted X for bucket.
+
+    In dual-FarmStick mode that means left
+    main Y->Swing (inverted), left main X->Stick (inverted), right main Y->Boom,
+    right main X->Bucket (inverted).
+
+    If your platform reports different control names,
+    use the diagnostics menu to inspect the live controls and retarget the bindings.
+
+    The default excavator travel mapping uses the two rocker axes in Work mode:
+    Axis 7 (Throttle) for Drive and Axis 8 (Rudder) for Steer.
+
+    Switch
+    the FarmStick to Work mode if you want analog rocker axes; in Drive mode
+    those controls become buttons 27-30 and Linux may not expose them individually.
+
+    The FarmStick MODE button is official button 31. On Linux it may appear
+    as an Unknown button or may not be exposed; this profile defaults the software
+    stick-mode switch to Unknown so you can test that path quickly.
+
+    When
+    the stick-mode switch is active in single-device mode, the main stick and
+    mini-stick roles are swapped while preserving that same Y/X excavator mapping.
+
+    Reset Episode defaults to ''base5'', which is intended to be a spare
+    base button on the generic joystick layout. If your platform reports different
+    button names, use the diagnostics menu to inspect the live controls and retarget
+    the reset binding.
+
+    Start/stop episode buttons stay disabled by
+    default because Unity''s Linux joystick layout does not expose the FarmStick''s
+    official button 19-33 numbering consistently across machines.
+
+    Run
+    Thrustmaster hardware calibration first; use this profile only for residual deadzone,
+    inversion and range tuning.'
+  m_manufacturerContains: Thrustmaster
+  m_productContains: SimTask FarmStick
+  m_handedness: 1
+  m_leftStickX:
+    m_displayName: Main Stick X
+    m_enabled: 1
+    m_mode: 0
+    m_controlPath: Stick/x
+    m_negativeControlPath: 
+    m_positiveControlPath: 
+    m_invert: 0
+    m_deadzone: 0.05
+    m_rawMin: -1
+    m_rawMax: 1
+    m_center: 0
+  m_leftStickY:
+    m_displayName: Main Stick Y
+    m_enabled: 1
+    m_mode: 0
+    m_controlPath: Stick/y
+    m_negativeControlPath: 
+    m_positiveControlPath: 
+    m_invert: 0
+    m_deadzone: 0.05
+    m_rawMin: -1
+    m_rawMax: 1
+    m_center: 0
+  m_rightStickX:
+    m_displayName: Mini-stick X
+    m_enabled: 1
+    m_mode: 0
+    m_controlPath: RotateX
+    m_negativeControlPath: 
+    m_positiveControlPath: 
+    m_invert: 0
+    m_deadzone: 0.05
+    m_rawMin: -1
+    m_rawMax: 1
+    m_center: 0
+  m_rightStickY:
+    m_displayName: Mini-stick Y
+    m_enabled: 1
+    m_mode: 0
+    m_controlPath: RotateY
+    m_negativeControlPath: 
+    m_positiveControlPath: 
+    m_invert: 0
+    m_deadzone: 0.05
+    m_rawMin: -1
+    m_rawMax: 1
+    m_center: 0
+  m_drive:
+    m_displayName: Drive / Left Rocker
+    m_enabled: 1
+    m_mode: 0
+    m_controlPath: Throttle
+    m_negativeControlPath: 
+    m_positiveControlPath: 
+    m_invert: 0
+    m_deadzone: 0.02
+    m_rawMin: -1
+    m_rawMax: 1
+    m_center: 0
+  m_steer:
+    m_displayName: Steer / Right Rocker
+    m_enabled: 1
+    m_mode: 0
+    m_controlPath: Rudder
+    m_negativeControlPath: 
+    m_positiveControlPath: 
+    m_invert: 0
+    m_deadzone: 0.02
+    m_rawMin: -1
+    m_rawMax: 1
+    m_center: 0
+  m_controlModeSwitch:
+    m_displayName: Stick Mode Switch
+    m_enabled: 1
+    m_controlPath: Unknown
+  m_controlModeSwitchBehavior: 0
+  m_resetEpisode:
+    m_displayName: Reset Episode
+    m_enabled: 1
+    m_controlPath: base5
+  m_startEpisode:
+    m_displayName: Start Episode
+    m_enabled: 0
+    m_controlPath: 
+  m_stopEpisode:
+    m_displayName: Stop Episode
+    m_enabled: 0
+    m_controlPath: 

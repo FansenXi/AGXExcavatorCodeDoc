@@ -1,0 +1,39 @@
+# Unity generated
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+
+# IDE / generated project files
+.vscode/
+.idea/
+*.csproj
+*.sln
+*.user
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# Runtime / experiment output
+ExperimentLogs/
+*.csv
+
+# AGX license / generated or private files
+Assets/agx.lfx
+*.lfx
+*.lfx.*
+*.lic
+*.license
+
+Assets/AGXUnity/
+
+# OS files
+.DS_Store
+Thumbs.db
