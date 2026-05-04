@@ -80,6 +80,13 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
     public float target_contact_max_normal_force_n = 0.0f;
     public float min_distance_to_dig_area_m = -1.0f;
     public float bucket_depth_below_dig_area_plane_m = 0.0f;
+    public float target_horizontal_distance_m = -1.0f;
+    public float bucket_height_above_target_rim_m = 0.0f;
+    public float bucket_over_target_footprint_mask = 0.0f;
+    public float dump_clearance_ok_mask = 0.0f;
+    public float bucket_bed_relative_x_m = 0.0f;
+    public float bucket_bed_relative_z_m = 0.0f;
+    public float bucket_bed_footprint_outside_distance_m = -1.0f;
   }
 
   [Serializable]

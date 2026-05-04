@@ -1,6 +1,6 @@
 # AGXUnity Excavator Current Project Structure
 
-更新时间：2026-04-14
+更新时间：2026-04-28
 
 ## 1. 文档目的
 
@@ -49,10 +49,16 @@
 `deposited_mass_in_target_box_kg`，作为 backup success proxy；Repo A /
 testbed 仍然基于导出的 `env_state` 本地计算主 excavation mission reward
 - 当前 step-ack `env_state` 顺序是：
-`[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n, min_distance_to_dig_area_m, bucket_depth_below_dig_area_plane_m]`
+`[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n, min_distance_to_dig_area_m, bucket_depth_below_dig_area_plane_m, target_horizontal_distance_m, bucket_height_above_target_rim_m, bucket_over_target_footprint_mask, dump_clearance_ok_mask, bucket_bed_relative_x_m, bucket_bed_relative_z_m, bucket_bed_footprint_outside_distance_m]`
 - `mass_in_target_box_kg` 当前表示“运行时选中的接料目标”
 当前主场景支持 `ContainerBox` 和 `TruckBed`
 - `min_distance_to_target_m` 当前表示 bucket target-distance proxy 到当前激活目标 distance geometry 的近似最小距离
+- `bucket_over_target_footprint_mask` 当前表示 bucket target-distance proxy 已处在
+  当前 truck-bed top dump region 上方：使用同一 footprint outside distance 和
+  TruckBed 现有 clearance tolerance 判定，不再要求 strict OBB footprint 相交；
+  `bucket_bed_relative_x_m/z_m` 是同一 proxy center 在 bed local frame 下的偏移，
+  `bucket_bed_footprint_outside_distance_m` 仍保留 strict footprint outside distance，
+  供 Repo A 用更深的 release threshold 做 planner/QC
 - `target_hard_collision_count` / `target_contact_max_normal_force_n` 当前表示
 excavator 与当前激活目标硬表面的每步硬碰撞摘要信号
 - `min_distance_to_dig_area_m` / `bucket_depth_below_dig_area_plane_m` 当前表示

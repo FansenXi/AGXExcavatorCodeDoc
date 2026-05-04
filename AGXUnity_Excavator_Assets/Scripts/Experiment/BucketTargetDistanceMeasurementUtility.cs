@@ -59,6 +59,22 @@ internal struct OrientedMeasurementBox
 
     return float.IsPositiveInfinity( minWorldY ) ? 0.0f : minWorldY;
   }
+
+  public float GetWorldMaxY()
+  {
+    var maxWorldY = float.NegativeInfinity;
+    for ( var xSign = -1; xSign <= 1; xSign += 2 ) {
+      for ( var ySign = -1; ySign <= 1; ySign += 2 ) {
+        for ( var zSign = -1; zSign <= 1; zSign += 2 ) {
+          var worldCorner = CornerWorld( xSign, ySign, zSign );
+          if ( worldCorner.y > maxWorldY )
+            maxWorldY = worldCorner.y;
+        }
+      }
+    }
+
+    return float.IsNegativeInfinity( maxWorldY ) ? 0.0f : maxWorldY;
+  }
 }
 
 internal struct MeasurementBoxClosestSample
@@ -96,6 +112,18 @@ internal struct TargetDistanceDiagnostic
   public TargetDistanceGeometrySource TargetGeometrySource;
 }
 
+public struct TargetGeometryMetrics
+{
+  public bool IsValid;
+  public float TargetHorizontalDistanceMeters;
+  public float BucketHeightAboveTargetRimMeters;
+  public float BucketOverTargetFootprintMask;
+  public float DumpClearanceOkMask;
+  public float BucketBedRelativeXMeters;
+  public float BucketBedRelativeZMeters;
+  public float BucketBedFootprintOutsideDistanceMeters;
+}
+
 internal static class BucketTargetDistanceMeasurementUtility
 {
   private static readonly float[] SampleCoordinates = { -1.0f, 0.0f, 1.0f };
@@ -120,6 +148,129 @@ internal static class BucketTargetDistanceMeasurementUtility
 
     minDistanceMeters = minDistanceMetersCandidate;
     return true;
+  }
+
+  public static bool TryMeasureTargetGeometry( Transform bucketReference,
+                                               TargetMassSensorBase targetSensor,
+                                               out TargetGeometryMetrics metrics )
+  {
+    metrics = new TargetGeometryMetrics
+    {
+      IsValid = false,
+      TargetHorizontalDistanceMeters = -1.0f,
+      BucketHeightAboveTargetRimMeters = 0.0f,
+      BucketOverTargetFootprintMask = 0.0f,
+      DumpClearanceOkMask = 0.0f,
+      BucketBedRelativeXMeters = 0.0f,
+      BucketBedRelativeZMeters = 0.0f,
+      BucketBedFootprintOutsideDistanceMeters = -1.0f
+    };
+
+    if ( bucketReference == null || targetSensor == null )
+      return false;
+
+    if ( !TryGetTargetDistanceBucketBox( bucketReference, out var bucketBox, out _ ) )
+      return false;
+
+    if ( !TryGetTargetClearanceGeometry( targetSensor, out var targetBox ) )
+      return false;
+
+    var horizontalDistance = MeasureHorizontalFootprintDistance( bucketBox,
+                                                                 targetBox,
+                                                                 out _ );
+    if ( !TryMeasureBedRelativeFootprint( bucketBox,
+                                          targetBox,
+                                          out var bucketBedRelativeXMeters,
+                                          out var bucketBedRelativeZMeters ) )
+      return false;
+
+    var heightAboveTargetRim = bucketBox.GetWorldMinY() - targetBox.GetWorldMaxY();
+    var horizontalTolerance = Mathf.Max( 0.0f, targetSensor.TargetDumpClearanceHorizontalToleranceMeters );
+    var bucketBedFootprintOutsideDistanceMeters = horizontalDistance;
+
+    // The protocol field name is historical. For TruckBed, operators need this
+    // mask to mean "the bucket is above the usable truck-top dump region", not
+    // "the strict bucket proxy OBB footprint intersects the sensor OBB by 1e-4m".
+    // The strict outside distance remains exported separately for tighter
+    // planner thresholds such as "move deeper inside the bed before release".
+    var bucketOverTruckTop = bucketBedFootprintOutsideDistanceMeters >= 0.0f &&
+                             bucketBedFootprintOutsideDistanceMeters <= horizontalTolerance &&
+                             heightAboveTargetRim >= 0.0f;
+    var clearanceOk = bucketOverTruckTop;
+
+    metrics = new TargetGeometryMetrics
+    {
+      IsValid = true,
+      TargetHorizontalDistanceMeters = horizontalDistance,
+      BucketHeightAboveTargetRimMeters = heightAboveTargetRim,
+      BucketOverTargetFootprintMask = bucketOverTruckTop ? 1.0f : 0.0f,
+      DumpClearanceOkMask = clearanceOk ? 1.0f : 0.0f,
+      BucketBedRelativeXMeters = bucketBedRelativeXMeters,
+      BucketBedRelativeZMeters = bucketBedRelativeZMeters,
+      BucketBedFootprintOutsideDistanceMeters = bucketBedFootprintOutsideDistanceMeters
+    };
+    return true;
+  }
+
+  private static bool TryMeasureBedRelativeFootprint( OrientedMeasurementBox bucketBox,
+                                                      OrientedMeasurementBox targetBox,
+                                                      out float bucketBedRelativeXMeters,
+                                                      out float bucketBedRelativeZMeters )
+  {
+    bucketBedRelativeXMeters = 0.0f;
+    bucketBedRelativeZMeters = 0.0f;
+
+    if ( bucketBox.Frame == null || targetBox.Frame == null )
+      return false;
+
+    var bucketReferenceWorld = bucketBox.Frame.TransformPoint( bucketBox.CenterLocal );
+    var bucketReferenceInTarget = targetBox.Frame.InverseTransformPoint( bucketReferenceWorld ) -
+                                  targetBox.CenterLocal;
+    bucketBedRelativeXMeters = bucketReferenceInTarget.x;
+    bucketBedRelativeZMeters = bucketReferenceInTarget.z;
+    return true;
+  }
+
+  private static float MeasureHorizontalFootprintDistance( OrientedMeasurementBox bucketBox,
+                                                           OrientedMeasurementBox targetBox,
+                                                           out bool footprintsOverlap )
+  {
+    footprintsOverlap = false;
+
+    if ( bucketBox.Frame == null || targetBox.Frame == null )
+      return -1.0f;
+
+    var bucketMinX = float.PositiveInfinity;
+    var bucketMaxX = float.NegativeInfinity;
+    var bucketMinZ = float.PositiveInfinity;
+    var bucketMaxZ = float.NegativeInfinity;
+
+    for ( var xSign = -1; xSign <= 1; xSign += 2 ) {
+      for ( var ySign = -1; ySign <= 1; ySign += 2 ) {
+        for ( var zSign = -1; zSign <= 1; zSign += 2 ) {
+          var bucketCornerWorld = bucketBox.CornerWorld( xSign, ySign, zSign );
+          var bucketCornerInTarget = targetBox.Frame.InverseTransformPoint( bucketCornerWorld ) - targetBox.CenterLocal;
+          bucketMinX = Mathf.Min( bucketMinX, bucketCornerInTarget.x );
+          bucketMaxX = Mathf.Max( bucketMaxX, bucketCornerInTarget.x );
+          bucketMinZ = Mathf.Min( bucketMinZ, bucketCornerInTarget.z );
+          bucketMaxZ = Mathf.Max( bucketMaxZ, bucketCornerInTarget.z );
+        }
+      }
+    }
+
+    if ( float.IsPositiveInfinity( bucketMinX ) || float.IsNegativeInfinity( bucketMaxX ) ||
+         float.IsPositiveInfinity( bucketMinZ ) || float.IsNegativeInfinity( bucketMaxZ ) )
+      return -1.0f;
+
+    var targetMinX = -targetBox.HalfExtents.x;
+    var targetMaxX = targetBox.HalfExtents.x;
+    var targetMinZ = -targetBox.HalfExtents.z;
+    var targetMaxZ = targetBox.HalfExtents.z;
+
+    var outsideX = Mathf.Max( Mathf.Max( targetMinX - bucketMaxX, bucketMinX - targetMaxX ), 0.0f );
+    var outsideZ = Mathf.Max( Mathf.Max( targetMinZ - bucketMaxZ, bucketMinZ - targetMaxZ ), 0.0f );
+    footprintsOverlap = outsideX <= 1.0e-4f && outsideZ <= 1.0e-4f;
+    return Mathf.Sqrt( outsideX * outsideX + outsideZ * outsideZ );
   }
 
   internal static bool TryDiagnoseDistance( Transform bucketReference,
@@ -313,6 +464,27 @@ internal static class BucketTargetDistanceMeasurementUtility
 
     targetGeometrySource = TargetDistanceGeometrySource.TargetDistanceVolume;
     return true;
+  }
+
+  private static bool TryGetTargetClearanceGeometry( TargetMassSensorBase targetSensor,
+                                                     out OrientedMeasurementBox targetBox )
+  {
+    targetBox = default;
+    if ( targetSensor == null )
+      return false;
+
+    if ( !targetSensor.TryGetTargetClearanceVolume( out var targetFrame,
+                                                    out var targetCenterLocal,
+                                                    out var targetHalfExtents ) )
+      return false;
+
+    targetBox = new OrientedMeasurementBox
+    {
+      Frame = targetFrame,
+      CenterLocal = targetCenterLocal,
+      HalfExtents = targetHalfExtents
+    };
+    return targetBox.IsValid;
   }
 
   private static bool TryGetTargetShapeBoxes( TargetMassSensorBase targetSensor,

@@ -64,6 +64,23 @@ The current main scene provides:
 Runtime target routing is implemented, so the same exported field names continue to refer to the **currently active target**.
 The runtime HUD also exposes DigArea good-start state, DigArea touch state, and
 bucket depth below the DigArea plane for quick operator validation.
+Repo A's current V2.1 Stage-1 mainline no longer uses a fixed ready pose as the
+recording stop condition. The active teleop flow is now:
+
+- natural multicycle teleop
+- stop on the third detected `dump_end`
+- `max_steps = 4000` only as a guardrail
+
+The scene may still contain historical ready-anchor HUD / marker code paths, but
+those are now only legacy debug aids. They are not part of the current V2.1
+Stage-1 operator workflow and should not be treated as the canonical stop rule.
+When no cached collector sample is avail
+
+## Out of Scope
+
+- rule plannerable yet, the HUD can still fall back to
+the live rig state and read the current normalized arm `qpos` directly from the
+excavator constraints for debug purposes.
 When `AgxSimStepAckServer` is serving and temporarily disables
 `EpisodeManager.Update()`, the HUD now falls back to the latest
 `ActObservationCollector` task-state sample for live mass, target-distance,
@@ -101,16 +118,16 @@ Current behavior:
 
 - it is distance-based, not collision-based
 - the current scene defaults to a dedicated, editor-configurable bucket proxy
-  volume exposed on `ExcavationMassTracker`
+volume exposed on `ExcavationMassTracker`
 - the target side now prefers the active target's hard box shapes and only
-  falls back to a target distance volume when those shapes are unavailable
+falls back to a target distance volume when those shapes are unavailable
 - for `TruckBed`, this means the distance is measured against truck hard-body
-  box geometry rather than the bed mass-measurement headroom volume
+box geometry rather than the bed mass-measurement headroom volume
 - for `TruckBed`, helper `*FailureVolume` shapes such as the dump/top failure
-  volumes are excluded from both distance geometry and hard-collision shape
-  filtering
+volumes are excluded from both distance geometry and hard-collision shape
+filtering
 - if no dedicated proxy configuration is available, Unity falls back to older
-  bucket measurement geometry sources
+bucket measurement geometry sources
 - it is exported alongside mass signals in `env_state`
 - it returns `-1.0` when the distance cannot be evaluated
 
@@ -145,6 +162,38 @@ The current reset path already restores:
 - target mass counters
 - bucket / target measurement baselines
 
+The reset implementation now restores the captured transform chain and
+reset-scoped rigid bodies back to the authored baseline before recreating
+terrain, then reapplies the same transform-chain / rigid-body restore once more
+after the AGX warm-up step. This specifically targets two intermittent classes
+of artifacts:
+
+- soil appearing to rise at the wrong location because the previous episode's
+bucket / track contact pose leaked into terrain rebuild
+- apparent multi-meter Y misalignment where terrain and the rest of the scene
+no longer agree on the same baseline after a reset
+
+The initial reset snapshot is also now captured in `Awake` whenever possible,
+only falling back to the first `FixedUpdate` if no usable snapshot was captured
+yet. This avoids treating transient startup motion as the authored reset
+baseline.
+
+The transform-chain snapshot is intentionally broader than rigid bodies alone.
+In the current scene, some reset-relevant references live under the offset
+`=== Scene ===` parent while others such as `DigArea` and parts of the control
+rig are separate roots. Full reset therefore records and restores the relevant
+transform ancestry as well, so these mixed-root references return to the same
+authored baseline together.
+
+One important exception is the deformable terrain transform itself. AGX terrain
+runtime intentionally shifts the Unity terrain object downward by its
+`MaximumDepth` during native initialization and manages that offset internally
+across terrain recreation. Full reset therefore restores the shared ancestor
+chain around the terrain, but does not force the terrain object's own transform
+back to the pre-initialize authored value. In the current scene this matters
+because `MaximumDepth = 2`, so blindly restoring the terrain transform itself
+would reintroduce an apparent fixed 2-meter vertical mismatch.
+
 The current reset goal is stable baseline reproducibility, not strict seeded determinism.
 
 ### 3.6 Step-Ack Bridge
@@ -170,39 +219,39 @@ scaffold that is kept in the repo for future PCVR presentation work.
 Current project status:
 
 - the VR spectator code path is intentionally kept in place, but it is **not**
-  part of the currently validated Linux desktop workflow
+part of the currently validated Linux desktop workflow
 - the current supported day-to-day presentation path remains the normal desktop
-  scene rendering path
+scene rendering path
 - the intended future target for this spectator scaffold is Windows desktop
-  PCVR with SteamVR acting as the system OpenXR runtime
+PCVR with SteamVR acting as the system OpenXR runtime
 - when XR startup fails on the current Linux setup, that is treated as a normal
-  fallback-to-desktop outcome rather than a blocker for the main excavation
-  workflow
+fallback-to-desktop outcome rather than a blocker for the main excavation
+workflow
 
 Current behavior:
 
 - the existing desktop `Main Camera` remains the only camera responsible for the
-  desktop game window
+desktop game window
 - the desktop view keeps its current `LinkCamera`, HUD, and auxiliary-window
-  behavior
+behavior
 - a scene-level `VrSpectatorBootstrap` component on the desktop `Main Camera`
-  attempts to start OpenXR at runtime without changing the step-ack / teleop /
-  ACT control pipeline
+attempts to start OpenXR at runtime without changing the step-ack / teleop /
+ACT control pipeline
 - when XR starts successfully, Unity creates a dedicated runtime `XROrigin` and
-  XR-only spectator camera for the HMD
+XR-only spectator camera for the HMD
 - the XR spectator camera does **not** replace the desktop `Main Camera`
 - the XR spectator rig mirrors the desktop `Main Camera` world pose every frame
-  through `VrMainCameraMirror`
+through `VrMainCameraMirror`
 - HMD head pose still contributes its own local 6DoF tracking on top of that
-  mirrored base pose, so the headset gets stereoscopic XR rendering rather than
-  a flat monitor-style clone
+mirrored base pose, so the headset gets stereoscopic XR rendering rather than
+a flat monitor-style clone
 - when VR is active, the desktop `Main Camera` renders with `Target Eye = None`
-  so it stays on the desktop display only, while the XR spectator camera renders
-  with `Target Eye = Both` for the HMD
+so it stays on the desktop display only, while the XR spectator camera renders
+with `Target Eye = Both` for the HMD
 - audio is switched from the desktop `AudioListener` to the XR spectator camera
-  while VR is active
+while VR is active
 - if OpenXR cannot start, the project stays in pure desktop mode and the scene
-  continues to render exactly as before
+continues to render exactly as before
 
 Presentation boundary:
 
@@ -210,17 +259,17 @@ Presentation boundary:
 - no VR locomotion is added
 - no VR-specific HUD is added
 - `TrackedCameraWindow` / FPV capture / `AgxSimStepAckServer` continue to run on
-  their existing path and do not become the HMD main view
+their existing path and do not become the HMD main view
 - the current repo does **not** claim Linux x86_64 HMD availability as a
-  validated delivery target for this feature
+validated delivery target for this feature
 
 Scene consistency note:
 
 - the FPV `FollowCamera` object is no longer tagged `MainCamera`
 - the desktop `Main Camera` remains the single authoritative `MainCamera` in the
-  scene
+scene
 - the VR spectator scripts are best understood as a future-facing scaffold, not
-  a guaranteed cross-platform runtime feature in the current repo state
+a guaranteed cross-platform runtime feature in the current repo state
 
 ## 4. Current Export Contract
 
@@ -286,18 +335,18 @@ require Unity to export explicit stage IDs. Reward is attached to observable
 sub-targets inside that single mission:
 
 1. `loading`
-   The bucket starts gaining meaningful soil mass **after** a qualified DigArea
+  The bucket starts gaining meaningful soil mass **after** a qualified DigArea
    good start.
    Signals: `mass_in_bucket_kg`, `excavated_mass_kg`,
    `min_distance_to_dig_area_m`, `bucket_depth_below_dig_area_plane_m`
 2. `approaching_target`
-   A loaded bucket moves closer to the currently active target.
+  A loaded bucket moves closer to the currently active target.
    Signals: `mass_in_bucket_kg`, `min_distance_to_target_m`
 3. `depositing`
-   Retained mass in the active target starts increasing.
+  Retained mass in the active target starts increasing.
    Signals: `mass_in_target_box_kg`, `deposited_mass_in_target_box_kg`
 4. `retained_success`
-   Net retained mass in the active target stays above the configured success
+  Net retained mass in the active target stays above the configured success
    threshold long enough to count as task success.
    Signal: `deposited_mass_in_target_box_kg`
 
@@ -329,7 +378,7 @@ The intended episode flow is now:
 1. reset the scene
 2. confirm or set the active dump target
 3. scoop material from the soil pile
-   The intended good start is now: bucket DigArea proxy touches the
+  The intended good start is now: bucket DigArea proxy touches the
    `DigArea` region and digs below the DigArea plane while load increases.
 4. transport the load toward the selected target
 5. dump material into the target

@@ -40,7 +40,7 @@ Current observation semantics:
 - qpos order: `[swing_position_norm, boom_position_norm, stick_position_norm, bucket_position_norm]`
 - qvel order: `[swing_speed, boom_speed, stick_speed, bucket_speed]`
 - env_state order:
-  `[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n, min_distance_to_dig_area_m, bucket_depth_below_dig_area_plane_m]`
+  `[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n, min_distance_to_dig_area_m, bucket_depth_below_dig_area_plane_m, target_horizontal_distance_m, bucket_height_above_target_rim_m, bucket_over_target_footprint_mask, dump_clearance_ok_mask]`
 
 `mass_in_target_box_kg` semantics:
 - this field always refers to the **currently active Unity dump target**
@@ -52,7 +52,9 @@ Current observation semantics:
 - Unity computes it as current measured target mass minus the reset baseline, clamped to zero
 
 `min_distance_to_target_m` semantics:
-- this field is the approximate minimum distance between the current bucket target-distance proxy volume and the currently active Unity target distance geometry
+- this legacy field is the approximate minimum distance between the current bucket target-distance proxy volume and the currently active Unity target distance geometry
+- target-safety logic should use the explicit target geometry fields below, not
+  this scalar as a fallback
 - the current scene exposes that bucket proxy volume on `ExcavationMassTracker` for direct editor tuning
 - the target side now prefers the active target hard box shapes and only falls back to a target distance volume when those shapes are unavailable
 - for `TruckBed`, this geometry follows truck hard-body box shapes rather than the bed mass-measurement headroom volume
@@ -61,6 +63,36 @@ Current observation semantics:
 - the current implementation is distance-based and does not require collision/contact export
 - Unity appends this field after the four existing mass fields to preserve V0 mass index compatibility
 - `-1.0` means the distance could not be evaluated for the current frame
+
+`target_horizontal_distance_m` semantics:
+- this field is the explicit horizontal planar distance between the bucket
+  target-distance proxy footprint and the active target clearance footprint
+- `0.0` means the two footprints overlap in the target horizontal plane
+- `-1.0` means the explicit target geometry could not be evaluated
+
+`bucket_height_above_target_rim_m` semantics:
+- this field is the bucket target-distance proxy bottom height relative to the
+  active target clearance volume top/rim, measured in world vertical height
+- positive values mean the proxy bottom is above the rim
+- negative values mean the proxy bottom is below the rim
+
+`bucket_over_target_footprint_mask` semantics:
+- this field is a float mask
+- `1.0` means the bucket target-distance proxy footprint overlaps the active
+  target clearance footprint
+- `0.0` means it is outside or unavailable
+
+`dump_clearance_ok_mask` semantics:
+- this field is a float mask
+- `1.0` means the bucket is within the active target's dump-clearance
+  horizontal tolerance and `bucket_height_above_target_rim_m >= 0.0`
+- `TruckBed` currently uses a wider horizontal tolerance than strict footprint
+  overlap because material can enter the bed safely before the bucket proxy
+  footprint fully overlaps the bed footprint
+- vertical clearance is not tolerant for `TruckBed`: the bucket proxy bottom
+  must remain above the target rim/top, and negative height means not clear
+- `0.0` means dump clearance is not currently satisfied or the explicit
+  geometry is unavailable
 
 `target_hard_collision_count` semantics:
 - this field is the cumulative episode count of hard-collision occurrences against the currently active target
@@ -160,6 +192,11 @@ Binary field order:
 Notes:
 - Unity accepts zero-length payload and falls back to defaults.
 - Optional trailing fields may be omitted.
+- Phase-1 `scenario_id` now routes through a minimal preset library.
+- Current preset scope is intentionally small: it may override
+  `reset_terrain`, `reset_pose`, and apply a post-reset `ActiveTargetIndex`.
+- Current preset scope explicitly does not include excavator pose offset,
+  DigArea offset, or DigArea yaw.
 
 ### 5.3 STEP_REQ
 
@@ -257,7 +294,7 @@ After the common response prefix, fields are written in this order:
 Current Unity values:
 - `qpos.len = 4`
 - `qvel.len = 4`
-- `env_state.len = 9`
+- `env_state.len = 13`
 - `reward = deposited_mass_in_target_box_kg`
 - `image_format = "raw_rgb"` when FPV capture succeeds
 - `image_w = 0`, `image_h = 0`, `image_payload = empty` when no FPV frame is available
@@ -293,6 +330,10 @@ Target note:
 - `env_state[6]` reports the maximum monitored contact normal force in Newtons for the completed step
 - `env_state[7]` reports the approximate minimum bucket-to-DigArea distance in meters
 - `env_state[8]` reports the current proximity-weighted effective bucket depth below the DigArea center plane in meters
+- `env_state[9]` reports explicit horizontal bucket-footprint to target-footprint distance in meters
+- `env_state[10]` reports bucket proxy bottom height above the active target rim in meters
+- `env_state[11]` reports whether the bucket proxy footprint overlaps the active target footprint
+- `env_state[12]` reports whether target dump clearance is currently satisfied
 - Unity local CSV logs now include `target_name` for debugging
 - the binary `STEP_RESP` payload does **not** yet carry `target_name`; clients should treat target identity as scene/runtime configuration for now
 
@@ -328,6 +369,8 @@ Compared with older drafts in this repo, the current Unity implementation has th
 - Unity now exports an approximate distance-to-active-target scalar alongside the existing mass metrics.
 - Unity now exports active-target hard-collision summary metrics without changing the meaning of the first five env_state indices.
 - Unity now also exports DigArea good-start geometry metrics while keeping the first seven env_state indices stable.
+- Unity now also exports explicit target dump geometry metrics while keeping
+  the first nine env_state indices stable.
 
 ## 12. Known Limits
 

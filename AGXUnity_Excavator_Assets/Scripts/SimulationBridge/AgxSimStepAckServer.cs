@@ -14,6 +14,93 @@ using UnityEngine;
 
 namespace AGXUnity_Excavator.Scripts.SimulationBridge
 {
+  [Serializable]
+  internal sealed class ScenarioPreset
+  {
+    public ScenarioPreset( string id, bool resetTerrain, bool resetPose, int activeTargetIndex )
+    {
+      Id = id ?? string.Empty;
+      ResetTerrain = resetTerrain;
+      ResetPose = resetPose;
+      ActiveTargetIndex = activeTargetIndex;
+    }
+
+    public string Id { get; }
+    public bool ResetTerrain { get; }
+    public bool ResetPose { get; }
+    public int ActiveTargetIndex { get; }
+  }
+
+  internal static class ScenarioPresetLibrary
+  {
+    private static readonly Dictionary<string, ScenarioPreset> s_presets =
+      new Dictionary<string, ScenarioPreset>( StringComparer.Ordinal )
+      {
+        { "s0_baseline", new ScenarioPreset( "s0_baseline", resetTerrain: true, resetPose: true, activeTargetIndex: 0 ) },
+        { "s0_truck", new ScenarioPreset( "s0_truck", resetTerrain: true, resetPose: true, activeTargetIndex: 1 ) },
+        { "s1_pose_jitter", new ScenarioPreset( "s1_pose_jitter", resetTerrain: true, resetPose: true, activeTargetIndex: 0 ) }
+      };
+
+    public static bool TryGet( string scenarioId, out ScenarioPreset preset )
+    {
+      preset = null;
+      if ( string.IsNullOrWhiteSpace( scenarioId ) )
+        return false;
+
+      return s_presets.TryGetValue( scenarioId.Trim(), out preset );
+    }
+  }
+
+  internal static class ScenarioPresetApplier
+  {
+    public static ScenarioPreset ResolvePreset( string scenarioId, List<string> warnings )
+    {
+      if ( string.IsNullOrWhiteSpace( scenarioId ) )
+        return null;
+
+      if ( ScenarioPresetLibrary.TryGet( scenarioId, out var preset ) )
+        return preset;
+
+      warnings?.Add( $"unknown_scenario_id:{scenarioId}" );
+      return null;
+    }
+
+    public static void OverrideResetOptions( ScenarioPreset preset, ref bool resetTerrain, ref bool resetPose )
+    {
+      if ( preset == null )
+        return;
+
+      resetTerrain = preset.ResetTerrain;
+      resetPose = preset.ResetPose;
+    }
+
+    public static void ApplyActiveTargetIndex( ScenarioPreset preset,
+                                               global::SwitchableTargetMassSensor targetMassSensor,
+                                               List<string> warnings )
+    {
+      if ( preset == null )
+        return;
+
+      if ( targetMassSensor == null ) {
+        warnings?.Add( "switchable_target_mass_sensor_missing" );
+        return;
+      }
+
+      targetMassSensor.RefreshTargets();
+      if ( preset.ActiveTargetIndex < 0 || preset.ActiveTargetIndex >= targetMassSensor.AvailableTargetCount ) {
+        warnings?.Add( $"invalid_active_target_index:{preset.ActiveTargetIndex}" );
+        return;
+      }
+
+      if ( targetMassSensor.CurrentTargetIndex == preset.ActiveTargetIndex )
+        return;
+
+      if ( !targetMassSensor.SetActiveTargetByIndex( preset.ActiveTargetIndex ) ) {
+        warnings?.Add( $"invalid_active_target_index:{preset.ActiveTargetIndex}" );
+      }
+    }
+  }
+
   public class AgxSimStepAckServer : MonoBehaviour
   {
     private sealed class PendingRequest
@@ -39,6 +126,9 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
 
     [SerializeField]
     private SceneResetService m_sceneResetService = null;
+
+    [SerializeField]
+    private global::SwitchableTargetMassSensor m_targetMassSensor = null;
 
     [SerializeField]
     private EpisodeManager m_episodeManager = null;
@@ -274,7 +364,14 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
         "target_hard_collision_count",
         "target_contact_max_normal_force_n",
         "min_distance_to_dig_area_m",
-        "bucket_depth_below_dig_area_plane_m"
+        "bucket_depth_below_dig_area_plane_m",
+        "target_horizontal_distance_m",
+        "bucket_height_above_target_rim_m",
+        "bucket_over_target_footprint_mask",
+        "dump_clearance_ok_mask",
+        "bucket_bed_relative_x_m",
+        "bucket_bed_relative_z_m",
+        "bucket_bed_footprint_outside_distance_m"
       };
       payload.cameras = CreateCameraDescriptors();
       payload.camera_names = Array.ConvertAll( payload.cameras, camera => camera.name );
@@ -291,6 +388,10 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
 
       var resetTerrain = request != null && request.reset_terrain;
       var resetPose = request != null && request.reset_pose;
+      var preset = ScenarioPresetApplier.ResolvePreset(
+        request != null ? request.scenario_id : string.Empty,
+        warnings );
+      ScenarioPresetApplier.OverrideResetOptions( preset, ref resetTerrain, ref resetPose );
       var shouldResetToInitialFrame = resetTerrain || resetPose;
       var resetApplied = false;
 
@@ -312,6 +413,7 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
         m_machineController?.StopMotion();
       }
 
+      ScenarioPresetApplier.ApplyActiveTargetIndex( preset, m_targetMassSensor, warnings );
       m_observationCollector?.ResetSampling();
 
       var payload = CreateBasePayload();
@@ -376,7 +478,14 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
         observation.task_state != null ? observation.task_state.target_hard_collision_count : 0.0f,
         observation.task_state != null ? observation.task_state.target_contact_max_normal_force_n : 0.0f,
         observation.task_state != null ? observation.task_state.min_distance_to_dig_area_m : -1.0f,
-        observation.task_state != null ? observation.task_state.bucket_depth_below_dig_area_plane_m : 0.0f
+        observation.task_state != null ? observation.task_state.bucket_depth_below_dig_area_plane_m : 0.0f,
+        observation.task_state != null ? observation.task_state.target_horizontal_distance_m : -1.0f,
+        observation.task_state != null ? observation.task_state.bucket_height_above_target_rim_m : 0.0f,
+        observation.task_state != null ? observation.task_state.bucket_over_target_footprint_mask : 0.0f,
+        observation.task_state != null ? observation.task_state.dump_clearance_ok_mask : 0.0f,
+        observation.task_state != null ? observation.task_state.bucket_bed_relative_x_m : 0.0f,
+        observation.task_state != null ? observation.task_state.bucket_bed_relative_z_m : 0.0f,
+        observation.task_state != null ? observation.task_state.bucket_bed_footprint_outside_distance_m : -1.0f
       };
       payload.reward = observation.task_state != null ? observation.task_state.deposited_mass_in_target_box_kg : 0.0f;
       payload.sim_time_ns = observation != null ? (long)Math.Round( observation.sim_time_sec * 1000000000.0 ) : -1;
@@ -572,6 +681,7 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
       m_machineController = ExcavatorRigLocator.ResolveComponent( this, m_machineController );
       m_observationCollector = ExcavatorRigLocator.ResolveComponent( this, m_observationCollector );
       m_sceneResetService = ExcavatorRigLocator.ResolveComponent( this, m_sceneResetService );
+      m_targetMassSensor = ExcavatorRigLocator.ResolveComponent( this, m_targetMassSensor );
       m_episodeManager = ExcavatorRigLocator.ResolveComponent( this, m_episodeManager );
       m_fpvCamera = ExcavatorRigLocator.ResolveComponent( this, m_fpvCamera );
     }

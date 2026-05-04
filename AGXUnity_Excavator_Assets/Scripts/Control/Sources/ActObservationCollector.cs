@@ -193,6 +193,30 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       };
     }
 
+    public bool TryGetCurrentNormalizedQpos( out Vector4 qpos )
+    {
+      qpos = Vector4.zero;
+      ResolveReferences();
+
+      var swingConstraint = m_excavator != null ? m_excavator.SwingHinge : null;
+      var boomConstraint = m_excavator != null && m_excavator.BoomPrismatics.Length > 0 ? m_excavator.BoomPrismatics[ 0 ] : null;
+      var stickConstraint = m_excavator != null ? m_excavator.StickPrismatic : null;
+      var bucketConstraint = m_excavator != null ? m_excavator.BucketPrismatic : null;
+
+      if ( swingConstraint == null &&
+           boomConstraint == null &&
+           stickConstraint == null &&
+           bucketConstraint == null )
+        return false;
+
+      qpos = new Vector4(
+        NormalizeConstraintPosition( ReadConstraintPosition( swingConstraint ), m_swingRange ),
+        NormalizeConstraintPosition( ReadConstraintPosition( boomConstraint ), m_boomRange ),
+        NormalizeConstraintPosition( ReadConstraintPosition( stickConstraint ), m_stickRange ),
+        NormalizeConstraintPosition( ReadConstraintPosition( bucketConstraint ), m_bucketRange ) );
+      return true;
+    }
+
     public ActObservation Collect( OperatorCommand previousOperatorCommand )
     {
       ResolveReferences();
@@ -253,6 +277,19 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
         m_targetMassSensor.TryMeasureBucketDistance( bucketReference, out var minDistanceToTargetMeters ) ?
           minDistanceToTargetMeters :
           -1.0f;
+      if ( m_targetMassSensor != null &&
+           m_targetMassSensor.TryMeasureBucketTargetGeometry( bucketReference,
+                                                              out var targetGeometryMetrics ) &&
+           targetGeometryMetrics.IsValid ) {
+        observation.task_state.target_horizontal_distance_m = targetGeometryMetrics.TargetHorizontalDistanceMeters;
+        observation.task_state.bucket_height_above_target_rim_m = targetGeometryMetrics.BucketHeightAboveTargetRimMeters;
+        observation.task_state.bucket_over_target_footprint_mask = targetGeometryMetrics.BucketOverTargetFootprintMask;
+        observation.task_state.dump_clearance_ok_mask = targetGeometryMetrics.DumpClearanceOkMask;
+        observation.task_state.bucket_bed_relative_x_m = targetGeometryMetrics.BucketBedRelativeXMeters;
+        observation.task_state.bucket_bed_relative_z_m = targetGeometryMetrics.BucketBedRelativeZMeters;
+        observation.task_state.bucket_bed_footprint_outside_distance_m =
+          targetGeometryMetrics.BucketBedFootprintOutsideDistanceMeters;
+      }
       observation.task_state.target_hard_collision_count =
         m_activeTargetCollisionMonitor != null ?
           m_activeTargetCollisionMonitor.TargetHardCollisionCount :

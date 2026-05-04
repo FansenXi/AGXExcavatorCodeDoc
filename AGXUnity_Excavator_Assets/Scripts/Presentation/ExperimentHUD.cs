@@ -1,5 +1,6 @@
 using System;
 using AGXUnity_Excavator.Scripts.Control.Core;
+using AGXUnity_Excavator.Scripts.Control.Execution;
 using AGXUnity_Excavator.Scripts.Control.Sources;
 using AGXUnity_Excavator.Scripts.Experiment;
 using AGXUnity_Excavator.Scripts.SimulationBridge;
@@ -13,12 +14,16 @@ namespace AGXUnity_Excavator.Scripts.Presentation
     private const string WarnColor = "#FFD166";
     private const string BadColor = "#F4A261";
     private const string NeutralColor = "#B0B0B0";
+    private const string MarkerBootstrapColor = "#5DD6FF";
 
     [SerializeField]
     private EpisodeManager m_episodeManager = null;
 
     [SerializeField]
     private ActObservationCollector m_observationCollector = null;
+
+    [SerializeField]
+    private ExcavatorMachineController m_machineController = null;
 
     [SerializeField]
     private AgxSimStepAckServer m_stepAckServer = null;
@@ -35,11 +40,48 @@ namespace AGXUnity_Excavator.Scripts.Presentation
     [SerializeField]
     private bool m_showCalibrationDebug = true;
 
+    [SerializeField]
+    private bool m_showReadyAnchorGuide = true;
+
+    [SerializeField]
+    private string m_readyAnchorName = "anchor_mid";
+
+    [SerializeField]
+    private Vector4 m_readyAnchorQposRef = new Vector4( 0.52f, 0.41f, 0.63f, 0.28f );
+
+    [SerializeField]
+    private Vector4 m_readyAnchorQposTol = new Vector4( 0.06f, 0.05f, 0.05f, 0.05f );
+
+    [SerializeField]
+    private float m_readyAnchorHitThreshold = 1.35f;
+
+    [SerializeField]
+    private float m_readyAnchorNearThreshold = 1.7f;
+
+    [SerializeField]
+    private bool m_showReadyAnchorWorldMarker = true;
+
+    [SerializeField]
+    private float m_readyAnchorMarkerScale = 0.18f;
+
+    [SerializeField]
+    private float m_readyAnchorMarkerPoleHeight = 0.68f;
+
+    [SerializeField]
+    private float m_readyAnchorLineWidth = 0.028f;
+
     private GUIStyle m_style = null;
     private GUIStyle m_popupTitleStyle = null;
     private GUIStyle m_popupBodyStyle = null;
     private TrackedCameraWindow[] m_cameraWindows = Array.Empty<TrackedCameraWindow>();
     private float m_nextRuntimeRefreshTime = 0.0f;
+    private GameObject m_readyAnchorMarkerRoot = null;
+    private LineRenderer m_readyAnchorMarkerLine = null;
+    private Renderer[] m_readyAnchorMarkerRenderers = Array.Empty<Renderer>();
+    private Material m_readyAnchorMarkerMaterial = null;
+    private bool m_readyAnchorMarkerPoseValid = false;
+    private bool m_readyAnchorMarkerPoseConfirmed = false;
+    private Vector3 m_readyAnchorMarkerPosition = Vector3.zero;
 
     private void Awake()
     {
@@ -51,11 +93,24 @@ namespace AGXUnity_Excavator.Scripts.Presentation
 
     private void Update()
     {
+      RefreshIdleObservationSample();
+      UpdateReadyAnchorWorldMarker();
+
       if ( Time.unscaledTime < m_nextRuntimeRefreshTime )
         return;
 
       RefreshRuntimeTargets();
       m_nextRuntimeRefreshTime = Time.unscaledTime + 1.0f;
+    }
+
+    private void OnDisable()
+    {
+      DestroyReadyAnchorWorldMarker();
+    }
+
+    private void OnDestroy()
+    {
+      DestroyReadyAnchorWorldMarker();
     }
 
     private void OnGUI()
@@ -104,8 +159,10 @@ namespace AGXUnity_Excavator.Scripts.Presentation
         displayedMinDistanceToDigArea <= GetDigAreaTouchTolerance();
       var displayedBucketBelowDigAreaPlane =
         displayedBucketDepthBelowDigAreaPlane >= GetDigAreaBelowPlaneTolerance();
+      var hudRect = m_rect;
+      hudRect.height = Mathf.Max( hudRect.height, 760.0f );
 
-      GUILayout.BeginArea( m_rect, GUI.skin.box );
+      GUILayout.BeginArea( hudRect, GUI.skin.box );
       GUILayout.BeginHorizontal();
       GUILayout.Label( "<b>Experiment HUD</b>", m_style );
       if ( GUILayout.Button( m_showRuntimeConfig ? "Hide Menu" : "Show Menu", GUILayout.Width( 96.0f ) ) )
@@ -163,6 +220,8 @@ namespace AGXUnity_Excavator.Scripts.Presentation
       GUILayout.Label( FormatGoodDigStartLine( useStepAckTelemetry, displayedBucketTouchingDigArea, displayedBucketBelowDigAreaPlane ), m_style );
       GUILayout.Label( FormatDigAreaTouchLine( displayedMinDistanceToDigArea, displayedBucketTouchingDigArea ), m_style );
       GUILayout.Label( FormatDigAreaDepthLine( displayedMinDistanceToDigArea, displayedBucketDepthBelowDigAreaPlane, displayedBucketBelowDigAreaPlane ), m_style );
+      if ( m_showReadyAnchorGuide )
+        DrawReadyAnchorGuide();
       GUILayout.Label( $"Target hard collisions (episode): {displayedTargetHardCollisionCount}", m_style );
       GUILayout.Label( $"Target max normal force (step): {displayedTargetContactMaxNormalForceN:0.0} N", m_style );
       if ( m_showStepAckDebug )
@@ -175,6 +234,39 @@ namespace AGXUnity_Excavator.Scripts.Presentation
 
       if ( m_episodeManager != null && m_episodeManager.ShouldShowTransitionInputCutWarning )
         DrawReleaseInputPopup();
+    }
+
+    private void DrawReadyAnchorGuide()
+    {
+      GUILayout.Space( 6.0f );
+      GUILayout.Label( "<b>Ready Anchor Guide</b>", m_style );
+
+      if ( !TryGetCurrentNormalizedQpos( out var currentQpos ) ) {
+        GUILayout.Label(
+          $"Target: {m_readyAnchorName}    Ref qpos: {FormatQpos( m_readyAnchorQposRef )}    Tolerance: {FormatTolerance( m_readyAnchorQposTol )}",
+          m_style );
+        GUILayout.Label( $"Status: {Colorize( "waiting for actuator sample", NeutralColor )}", m_style );
+        return;
+      }
+
+      var anchorError = ComputeReadyAnchorError( currentQpos );
+      var statusColor = GetReadyAnchorStatusColor( anchorError );
+      var statusText = GetReadyAnchorStatusText( anchorError );
+
+      GUILayout.Label(
+        $"Target: {m_readyAnchorName}    Status: {Colorize( statusText, statusColor )}    Anchor error L1: {anchorError:0.00} / {m_readyAnchorHitThreshold:0.00}",
+        m_style );
+      GUILayout.Label(
+        $"World marker: {FormatReadyAnchorMarkerState()}",
+        m_style );
+      GUILayout.Label(
+        $"Recorder rule: mean(|qpos - ref| / tol) <= {m_readyAnchorHitThreshold:0.00}    Ref qpos: {FormatQpos( m_readyAnchorQposRef )}",
+        m_style );
+      GUILayout.Label( $"Current qpos: {FormatQpos( currentQpos )}", m_style );
+      GUILayout.Label( FormatReadyAxisLine( "Swing", currentQpos.x, m_readyAnchorQposRef.x, m_readyAnchorQposTol.x ), m_style );
+      GUILayout.Label( FormatReadyAxisLine( "Boom", currentQpos.y, m_readyAnchorQposRef.y, m_readyAnchorQposTol.y ), m_style );
+      GUILayout.Label( FormatReadyAxisLine( "Stick", currentQpos.z, m_readyAnchorQposRef.z, m_readyAnchorQposTol.z ), m_style );
+      GUILayout.Label( FormatReadyAxisLine( "Bucket", currentQpos.w, m_readyAnchorQposRef.w, m_readyAnchorQposTol.w ), m_style );
     }
 
     private void DrawRuntimeConfig()
@@ -240,6 +332,7 @@ namespace AGXUnity_Excavator.Scripts.Presentation
         m_episodeManager = ExcavatorRigLocator.ResolveComponent( this, m_episodeManager );
 
       m_observationCollector = ExcavatorRigLocator.ResolveComponent( this, m_observationCollector );
+      m_machineController = ExcavatorRigLocator.ResolveComponent( this, m_machineController );
       m_stepAckServer = ExcavatorRigLocator.ResolveComponent( this, m_stepAckServer );
 
       m_episodeManager?.RefreshAvailableSources();
@@ -285,6 +378,231 @@ namespace AGXUnity_Excavator.Scripts.Presentation
 
         GUILayout.Label( debugLine, m_style );
       }
+    }
+
+    private void RefreshIdleObservationSample()
+    {
+      if ( m_observationCollector == null )
+        return;
+
+      var episodeRunning = m_episodeManager != null && m_episodeManager.IsEpisodeRunning;
+      var stepAckServing = m_stepAckServer != null && m_stepAckServer.IsListening;
+      if ( episodeRunning || stepAckServing )
+        return;
+
+      m_observationCollector.Collect( OperatorCommand.Zero );
+    }
+
+    private void UpdateReadyAnchorWorldMarker()
+    {
+      if ( !m_showReadyAnchorWorldMarker ) {
+        SetReadyAnchorWorldMarkerActive( false );
+        return;
+      }
+
+      var bucketReference = m_machineController != null ? m_machineController.BucketReference : null;
+      if ( bucketReference == null ) {
+        SetReadyAnchorWorldMarkerActive( false );
+        return;
+      }
+
+      if ( !m_readyAnchorMarkerPoseValid ) {
+        // Bootstrap the world marker from the current bucket pose so operators
+        // always get an immediate spatial hint in Play Mode, even before the
+        // ready anchor has been confirmed once.
+        m_readyAnchorMarkerPosition = bucketReference.position;
+        m_readyAnchorMarkerPoseValid = true;
+        m_readyAnchorMarkerPoseConfirmed = false;
+      }
+
+      var hasCurrentQpos = TryGetCurrentNormalizedQpos( out var currentQpos );
+      var anchorError = float.PositiveInfinity;
+      if ( hasCurrentQpos ) {
+        anchorError = ComputeReadyAnchorError( currentQpos );
+        if ( anchorError <= m_readyAnchorHitThreshold ) {
+          m_readyAnchorMarkerPosition = bucketReference.position;
+          m_readyAnchorMarkerPoseValid = true;
+          m_readyAnchorMarkerPoseConfirmed = true;
+        }
+      }
+
+      if ( !m_readyAnchorMarkerPoseValid ) {
+        SetReadyAnchorWorldMarkerActive( false );
+        return;
+      }
+
+      EnsureReadyAnchorWorldMarkerObjects();
+      if ( m_readyAnchorMarkerRoot == null || m_readyAnchorMarkerLine == null )
+        return;
+
+      var markerColor = m_readyAnchorMarkerPoseConfirmed && hasCurrentQpos ?
+                        ParseColor( GetReadyAnchorStatusColor( anchorError ), Color.white ) :
+                        ParseColor( MarkerBootstrapColor, Color.cyan );
+      var markerPosition = m_readyAnchorMarkerPosition;
+
+      m_readyAnchorMarkerRoot.transform.SetPositionAndRotation( markerPosition, Quaternion.identity );
+      m_readyAnchorMarkerRoot.SetActive( true );
+      ApplyReadyAnchorMarkerColor( markerColor );
+
+      m_readyAnchorMarkerLine.enabled = true;
+      m_readyAnchorMarkerLine.startWidth = m_readyAnchorLineWidth;
+      m_readyAnchorMarkerLine.endWidth = m_readyAnchorLineWidth;
+      m_readyAnchorMarkerLine.startColor = markerColor;
+      m_readyAnchorMarkerLine.endColor = markerColor;
+      m_readyAnchorMarkerLine.positionCount = 2;
+      m_readyAnchorMarkerLine.SetPosition( 0, bucketReference.position );
+      m_readyAnchorMarkerLine.SetPosition( 1, markerPosition );
+    }
+
+    private void EnsureReadyAnchorWorldMarkerObjects()
+    {
+      if ( m_readyAnchorMarkerRoot != null && m_readyAnchorMarkerLine != null )
+        return;
+
+      if ( m_readyAnchorMarkerMaterial == null )
+        m_readyAnchorMarkerMaterial = CreateReadyAnchorMarkerMaterial();
+
+      if ( m_readyAnchorMarkerRoot == null ) {
+        m_readyAnchorMarkerRoot = new GameObject( "ReadyAnchorWorldMarker" );
+        m_readyAnchorMarkerRoot.hideFlags = HideFlags.DontSave;
+
+        var center = CreateReadyAnchorMarkerPart(
+          primitiveType: PrimitiveType.Sphere,
+          name: "TargetPoint",
+          localPosition: Vector3.zero,
+          localScale: Vector3.one * m_readyAnchorMarkerScale );
+        center.transform.SetParent( m_readyAnchorMarkerRoot.transform, false );
+
+        var pole = CreateReadyAnchorMarkerPart(
+          primitiveType: PrimitiveType.Cylinder,
+          name: "Pole",
+          localPosition: new Vector3( 0.0f, 0.5f * m_readyAnchorMarkerPoleHeight, 0.0f ),
+          localScale: new Vector3(
+            0.18f * m_readyAnchorMarkerScale,
+            0.5f * m_readyAnchorMarkerPoleHeight,
+            0.18f * m_readyAnchorMarkerScale ) );
+        pole.transform.SetParent( m_readyAnchorMarkerRoot.transform, false );
+
+        var crossX = CreateReadyAnchorMarkerPart(
+          primitiveType: PrimitiveType.Cube,
+          name: "CrossX",
+          localPosition: new Vector3( 0.0f, m_readyAnchorMarkerPoleHeight, 0.0f ),
+          localScale: new Vector3(
+            2.6f * m_readyAnchorMarkerScale,
+            0.18f * m_readyAnchorMarkerScale,
+            0.18f * m_readyAnchorMarkerScale ) );
+        crossX.transform.SetParent( m_readyAnchorMarkerRoot.transform, false );
+
+        var crossZ = CreateReadyAnchorMarkerPart(
+          primitiveType: PrimitiveType.Cube,
+          name: "CrossZ",
+          localPosition: new Vector3( 0.0f, m_readyAnchorMarkerPoleHeight, 0.0f ),
+          localScale: new Vector3(
+            0.18f * m_readyAnchorMarkerScale,
+            0.18f * m_readyAnchorMarkerScale,
+            2.6f * m_readyAnchorMarkerScale ) );
+        crossZ.transform.SetParent( m_readyAnchorMarkerRoot.transform, false );
+
+        m_readyAnchorMarkerRenderers = m_readyAnchorMarkerRoot.GetComponentsInChildren<Renderer>( true );
+      }
+
+      if ( m_readyAnchorMarkerLine == null ) {
+        var lineObject = new GameObject( "ReadyAnchorWorldMarkerLine" );
+        lineObject.hideFlags = HideFlags.DontSave;
+        m_readyAnchorMarkerLine = lineObject.AddComponent<LineRenderer>();
+        m_readyAnchorMarkerLine.useWorldSpace = true;
+        m_readyAnchorMarkerLine.alignment = LineAlignment.View;
+        m_readyAnchorMarkerLine.numCapVertices = 8;
+        m_readyAnchorMarkerLine.numCornerVertices = 4;
+        m_readyAnchorMarkerLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        m_readyAnchorMarkerLine.receiveShadows = false;
+        m_readyAnchorMarkerLine.sharedMaterial = m_readyAnchorMarkerMaterial;
+      }
+    }
+
+    private GameObject CreateReadyAnchorMarkerPart( PrimitiveType primitiveType,
+                                                    string name,
+                                                    Vector3 localPosition,
+                                                    Vector3 localScale )
+    {
+      var markerPart = GameObject.CreatePrimitive( primitiveType );
+      markerPart.name = name;
+      markerPart.hideFlags = HideFlags.DontSave;
+      markerPart.transform.localPosition = localPosition;
+      markerPart.transform.localRotation = Quaternion.identity;
+      markerPart.transform.localScale = localScale;
+
+      var collider = markerPart.GetComponent<Collider>();
+      if ( collider != null )
+        Destroy( collider );
+
+      var renderer = markerPart.GetComponent<Renderer>();
+      if ( renderer != null ) {
+        renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        renderer.receiveShadows = false;
+        renderer.sharedMaterial = m_readyAnchorMarkerMaterial;
+      }
+
+      return markerPart;
+    }
+
+    private Material CreateReadyAnchorMarkerMaterial()
+    {
+      var shader = Shader.Find( "Sprites/Default" );
+      if ( shader == null )
+        shader = Shader.Find( "Unlit/Color" );
+      if ( shader == null )
+        shader = Shader.Find( "Standard" );
+
+      var material = new Material( shader )
+      {
+        hideFlags = HideFlags.DontSave
+      };
+      material.color = Color.white;
+      return material;
+    }
+
+    private void ApplyReadyAnchorMarkerColor( Color color )
+    {
+      if ( m_readyAnchorMarkerMaterial != null )
+        m_readyAnchorMarkerMaterial.color = color;
+
+      for ( var index = 0; index < m_readyAnchorMarkerRenderers.Length; ++index ) {
+        var renderer = m_readyAnchorMarkerRenderers[ index ];
+        if ( renderer == null )
+          continue;
+        renderer.enabled = true;
+      }
+    }
+
+    private void SetReadyAnchorWorldMarkerActive( bool isActive )
+    {
+      if ( m_readyAnchorMarkerRoot != null )
+        m_readyAnchorMarkerRoot.SetActive( isActive );
+      if ( m_readyAnchorMarkerLine != null )
+        m_readyAnchorMarkerLine.enabled = isActive;
+    }
+
+    private void DestroyReadyAnchorWorldMarker()
+    {
+      if ( m_readyAnchorMarkerLine != null ) {
+        Destroy( m_readyAnchorMarkerLine.gameObject );
+        m_readyAnchorMarkerLine = null;
+      }
+
+      if ( m_readyAnchorMarkerRoot != null ) {
+        Destroy( m_readyAnchorMarkerRoot );
+        m_readyAnchorMarkerRoot = null;
+      }
+
+      if ( m_readyAnchorMarkerMaterial != null ) {
+        Destroy( m_readyAnchorMarkerMaterial );
+        m_readyAnchorMarkerMaterial = null;
+      }
+
+      m_readyAnchorMarkerRenderers = Array.Empty<Renderer>();
+      m_readyAnchorMarkerPoseValid = false;
+      m_readyAnchorMarkerPoseConfirmed = false;
     }
 
     private bool ShouldUseStepAckTelemetry( ActTaskState collectorTaskState )
@@ -424,9 +742,118 @@ namespace AGXUnity_Excavator.Scripts.Presentation
       return value ? Colorize( "yes", GoodColor ) : Colorize( "no", BadColor );
     }
 
+    private bool TryGetCurrentNormalizedQpos( out Vector4 qpos )
+    {
+      qpos = Vector4.zero;
+      var observation = m_observationCollector != null ? m_observationCollector.LastCollectedObservation : null;
+      var actuatorState = observation != null ? observation.actuator_state : null;
+      if ( actuatorState == null ) {
+        if ( m_observationCollector != null && m_observationCollector.TryGetCurrentNormalizedQpos( out qpos ) )
+          return true;
+
+        return false;
+      }
+
+      qpos = new Vector4(
+        actuatorState.swing_position_norm,
+        actuatorState.boom_position_norm,
+        actuatorState.stick_position_norm,
+        actuatorState.bucket_position_norm );
+      return true;
+    }
+
+    private float ComputeReadyAnchorError( Vector4 currentQpos )
+    {
+      var delta = currentQpos - m_readyAnchorQposRef;
+      return 0.25f * (
+        Mathf.Abs( delta.x ) / Mathf.Max( m_readyAnchorQposTol.x, 1.0e-5f ) +
+        Mathf.Abs( delta.y ) / Mathf.Max( m_readyAnchorQposTol.y, 1.0e-5f ) +
+        Mathf.Abs( delta.z ) / Mathf.Max( m_readyAnchorQposTol.z, 1.0e-5f ) +
+        Mathf.Abs( delta.w ) / Mathf.Max( m_readyAnchorQposTol.w, 1.0e-5f ) );
+    }
+
+    private string GetReadyAnchorStatusText( float anchorError )
+    {
+      if ( anchorError <= m_readyAnchorHitThreshold )
+        return "aligned, hold still";
+
+      if ( anchorError <= m_readyAnchorNearThreshold )
+        return "close, fine tune";
+
+      return "keep returning to ready";
+    }
+
+    private string GetReadyAnchorStatusColor( float anchorError )
+    {
+      if ( anchorError <= m_readyAnchorHitThreshold )
+        return GoodColor;
+
+      if ( anchorError <= m_readyAnchorNearThreshold )
+        return WarnColor;
+
+      return BadColor;
+    }
+
+    private string FormatReadyAnchorMarkerState()
+    {
+      if ( !m_showReadyAnchorWorldMarker )
+        return Colorize( "disabled", NeutralColor );
+
+      if ( !m_readyAnchorMarkerPoseValid )
+        return Colorize( "waiting for first bucket pose", NeutralColor );
+
+      if ( m_readyAnchorMarkerPoseConfirmed )
+        return Colorize( "confirmed from anchor hit", GoodColor );
+
+      return Colorize( "bootstrap from current ready/reset pose", MarkerBootstrapColor );
+    }
+
+    private string FormatReadyAxisLine( string axisLabel, float current, float target, float tolerance )
+    {
+      var safeTolerance = Mathf.Max( tolerance, 1.0e-5f );
+      var remaining = target - current;
+      var ratio = Mathf.Abs( remaining ) / safeTolerance;
+      var axisState = ratio <= 1.0f ? "ok" : ratio <= 1.5f ? "close" : "move more";
+      var axisColor = ratio <= 1.0f ? GoodColor : ratio <= 1.5f ? WarnColor : BadColor;
+
+      return string.Format(
+        "{0}: now {1:0.00}  target {2:0.00}  remaining {3:+0.00;-0.00;+0.00}  tol ±{4:0.00}  {5}",
+        axisLabel,
+        current,
+        target,
+        remaining,
+        tolerance,
+        Colorize( axisState, axisColor ) );
+    }
+
+    private static string FormatQpos( Vector4 qpos )
+    {
+      return string.Format(
+        "[{0:0.00}, {1:0.00}, {2:0.00}, {3:0.00}]",
+        qpos.x,
+        qpos.y,
+        qpos.z,
+        qpos.w );
+    }
+
+    private static string FormatTolerance( Vector4 qposTol )
+    {
+      return string.Format(
+        "[{0:0.00}, {1:0.00}, {2:0.00}, {3:0.00}]",
+        qposTol.x,
+        qposTol.y,
+        qposTol.z,
+        qposTol.w );
+    }
+
     private static string Colorize( string text, string colorHex )
     {
       return $"<color={colorHex}>{text}</color>";
+    }
+
+    private static Color ParseColor( string colorHex, Color fallback )
+    {
+      return ColorUtility.TryParseHtmlString( colorHex, out var parsedColor ) ? parsedColor : fallback;
     }
 
     private static string GetSourceHotkeyLabel( int sourceIndex )

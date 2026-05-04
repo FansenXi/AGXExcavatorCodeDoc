@@ -42,6 +42,15 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       public Vector2 GearRatio = Vector2.zero;
     }
 
+    private sealed class TransformSnapshot
+    {
+      public Transform Target = null;
+      public Vector3 LocalPosition = Vector3.zero;
+      public Quaternion LocalRotation = Quaternion.identity;
+      public Vector3 LocalScale = Vector3.one;
+      public int HierarchyDepth = 0;
+    }
+
     [SerializeField]
     private bool m_captureSnapshotOnAwake = true;
 
@@ -82,6 +91,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
 
     private readonly List<RigidBodySnapshot> m_rigidBodySnapshots = new List<RigidBodySnapshot>();
     private readonly List<ConstraintSnapshot> m_constraintSnapshots = new List<ConstraintSnapshot>();
+    private readonly List<TransformSnapshot> m_transformSnapshots = new List<TransformSnapshot>();
     private DriveTrainSnapshot m_driveTrainSnapshot = null;
     private bool m_hasSnapshot = false;
     private bool m_isResetInProgress = false;
@@ -91,9 +101,12 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     {
       ResolveReferences();
 
-      m_pendingInitialSnapshotCapture = Application.isPlaying && m_captureSnapshotOnFirstFixedUpdate;
-      if ( m_captureSnapshotOnAwake && !m_pendingInitialSnapshotCapture )
+      if ( m_captureSnapshotOnAwake )
         CaptureResetSnapshot();
+
+      m_pendingInitialSnapshotCapture = Application.isPlaying &&
+                                        m_captureSnapshotOnFirstFixedUpdate &&
+                                        !m_hasSnapshot;
     }
 
     private void FixedUpdate()
@@ -112,7 +125,22 @@ namespace AGXUnity_Excavator.Scripts.Experiment
 
       m_rigidBodySnapshots.Clear();
       m_constraintSnapshots.Clear();
+      m_transformSnapshots.Clear();
       m_driveTrainSnapshot = null;
+
+      foreach ( var transform in EnumerateTransformsToReset() ) {
+        if ( transform == null )
+          continue;
+
+        m_transformSnapshots.Add( new TransformSnapshot
+        {
+          Target = transform,
+          LocalPosition = transform.localPosition,
+          LocalRotation = transform.localRotation,
+          LocalScale = transform.localScale,
+          HierarchyDepth = GetHierarchyDepth( transform )
+        } );
+      }
 
       foreach ( var body in EnumerateRigidBodiesToReset() ) {
         if ( body == null )
@@ -158,8 +186,11 @@ namespace AGXUnity_Excavator.Scripts.Experiment
         };
       }
 
+      m_transformSnapshots.Sort( ( left, right ) => left.HierarchyDepth.CompareTo( right.HierarchyDepth ) );
       m_rigidBodySnapshots.Sort( ( left, right ) => left.HierarchyDepth.CompareTo( right.HierarchyDepth ) );
-      m_hasSnapshot = m_rigidBodySnapshots.Count > 0 || m_constraintSnapshots.Count > 0;
+      m_hasSnapshot = m_transformSnapshots.Count > 0 ||
+                      m_rigidBodySnapshots.Count > 0 ||
+                      m_constraintSnapshots.Count > 0;
     }
 
     [ContextMenu( "Hard Reset Scene" )]
@@ -202,21 +233,19 @@ namespace AGXUnity_Excavator.Scripts.Experiment
         if ( resetPose ) {
           DisableConstraintControllers();
           SetRigidBodiesMotionControlForRestore();
-        }
-
-        ResetTerrains( resetTerrain );
-
-        if ( resetPose ) {
+          RestoreTransformsFromSnapshot();
           RestoreRigidBodiesFromSnapshot();
-          RestoreConstraintControllersFromSnapshot();
           RestoreDriveTrainFromSnapshot();
           ReinitializeTracksFromSnapshot();
         }
+
+        ResetTerrains( resetTerrain );
 
         if ( Simulation.HasInstance && ( resetTerrain || resetPose ) )
           Simulation.Instance.DoStep();
 
         if ( resetPose ) {
+          RestoreTransformsFromSnapshot();
           RestoreRigidBodiesFromSnapshot();
           RestoreConstraintControllersFromSnapshot();
           RestoreDriveTrainFromSnapshot();
@@ -287,6 +316,21 @@ namespace AGXUnity_Excavator.Scripts.Experiment
         if ( sensor != null )
           sensor.ResetMeasurements();
       }
+    }
+
+    private void RestoreTransformsFromSnapshot()
+    {
+      foreach ( var snapshot in m_transformSnapshots ) {
+        var target = snapshot.Target;
+        if ( target == null )
+          continue;
+
+        target.localPosition = snapshot.LocalPosition;
+        target.localRotation = snapshot.LocalRotation;
+        target.localScale = snapshot.LocalScale;
+      }
+
+      Physics.SyncTransforms();
     }
 
     private void RestoreRigidBodiesFromSnapshot()
@@ -425,6 +469,54 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       return bodies;
     }
 
+    private IEnumerable<Transform> EnumerateTransformsToReset()
+    {
+      var transforms = new HashSet<Transform>();
+
+      AddTransformAndAncestors( this != null ? transform : null, transforms );
+      AddTransformAndAncestors( m_machineController != null ? m_machineController.transform : null, transforms );
+      AddTransformAndAncestors( m_excavator != null ? m_excavator.transform : null, transforms );
+      AddTransformAndAncestors( m_episodeManager != null ? m_episodeManager.transform : null, transforms );
+
+      if ( m_resetRoots != null ) {
+        foreach ( var root in m_resetRoots )
+          AddTransformAndAncestors( root, transforms );
+      }
+
+      foreach ( var body in EnumerateRigidBodiesToReset() )
+        AddTransformAndAncestors( body != null ? body.transform : null, transforms );
+
+      foreach ( var constraint in EnumerateConstraintsToReset() )
+        AddTransformAndAncestors( constraint != null ? constraint.transform : null, transforms );
+
+      foreach ( var track in EnumerateTracksToReset() )
+        AddTransformAndAncestors( track != null ? track.transform : null, transforms );
+
+      if ( m_massTrackers != null ) {
+        foreach ( var tracker in m_massTrackers )
+          AddTransformAndAncestors( tracker != null ? tracker.transform : null, transforms );
+      }
+
+      if ( m_targetMassSensors != null ) {
+        foreach ( var sensor in m_targetMassSensors )
+          AddTransformAndAncestors( sensor != null ? sensor.transform : null, transforms );
+      }
+
+      if ( m_resetTerrains != null ) {
+        foreach ( var terrainResetter in m_resetTerrains )
+          AddTransformAndAncestorsSkippingDeformableTerrainSelf( terrainResetter != null ? terrainResetter.transform : null,
+                                                                 transforms );
+      }
+
+      if ( m_fallbackTerrains != null ) {
+        foreach ( var terrain in m_fallbackTerrains )
+          AddTransformAndAncestorsSkippingDeformableTerrainSelf( terrain != null ? terrain.transform : null,
+                                                                 transforms );
+      }
+
+      return transforms;
+    }
+
     private IEnumerable<Constraint> EnumerateConstraints()
     {
       if ( m_constraints != null && m_constraints.Length > 0 )
@@ -549,6 +641,32 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       }
 
       return depth;
+    }
+
+    private static void AddTransformAndAncestors( Transform transform, ISet<Transform> transforms )
+    {
+      while ( transform != null ) {
+        transforms?.Add( transform );
+        transform = transform.parent;
+      }
+    }
+
+    private static void AddTransformAndAncestorsSkippingDeformableTerrainSelf( Transform transform,
+                                                                               ISet<Transform> transforms )
+    {
+      if ( transform == null ) {
+        return;
+      }
+
+      // AGX deformable terrain manages its own runtime Y offset via
+      // MaximumDepth, so restoring the terrain Transform itself to the authored
+      // pre-initialize pose would reintroduce a fixed +MaximumDepth mismatch on
+      // reset. We still restore the ancestor chain so shared scene roots return
+      // to the authored baseline.
+      if ( transform.GetComponent<AGXUnity.Model.DeformableTerrain>() != null )
+        transform = transform.parent;
+
+      AddTransformAndAncestors( transform, transforms );
     }
 
     private static void ClearNativeForceAndTorque( RigidBody body )

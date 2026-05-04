@@ -71,6 +71,11 @@ public class TruckBedMassSensor : TargetMassSensorBase
   [SerializeField]
   private string[] m_excludedHelperShapeNames = { "DumpFailureVolume", "TopFailureVolume" };
 
+  [Header( "Target Dump Clearance" )]
+  [SerializeField]
+  [Min( 0.0f )]
+  private float m_dumpClearanceHorizontalToleranceMeters = 1.25f;
+
   private float m_massInBox = 0.0f;
   private float m_depositedMass = 0.0f;
   private float m_nextSampleTime = 0.0f;
@@ -85,6 +90,7 @@ public class TruckBedMassSensor : TargetMassSensorBase
   public override string TargetName => string.IsNullOrWhiteSpace( m_targetName ) ? "TruckBed" : m_targetName;
   public override float MassInBox => m_massInBox;
   public override float DepositedMass => m_depositedMass;
+  public override float TargetDumpClearanceHorizontalToleranceMeters => Mathf.Max( 0.0f, m_dumpClearanceHorizontalToleranceMeters );
   public override Shape[] GetCollisionShapes()
   {
     ResolveReferences();
@@ -277,6 +283,32 @@ public class TruckBedMassSensor : TargetMassSensorBase
       Mathf.Max( 0.01f, m_cachedTargetDistanceLocalBounds.extents.x ),
       Mathf.Max( 0.01f, m_cachedTargetDistanceLocalBounds.extents.y ),
       Mathf.Max( 0.01f, m_cachedTargetDistanceLocalBounds.extents.z ) );
+    return true;
+  }
+
+  public override bool TryGetTargetClearanceVolume( out Transform measurementFrame,
+                                                    out Vector3 measurementCenterLocal,
+                                                    out Vector3 measurementHalfExtents )
+  {
+    measurementFrame = null;
+    measurementCenterLocal = Vector3.zero;
+    measurementHalfExtents = Vector3.zero;
+
+    ResolveReferences();
+    if ( m_bedTransform == null )
+      return false;
+
+    RefreshCachedBedBounds();
+    if ( !m_hasCachedBedLocalBounds )
+      return false;
+
+    var bedBounds = m_cachedBedLocalBounds;
+    measurementFrame = m_bedTransform;
+    measurementCenterLocal = bedBounds.center + m_localCenterOffset;
+    measurementHalfExtents = new Vector3(
+      Mathf.Max( 0.01f, bedBounds.extents.x + m_additionalHalfExtents.x ),
+      Mathf.Max( 0.01f, bedBounds.extents.y + m_additionalHalfExtents.y ),
+      Mathf.Max( 0.01f, bedBounds.extents.z + m_additionalHalfExtents.z ) );
     return true;
   }
 

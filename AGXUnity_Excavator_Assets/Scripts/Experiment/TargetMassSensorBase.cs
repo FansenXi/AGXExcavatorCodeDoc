@@ -26,6 +26,17 @@ public abstract class TargetMassSensorBase : ScriptComponent
                                     out measurementHalfExtents );
   }
 
+  public virtual bool TryGetTargetClearanceVolume( out Transform measurementFrame,
+                                                   out Vector3 measurementCenterLocal,
+                                                   out Vector3 measurementHalfExtents )
+  {
+    return TryGetTargetDistanceVolume( out measurementFrame,
+                                       out measurementCenterLocal,
+                                       out measurementHalfExtents );
+  }
+
+  public virtual float TargetDumpClearanceHorizontalToleranceMeters => 0.0f;
+
   public abstract void ResetMeasurements();
 }
 

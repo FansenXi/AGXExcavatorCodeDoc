@@ -24,7 +24,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     public void BeginEpisode( int episodeIndex, string sourceName )
     {
       m_rows.Clear();
-      m_rows.Add( "time,source,device_name,profile_name,binding_status,hardware_left_x,hardware_left_y,hardware_right_x,hardware_right_y,hardware_drive,hardware_steer,hardware_reset_button,hardware_start_button,hardware_stop_button,hardware_input_summary,act_backend_ready,act_timeout_fallback,act_response_seq,act_inference_time_ms,act_session_id,act_status,raw_left_x,raw_left_y,raw_right_x,raw_right_y,raw_drive,raw_steer,sim_left_x,sim_left_y,sim_right_x,sim_right_y,sim_drive,sim_steer,boom,bucket,stick,swing,drive,steer,throttle,bucket_pos_x,bucket_pos_y,bucket_pos_z,bucket_rot_x,bucket_rot_y,bucket_rot_z,bucket_rot_w,target_name,mass_in_bucket,excavated_mass,mass_in_target_box,deposited_mass_in_target_box,min_distance_to_target_m,target_hard_collision_count,target_contact_max_normal_force_n" );
+      m_rows.Add( "time,source,device_name,profile_name,binding_status,hardware_left_x,hardware_left_y,hardware_right_x,hardware_right_y,hardware_drive,hardware_steer,hardware_reset_button,hardware_start_button,hardware_stop_button,hardware_input_summary,act_backend_ready,act_timeout_fallback,act_response_seq,act_inference_time_ms,act_session_id,act_status,raw_left_x,raw_left_y,raw_right_x,raw_right_y,raw_drive,raw_steer,sim_left_x,sim_left_y,sim_right_x,sim_right_y,sim_drive,sim_steer,boom,bucket,stick,swing,drive,steer,throttle,bucket_pos_x,bucket_pos_y,bucket_pos_z,bucket_rot_x,bucket_rot_y,bucket_rot_z,bucket_rot_w,target_name,mass_in_bucket,excavated_mass,mass_in_target_box,deposited_mass_in_target_box,min_distance_to_target_m,target_horizontal_distance_m,bucket_height_above_target_rim_m,bucket_over_target_footprint_mask,dump_clearance_ok_mask,bucket_bed_relative_x_m,bucket_bed_relative_z_m,bucket_bed_footprint_outside_distance_m,target_hard_collision_count,target_contact_max_normal_force_n" );
 
       m_episodeIndex = episodeIndex;
       m_sourceName = sourceName;
@@ -57,6 +57,24 @@ namespace AGXUnity_Excavator.Scripts.Experiment
         targetMassSensor != null && targetMassSensor.TryMeasureBucketDistance( bucketReference, out var measuredDistanceMeters ) ?
           measuredDistanceMeters :
           -1.0f;
+      var targetHorizontalDistanceMeters = -1.0f;
+      var bucketHeightAboveTargetRimMeters = 0.0f;
+      var bucketOverTargetFootprintMask = 0.0f;
+      var dumpClearanceOkMask = 0.0f;
+      var bucketBedRelativeXMeters = 0.0f;
+      var bucketBedRelativeZMeters = 0.0f;
+      var bucketBedFootprintOutsideDistanceMeters = -1.0f;
+      if ( targetMassSensor != null &&
+           targetMassSensor.TryMeasureBucketTargetGeometry( bucketReference, out var targetGeometryMetrics ) &&
+           targetGeometryMetrics.IsValid ) {
+        targetHorizontalDistanceMeters = targetGeometryMetrics.TargetHorizontalDistanceMeters;
+        bucketHeightAboveTargetRimMeters = targetGeometryMetrics.BucketHeightAboveTargetRimMeters;
+        bucketOverTargetFootprintMask = targetGeometryMetrics.BucketOverTargetFootprintMask;
+        dumpClearanceOkMask = targetGeometryMetrics.DumpClearanceOkMask;
+        bucketBedRelativeXMeters = targetGeometryMetrics.BucketBedRelativeXMeters;
+        bucketBedRelativeZMeters = targetGeometryMetrics.BucketBedRelativeZMeters;
+        bucketBedFootprintOutsideDistanceMeters = targetGeometryMetrics.BucketBedFootprintOutsideDistanceMeters;
+      }
       var targetHardCollisionCount = activeTargetCollisionMonitor != null ? activeTargetCollisionMonitor.TargetHardCollisionCount : 0;
       var targetContactMaxNormalForceN = activeTargetCollisionMonitor != null ? activeTargetCollisionMonitor.TargetContactMaxNormalForceN : 0.0f;
       var hardwareSnapshot = hardwareDiagnostics != null ? hardwareDiagnostics.LastRawInputSnapshot : HardwareInputSnapshot.Zero;
@@ -127,6 +145,13 @@ namespace AGXUnity_Excavator.Scripts.Experiment
           F( massInTargetBox ),
           F( depositedMassInTargetBox ),
           F( minDistanceToTargetMeters ),
+          F( targetHorizontalDistanceMeters ),
+          F( bucketHeightAboveTargetRimMeters ),
+          F( bucketOverTargetFootprintMask ),
+          F( dumpClearanceOkMask ),
+          F( bucketBedRelativeXMeters ),
+          F( bucketBedRelativeZMeters ),
+          F( bucketBedFootprintOutsideDistanceMeters ),
           targetHardCollisionCount.ToString( CultureInfo.InvariantCulture ),
           F( targetContactMaxNormalForceN ) ) );
     }

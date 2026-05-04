@@ -136,6 +136,15 @@ public class SwitchableTargetMassSensor : MonoBehaviour
     return BucketTargetDistanceMeasurementUtility.TryMeasureDistance( bucketReference, CurrentTarget, out minDistanceMeters );
   }
 
+  public bool TryMeasureBucketTargetGeometry( Transform bucketReference,
+                                              out TargetGeometryMetrics metrics )
+  {
+    RefreshTargets();
+    return BucketTargetDistanceMeasurementUtility.TryMeasureTargetGeometry( bucketReference,
+                                                                           CurrentTarget,
+                                                                           out metrics );
+  }
+
   private TargetMassSensorBase[] BuildRuntimeTargetList()
   {
     if ( HasAssignedEntries( m_targetSensors ) )

@@ -33,7 +33,7 @@ backup scalar
 
 The current Unity `env_state` contract is now:
 
-`[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n, min_distance_to_dig_area_m, bucket_depth_below_dig_area_plane_m]`
+`[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n, min_distance_to_dig_area_m, bucket_depth_below_dig_area_plane_m, target_horizontal_distance_m, bucket_height_above_target_rim_m, bucket_over_target_footprint_mask, dump_clearance_ok_mask]`
 
 Current meanings:
 
@@ -49,6 +49,14 @@ Current meanings:
 - `target_contact_max_normal_force_n` is the current-step maximum monitored normal force
 - `min_distance_to_dig_area_m` is the approximate minimum distance from the bucket DigArea proxy to the DigArea region
 - `bucket_depth_below_dig_area_plane_m` is the proximity-weighted effective depth of the bucket DigArea proxy below the DigArea center plane
+- `target_horizontal_distance_m` is the explicit horizontal distance between
+  the bucket target-distance proxy footprint and active target clearance
+  footprint; `0.0` means overlap
+- `bucket_height_above_target_rim_m`, `bucket_over_target_footprint_mask`, and
+  `dump_clearance_ok_mask` describe the explicit target dump geometry used by
+  Repo A target-safety logic; `TruckBed` dump clearance allows horizontal
+  tolerance before strict footprint overlap, but still requires the bucket
+  proxy bottom to stay above the bed rim/top
 
 ### 2.2 Hard-Collision Monitoring Upgrade
 

@@ -114,6 +114,27 @@ public class TerrainParticleBoxMassSensor : TargetMassSensorBase
     return true;
   }
 
+  public override bool TryGetTargetClearanceVolume( out Transform measurementFrame,
+                                                    out Vector3 measurementCenterLocal,
+                                                    out Vector3 measurementHalfExtents )
+  {
+    ResolveReferences();
+
+    if ( m_sensorFootprint != null ) {
+      measurementFrame = m_sensorFootprint.transform;
+      measurementCenterLocal = Vector3.zero;
+      measurementHalfExtents = m_sensorFootprint.HalfExtents;
+      return measurementFrame != null &&
+             measurementHalfExtents.x > 0.0f &&
+             measurementHalfExtents.y > 0.0f &&
+             measurementHalfExtents.z > 0.0f;
+    }
+
+    return TryGetMeasurementVolume( out measurementFrame,
+                                    out measurementCenterLocal,
+                                    out measurementHalfExtents );
+  }
+
   protected override bool Initialize()
   {
     ResolveReferences();
