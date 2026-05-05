@@ -240,9 +240,9 @@ Unity 组件化输入源基类
 - `ExcavatorHydraulicSystem` 是 AGX Hydraulics 的共享系统入口；当前只实现 swing 分支，后续 boom / stick / bucket 应继续作为同一个液压网络上的分支扩展
 - `ActuationLimits` 提供加速度等约束参数
 
-当前液压迁移策略是先保持输入、Python 通信和执行命令结构不变，只替换执行后端。`MachineController` 目前提供 swing 后端选择：默认 `TargetSpeed`；切到 `Hydraulic` 时会尝试使用共享 `ExcavatorHydraulicSystem` 中的 `ConstantFlowValve -> HydraulicMotorActuator(SwingHinge)` 分支，失败则回退到 `TargetSpeed`。后续建议继续在同一个共享液压系统里添加 stick / bucket cylinder 分支，最后处理包含多个 prismatic 的 boom。
+当前液压迁移策略是先保持输入、Python 通信和执行命令结构不变，只替换执行后端。`MachineController` 目前提供 swing 后端选择：默认 `TargetSpeed`；切到 `Hydraulic` 时会尝试使用共享 `ExcavatorHydraulicSystem` 中的最小物理回路，失败则回退到 `TargetSpeed`。后续建议继续在同一个共享液压系统里添加 stick / bucket cylinder 分支，最后处理包含多个 prismatic 的 boom。
 
-当前 swing 液压分支不是最终完整主泵 / 多路阀模型，而是可标定的过渡模型：`Swing Max Flow Rate` 决定最大回转流量，`Swing Flow Rise Rate` / `Swing Flow Fall Rate` 决定阀位或流量指令的上升和松手衰减速度，`Swing Neutral Mode` 决定中位时是继续把流量约束在零附近，还是在有效操作后的流量衰减后关闭流量源让上车体继续滑行。`Swing Coast Stop Speed` 用于低速时重新回到零流量制动，避免静止零输入时数值偏置被 coast 放大成自发漂移。`Debug Swing Target/Commanded/Actual Flow Rate` 和 `Debug Swing Speed` 用于确认调参是否真的进入 AGX 液压分支。
+当前 swing 液压分支已经从理想 `ConstantFlowValve` 过渡模型改为泵驱动的 V1 最小网络：`agxDriveTrain.FixedVelocityEngine -> agxHydraulics.Pump -> Pipe -> NeedleValve -> HydraulicMotorActuator(SwingHinge)`。`Swing` 输入目前控制 `NeedleValve` 阀口开度，并临时用输入正负切换固定转速发动机目标 rpm 的符号来支持双向回转；后续应替换为更真实的方向阀 / 多路阀结构。调试字段包含 pump pressure、supply flow、pump rpm、swing branch flow、valve opening 和 swing speed。
 
 ### 4.5 `Experiment`
 

@@ -1,159 +1,176 @@
-using AGXUnity;
+﻿using AGXUnity;
 using UnityEngine;
 
 namespace AGXUnity_Excavator.Scripts.Control.Execution
 {
-  public enum ExcavatorHydraulicSwingNeutralMode
-  {
-    BrakeAtZeroFlow,
-    CoastAfterFlowDecay
-  }
-
+  /// <summary>
+  /// Shared AGX hydraulics network. The current V1 swing circuit is:
+  /// FixedVelocityEngine -> Pump -> Supply Pipe -> NeedleValve -> HydraulicMotorActuator(SwingHinge).
+  /// Future boom/stick/bucket branches should be attached to the same PowerLine and supply network.
+  /// </summary>
   public class ExcavatorHydraulicSystem : ScriptComponent
   {
-    private sealed class SwingHydraulicBranch
+    /// <summary>Shared supply: a fixed velocity engine drives a pump, and the pump outlet feeds a supply pipe.</summary>
+    private sealed class SharedSupply
     {
-      private readonly agxHydraulics.ConstantFlowValve m_flowSource = null;
-      private float m_commandedFlowRate = 0.0f;
-      private bool m_hasDrivenSinceNeutral = false;
+      public readonly agxDriveTrain.FixedVelocityEngine Engine = null;
+      public readonly agxHydraulics.Pump Pump = null;
+      public readonly agxHydraulics.Pipe SupplyPipe = null;
 
-      public SwingHydraulicBranch( agxHydraulics.ConstantFlowValve flowSource )
+      public SharedSupply( agxDriveTrain.FixedVelocityEngine engine,
+                           agxHydraulics.Pump pump,
+                           agxHydraulics.Pipe supplyPipe )
       {
-        m_flowSource = flowSource;
+        Engine = engine;
+        Pump = pump;
+        SupplyPipe = supplyPipe;
       }
 
-      public float TargetFlowRate { get; private set; }
-      public float CommandedFlowRate => m_commandedFlowRate;
-      public float ActualFlowRate => m_flowSource != null ? (float)m_flowSource.getFlowRate() : 0.0f;
-      public bool IsFlowSourceEnabled => m_flowSource != null && m_flowSource.getEnable();
+      public float PumpPressure => Pump != null ? (float)Pump.getPressure() : 0.0f;
+      public float SupplyFlowRate => SupplyPipe != null ? (float)SupplyPipe.getFlowRate() : 0.0f;
+      public float PumpRpm => Engine != null ? (float)Engine.getRPM() : 0.0f;
 
-      public void ApplyNormalizedCommand( float command,
-                                          float maxFlowRate,
-                                          float deadZone,
-                                          float flowRiseRate,
-                                          float flowFallRate,
-                                          ExcavatorHydraulicSwingNeutralMode neutralMode,
-                                          float coastDisableFlowThreshold,
-                                          float coastStopSpeed,
-                                          float currentSpeed,
-                                          float deltaTime,
-                                          bool immediateStop )
+      public void ApplyPumpCommand( float commandSign, float baseDisplacement, float targetRpm )
       {
-        if ( m_flowSource == null )
-          return;
+        if ( Pump != null )
+          Pump.setDisplacement( Mathf.Abs( baseDisplacement ) );
 
-        var normalized = Mathf.Clamp( command, -1.0f, 1.0f );
-        if ( Mathf.Abs( normalized ) < deadZone )
-          normalized = 0.0f;
-
-        if ( Mathf.Abs( normalized ) > 0.0f )
-          m_hasDrivenSinceNeutral = true;
-
-        TargetFlowRate = immediateStop ? 0.0f : normalized * Mathf.Abs( maxFlowRate );
-        var flowRateLimit = Mathf.Abs( TargetFlowRate ) > Mathf.Abs( m_commandedFlowRate ) ?
-                            flowRiseRate :
-                            flowFallRate;
-        var maxDeltaFlow = Mathf.Abs( flowRateLimit ) * Mathf.Max( deltaTime, 0.0f );
-        m_commandedFlowRate = immediateStop ?
-                              0.0f :
-                              Mathf.MoveTowards( m_commandedFlowRate, TargetFlowRate, maxDeltaFlow );
-
-        if ( immediateStop || Mathf.Abs( currentSpeed ) <= Mathf.Abs( coastStopSpeed ) )
-          m_hasDrivenSinceNeutral = false;
-
-        var shouldCoast = m_hasDrivenSinceNeutral &&
-                          neutralMode == ExcavatorHydraulicSwingNeutralMode.CoastAfterFlowDecay &&
-                          Mathf.Abs( TargetFlowRate ) < 1.0e-6f &&
-                          Mathf.Abs( m_commandedFlowRate ) <= Mathf.Abs( coastDisableFlowThreshold );
-
-        m_flowSource.setTargetFlowRate( m_commandedFlowRate );
-        m_flowSource.setEnable( !shouldCoast );
+        if ( Engine != null )
+          Engine.setTargetRpm( Mathf.Abs( commandSign ) > 0.0f ? Mathf.Sign( commandSign ) * Mathf.Abs( targetRpm ) : 0.0f );
       }
 
       public void Stop()
       {
-        TargetFlowRate = 0.0f;
-        m_commandedFlowRate = 0.0f;
-        m_hasDrivenSinceNeutral = false;
+        if ( Pump != null )
+          Pump.setDisplacement( 0.0 );
 
-        if ( m_flowSource == null )
-          return;
+        if ( Engine != null )
+          Engine.setTargetRpm( 0.0 );
+      }
+    }
 
-        m_flowSource.setTargetFlowRate( 0.0 );
-        m_flowSource.setEnable( true );
+    /// <summary>Swing branch: NeedleValve opening is the swing valve command, and the motor is coupled to SwingHinge.</summary>
+    private sealed class SwingBranch
+    {
+      private readonly agxHydraulics.NeedleValve m_valve = null;
+      private readonly agxHydraulics.HydraulicMotorActuator m_motor = null;
+
+      public SwingBranch( agxHydraulics.NeedleValve valve,
+                          agxHydraulics.HydraulicMotorActuator motor )
+      {
+        m_valve = valve;
+        m_motor = motor;
+      }
+
+      public float ValveOpeningFraction { get; private set; }
+      public float BranchFlowRate => m_valve != null ? (float)m_valve.getFlowRate() : 0.0f;
+      public float ValveOpeningArea => m_valve != null ? (float)m_valve.getOpeningArea() : 0.0f;
+
+      public void ApplyValveCommand( float command, float deadZone, float maxOpeningFraction )
+      {
+        var normalized = Mathf.Clamp( command, -1.0f, 1.0f );
+        if ( Mathf.Abs( normalized ) < deadZone )
+          normalized = 0.0f;
+
+        ValveOpeningFraction = Mathf.Clamp01( Mathf.Abs( normalized ) * Mathf.Clamp01( maxOpeningFraction ) );
+        if ( m_valve != null )
+          m_valve.setOpeningFraction( ValveOpeningFraction );
+      }
+
+      public void Stop()
+      {
+        ValveOpeningFraction = 0.0f;
+        if ( m_valve != null )
+          m_valve.setOpeningFraction( 0.0 );
       }
     }
 
     [SerializeField]
+    [Tooltip( "Fluid density in kg/m^3. Captured when the native pipe/valve/motor are created." )]
     [Min( 0.0f )]
     private float m_fluidDensity = 850.0f;
 
     [SerializeField]
-    [Min( 0.0001f )]
-    private float m_swingChamberLength = 0.5f;
-
-    [SerializeField]
-    [Min( 0.000001f )]
-    private float m_swingChamberArea = 0.002f;
-
-    [SerializeField]
+    [Tooltip( "Target RPM for the fixed velocity pump engine. Sign is taken from the swing command." )]
     [Min( 0.0f )]
-    private float m_swingMaxFlowRate = 0.01f;
+    private float m_pumpTargetRpm = 1500.0f;
 
     [SerializeField]
+    [Tooltip( "Base pump displacement. V1 keeps displacement positive and flips pump RPM sign from the swing command." )]
+    private float m_pumpDisplacement = 0.01f;
+
+    [SerializeField]
+    [Tooltip( "Supply pipe length in meters." )]
+    [Min( 0.0001f )]
+    private float m_supplyPipeLength = 1.0f;
+
+    [SerializeField]
+    [Tooltip( "Supply pipe cross section area in m^2." )]
+    [Min( 0.000001f )]
+    private float m_supplyPipeArea = 0.005f;
+
+    [SerializeField]
+    [Tooltip( "Maximum opening area of the swing NeedleValve in m^2." )]
+    [Min( 0.000001f )]
+    private float m_swingValveMaxOpeningArea = 0.002f;
+
+    [SerializeField]
+    [Tooltip( "Maximum opening fraction applied to the swing NeedleValve at full command." )]
+    [Range( 0.0f, 1.0f )]
+    private float m_swingValveMaxOpeningFraction = 1.0f;
+
+    [SerializeField]
+    [Tooltip( "Swing input dead zone." )]
     [Range( 0.0f, 1.0f )]
     private float m_swingCommandDeadZone = 0.05f;
 
     [SerializeField]
-    [Min( 0.0f )]
-    private float m_swingFlowRiseRate = 1.0f;
+    [Tooltip( "Swing hydraulic motor chamber length in meters." )]
+    [Min( 0.0001f )]
+    private float m_swingMotorChamberLength = 0.5f;
 
     [SerializeField]
-    [Min( 0.0f )]
-    private float m_swingFlowFallRate = 0.25f;
+    [Tooltip( "Swing hydraulic motor chamber area in m^2." )]
+    [Min( 0.000001f )]
+    private float m_swingMotorChamberArea = 0.002f;
 
     [SerializeField]
-    private ExcavatorHydraulicSwingNeutralMode m_swingNeutralMode = ExcavatorHydraulicSwingNeutralMode.CoastAfterFlowDecay;
-
-    [SerializeField]
-    [Min( 0.0f )]
-    private float m_swingCoastDisableFlowThreshold = 0.002f;
-
-    [SerializeField]
-    [Min( 0.0f )]
-    private float m_swingCoastStopSpeed = 0.02f;
-
-    [SerializeField]
+    [Tooltip( "Read-only: current normalized swing command." )]
     private float m_debugSwingCommand = 0.0f;
 
     [SerializeField]
-    private float m_debugSwingTargetFlowRate = 0.0f;
+    [Tooltip( "Read-only: swing valve opening fraction." )]
+    private float m_debugSwingValveOpeningFraction = 0.0f;
 
     [SerializeField]
-    private float m_debugSwingCommandedFlowRate = 0.0f;
+    [Tooltip( "Read-only: swing valve opening area." )]
+    private float m_debugSwingValveOpeningArea = 0.0f;
 
     [SerializeField]
-    private float m_debugSwingActualFlowRate = 0.0f;
+    [Tooltip( "Read-only: swing branch flow rate." )]
+    private float m_debugSwingBranchFlowRate = 0.0f;
 
     [SerializeField]
+    [Tooltip( "Read-only: pump pressure." )]
+    private float m_debugPumpPressure = 0.0f;
+
+    [SerializeField]
+    [Tooltip( "Read-only: supply pipe flow rate." )]
+    private float m_debugSupplyFlowRate = 0.0f;
+
+    [SerializeField]
+    [Tooltip( "Read-only: fixed velocity pump engine RPM." )]
+    private float m_debugPumpRpm = 0.0f;
+
+    [SerializeField]
+    [Tooltip( "Read-only: current SwingHinge speed." )]
     private float m_debugSwingSpeed = 0.0f;
-
-    [SerializeField]
-    private bool m_debugSwingFlowSourceEnabled = false;
 
     public agxPowerLine.PowerLine Native { get; private set; } = null;
 
+    private SharedSupply m_sharedSupply = null;
     private Constraint m_swingConstraint = null;
-    private agxHydraulics.HydraulicMotorActuator m_swingMotor = null;
-    private SwingHydraulicBranch m_swingBranch = null;
-
-    public float SwingMaxFlowRate => m_swingMaxFlowRate;
-    public float SwingCommandDeadZone => m_swingCommandDeadZone;
-    public float SwingFlowRiseRate => m_swingFlowRiseRate;
-    public float SwingFlowFallRate => m_swingFlowFallRate;
-    public ExcavatorHydraulicSwingNeutralMode SwingNeutralMode => m_swingNeutralMode;
-    public float SwingCoastDisableFlowThreshold => m_swingCoastDisableFlowThreshold;
-    public float SwingCoastStopSpeed => m_swingCoastStopSpeed;
+    private SwingBranch m_swingBranch = null;
 
     protected override bool Initialize()
     {
@@ -172,7 +189,8 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
     {
       actuator = null;
 
-      var branch = GetOrCreateSwingBranch( swingHinge );
+      var supply = GetOrCreateSharedSupply();
+      var branch = GetOrCreateSwingBranch( swingHinge, supply );
       if ( branch == null )
         return false;
 
@@ -183,15 +201,13 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
     public void StopSwing()
     {
       m_swingBranch?.Stop();
+      m_sharedSupply?.Stop();
     }
 
-    private SwingHydraulicBranch GetOrCreateSwingBranch( Constraint swingHinge )
+    private SharedSupply GetOrCreateSharedSupply()
     {
-      if ( swingHinge == null || swingHinge.Native == null )
-        return null;
-
-      if ( m_swingBranch != null && m_swingConstraint == swingHinge )
-        return m_swingBranch;
+      if ( m_sharedSupply != null )
+        return m_sharedSupply;
 
       if ( Native == null && !Initialize() )
         return null;
@@ -199,58 +215,71 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
       if ( Native == null )
         return null;
 
+      var engine = new agxDriveTrain.FixedVelocityEngine();
+      engine.setTargetRpm( 0.0 );
+
+      var pump = new agxHydraulics.Pump( m_pumpDisplacement );
+      var supplyPipe = new agxHydraulics.Pipe( m_supplyPipeLength, m_supplyPipeArea, m_fluidDensity );
+
+      engine.connect( pump );
+      pump.connect( supplyPipe );
+
+      Native.add( engine );
+      Native.add( supplyPipe );
+
+      m_sharedSupply = new SharedSupply( engine, pump, supplyPipe );
+      return m_sharedSupply;
+    }
+
+    private SwingBranch GetOrCreateSwingBranch( Constraint swingHinge, SharedSupply supply )
+    {
+      if ( swingHinge == null || swingHinge.Native == null || supply == null || supply.SupplyPipe == null )
+        return null;
+
+      if ( m_swingBranch != null && m_swingConstraint == swingHinge )
+        return m_swingBranch;
+
       var nativeHinge = swingHinge.Native.asHinge();
       if ( nativeHinge == null )
         return null;
 
-      var flowSource = new agxHydraulics.ConstantFlowValve(
-        m_swingChamberLength,
-        m_swingChamberArea,
-        m_fluidDensity,
-        0.0,
-        true );
+      var valve = new agxHydraulics.NeedleValve( m_swingValveMaxOpeningArea, m_fluidDensity );
       var motor = new agxHydraulics.HydraulicMotorActuator(
         nativeHinge,
-        m_swingChamberLength,
-        m_swingChamberArea,
+        m_swingMotorChamberLength,
+        m_swingMotorChamberArea,
         m_fluidDensity );
 
-      flowSource.connect( motor );
-      Native.add( flowSource );
-
-      flowSource.setAllowPumping( true );
-      flowSource.setEnable( true );
-      flowSource.setTargetFlowRate( 0.0 );
+      valve.setOpeningFraction( 0.0 );
+      supply.SupplyPipe.connect( valve );
+      valve.connect( motor );
+      Native.add( valve );
 
       m_swingConstraint = swingHinge;
-      m_swingMotor = motor;
-      m_swingBranch = new SwingHydraulicBranch( flowSource );
+      m_swingBranch = new SwingBranch( valve, motor );
       return m_swingBranch;
     }
 
-    private float GetSimulationDeltaTime()
+    private void ApplySwingCommand( float command, Constraint swingConstraint, SwingBranch branch, bool immediateStop )
     {
-      var simulation = GetSimulation();
-      return simulation != null ? (float)simulation.getTimeStep() : Time.deltaTime;
+      var nextCommand = immediateStop ? 0.0f : Mathf.Clamp( command, -1.0f, 1.0f );
+      if ( Mathf.Abs( nextCommand ) < m_swingCommandDeadZone )
+        nextCommand = 0.0f;
+
+      branch.ApplyValveCommand( nextCommand, m_swingCommandDeadZone, m_swingValveMaxOpeningFraction );
+      m_sharedSupply?.ApplyPumpCommand( nextCommand, m_pumpDisplacement, m_pumpTargetRpm );
+      UpdateSwingDebug( nextCommand, swingConstraint, branch );
     }
 
-    private void UpdateSwingDebug( float command, Constraint swingConstraint, SwingHydraulicBranch branch )
+    private void UpdateSwingDebug( float command, Constraint swingConstraint, SwingBranch branch )
     {
       m_debugSwingCommand = command;
-
-      if ( branch == null ) {
-        m_debugSwingTargetFlowRate = 0.0f;
-        m_debugSwingCommandedFlowRate = 0.0f;
-        m_debugSwingActualFlowRate = 0.0f;
-        m_debugSwingFlowSourceEnabled = false;
-      }
-      else {
-        m_debugSwingTargetFlowRate = branch.TargetFlowRate;
-        m_debugSwingCommandedFlowRate = branch.CommandedFlowRate;
-        m_debugSwingActualFlowRate = branch.ActualFlowRate;
-        m_debugSwingFlowSourceEnabled = branch.IsFlowSourceEnabled;
-      }
-
+      m_debugSwingValveOpeningFraction = branch != null ? branch.ValveOpeningFraction : 0.0f;
+      m_debugSwingValveOpeningArea = branch != null ? branch.ValveOpeningArea : 0.0f;
+      m_debugSwingBranchFlowRate = branch != null ? branch.BranchFlowRate : 0.0f;
+      m_debugPumpPressure = m_sharedSupply != null ? m_sharedSupply.PumpPressure : 0.0f;
+      m_debugSupplyFlowRate = m_sharedSupply != null ? m_sharedSupply.SupplyFlowRate : 0.0f;
+      m_debugPumpRpm = m_sharedSupply != null ? m_sharedSupply.PumpRpm : 0.0f;
       m_debugSwingSpeed = swingConstraint != null ? swingConstraint.GetCurrentSpeed() : 0.0f;
     }
 
@@ -266,8 +295,8 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
         Native = null;
       }
 
+      m_sharedSupply = null;
       m_swingConstraint = null;
-      m_swingMotor = null;
       m_swingBranch = null;
 
       base.OnDestroy();
@@ -276,11 +305,11 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
     private sealed class HydraulicSwingAxisActuator : IExcavatorAxisActuator
     {
       private readonly Constraint m_constraint = null;
-      private readonly SwingHydraulicBranch m_branch = null;
+      private readonly SwingBranch m_branch = null;
       private readonly ExcavatorHydraulicSystem m_system = null;
 
       public HydraulicSwingAxisActuator( Constraint constraint,
-                                         SwingHydraulicBranch branch,
+                                         SwingBranch branch,
                                          ExcavatorHydraulicSystem system )
       {
         m_constraint = constraint;
@@ -292,21 +321,10 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
       {
         DisableConstraintControllers();
 
-        var nextCommand = immediateStop ? 0.0f : command;
-        m_branch.ApplyNormalizedCommand(
-          nextCommand,
-          m_system != null ? m_system.SwingMaxFlowRate : 0.0f,
-          m_system != null ? m_system.SwingCommandDeadZone : 0.0f,
-          m_system != null ? m_system.SwingFlowRiseRate : 0.0f,
-          m_system != null ? m_system.SwingFlowFallRate : 0.0f,
-          m_system != null ? m_system.SwingNeutralMode : ExcavatorHydraulicSwingNeutralMode.BrakeAtZeroFlow,
-          m_system != null ? m_system.SwingCoastDisableFlowThreshold : 0.0f,
-          m_system != null ? m_system.SwingCoastStopSpeed : 0.0f,
-          m_constraint != null ? m_constraint.GetCurrentSpeed() : 0.0f,
-          m_system != null ? m_system.GetSimulationDeltaTime() : Time.deltaTime,
-          immediateStop );
-        if ( m_system != null )
-          m_system.UpdateSwingDebug( nextCommand, m_constraint, m_branch );
+        if ( m_system == null )
+          return;
+
+        m_system.ApplySwingCommand( command, m_constraint, m_branch, immediateStop );
       }
 
       private void DisableConstraintControllers()
