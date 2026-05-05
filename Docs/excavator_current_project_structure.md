@@ -242,6 +242,8 @@ Unity 组件化输入源基类
 
 当前液压迁移策略是先保持输入、Python 通信和执行命令结构不变，只替换执行后端。`MachineController` 目前提供 swing 后端选择：默认 `TargetSpeed`；切到 `Hydraulic` 时会尝试使用共享 `ExcavatorHydraulicSystem` 中的 `ConstantFlowValve -> HydraulicMotorActuator(SwingHinge)` 分支，失败则回退到 `TargetSpeed`。后续建议继续在同一个共享液压系统里添加 stick / bucket cylinder 分支，最后处理包含多个 prismatic 的 boom。
 
+当前 swing 液压分支不是最终完整主泵 / 多路阀模型，而是可标定的过渡模型：`Swing Max Flow Rate` 决定最大回转流量，`Swing Flow Rise Rate` / `Swing Flow Fall Rate` 决定阀位或流量指令的上升和松手衰减速度，`Swing Neutral Mode` 决定中位时是继续把流量约束在零附近，还是在有效操作后的流量衰减后关闭流量源让上车体继续滑行。`Swing Coast Stop Speed` 用于低速时重新回到零流量制动，避免静止零输入时数值偏置被 coast 放大成自发漂移。`Debug Swing Target/Commanded/Actual Flow Rate` 和 `Debug Swing Speed` 用于确认调参是否真的进入 AGX 液压分支。
+
 ### 4.5 `Experiment`
 
 这一层负责实验生命周期、日志和数据导出。
