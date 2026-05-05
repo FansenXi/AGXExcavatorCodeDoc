@@ -222,19 +222,25 @@ Unity 组件化输入源基类
 
 ### 4.4 `Control/Execution`
 
-这一层负责把 `OperatorCommand` 变成真正的挖机执行量，并写入 AGX 约束控制器。
+这一层负责把 `OperatorCommand` 变成真正的挖机执行量，并写入 AGX 执行后端。
 
 当前关键文件：
 
 - `ExcavatorCommandInterpreter.cs`
 - `ExcavatorMachineController.cs`
+- `ExcavatorAxisActuators.cs`
+- `ExcavatorHydraulicSystem.cs`
 - `ExcavatorActuationLimits.cs`
 
 职责划分是：
 
 - `Interpreter` 负责语义映射
-- `MachineController` 负责实际执行和限幅
+- `MachineController` 负责保持 `ApplyActuationCommand(...)` 公共入口，并把 boom / bucket / stick / swing 分发到逐自由度执行适配器
+- `ExcavatorAxisActuators` 提供逐自由度 actuator 抽象；默认实现仍是 `TargetSpeedConstraintAxisActuator`，行为等价于之前直接写 `TargetSpeedController.Speed`
+- `ExcavatorHydraulicSystem` 是 AGX Hydraulics 的共享系统入口；当前只实现 swing 分支，后续 boom / stick / bucket 应继续作为同一个液压网络上的分支扩展
 - `ActuationLimits` 提供加速度等约束参数
+
+当前液压迁移策略是先保持输入、Python 通信和执行命令结构不变，只替换执行后端。`MachineController` 目前提供 swing 后端选择：默认 `TargetSpeed`；切到 `Hydraulic` 时会尝试使用共享 `ExcavatorHydraulicSystem` 中的 `ConstantFlowValve -> HydraulicMotorActuator(SwingHinge)` 分支，失败则回退到 `TargetSpeed`。后续建议继续在同一个共享液压系统里添加 stick / bucket cylinder 分支，最后处理包含多个 prismatic 的 boom。
 
 ### 4.5 `Experiment`
 

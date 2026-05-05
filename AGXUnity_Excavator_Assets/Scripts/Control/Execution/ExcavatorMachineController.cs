@@ -14,6 +14,12 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
     private Transform m_bucketReference = null;
 
     [SerializeField]
+    private ExcavatorHydraulicSystem m_hydraulicSystem = null;
+
+    [SerializeField]
+    private ExcavatorAxisActuatorBackend m_swingBackend = ExcavatorAxisActuatorBackend.TargetSpeed;
+
+    [SerializeField]
     private ExcavatorActuationLimits m_limits = new ExcavatorActuationLimits();
 
     [SerializeField]
@@ -26,6 +32,15 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
 
     [SerializeField]
     private bool m_startWithEngineRunning = true;
+
+    private Excavator m_axisActuatorRig = null;
+    private bool m_axisActuatorsInitialized = false;
+    private IExcavatorAxisActuator m_swingActuator = null;
+    private IExcavatorAxisActuator m_boomActuator = null;
+    private IExcavatorAxisActuator m_stickActuator = null;
+    private IExcavatorAxisActuator m_bucketActuator = null;
+    private bool m_pendingHydraulicSwingActuatorRetry = false;
+    private bool m_hydraulicSwingFallbackWarningLogged = false;
 
     public ExcavatorActuationCommand LastActuationCommand { get; private set; }
     public bool IsEngineRunning { get; private set; } = true;
@@ -47,12 +62,14 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
         return false;
       }
 
+      EnsureAxisActuators();
       return true;
     }
 
     private void Awake()
     {
       ResolveReferences();
+      EnsureAxisActuators();
       IsEngineRunning = m_startWithEngineRunning;
 
       if ( !IsEngineRunning )
@@ -102,6 +119,10 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
 
     private void ApplyActuation( ExcavatorActuationCommand command, bool immediateConstraintStop )
     {
+      if ( m_excavator == null && !ResolveReferences() )
+        return;
+
+      EnsureAxisActuators();
       SetThrottle( command.Throttle );
       ApplyDriveTrain( command.Drive, command.Steer );
       SetBoom( command.Boom, immediateConstraintStop );
@@ -140,95 +161,134 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
 
     private void SetSwing( float value, bool immediateStop )
     {
-      if ( m_excavator.SwingHinge == null )
-        return;
-
-      var currentSpeed = (float)m_excavator.SwingHinge.Native.asHinge().getCurrentSpeed();
-      var newSpeed = CalculateSpeed( value, currentSpeed, m_limits.MaxRotationalAcceleration );
-      SetSpeed( m_excavator.SwingHinge, newSpeed, immediateStop );
+      m_swingActuator?.Apply( value, immediateStop );
     }
 
     private void SetBoom( float value, bool immediateStop )
     {
-      if ( m_excavator.BoomPrismatics == null || m_excavator.BoomPrismatics.Length == 0 )
-        return;
-
-      var currentSpeed = (float)m_excavator.BoomPrismatics[ 0 ].Native.asPrismatic().getCurrentSpeed();
-      var newSpeed = CalculateSpeed( value, currentSpeed, m_limits.MaxLinearAcceleration );
-      foreach ( var prismatic in m_excavator.BoomPrismatics )
-        SetSpeed( prismatic, newSpeed, immediateStop );
+      m_boomActuator?.Apply( value, immediateStop );
     }
 
     private void SetStick( float value, bool immediateStop )
     {
-      if ( m_excavator.StickPrismatic == null )
-        return;
-
-      var currentSpeed = (float)m_excavator.StickPrismatic.Native.asPrismatic().getCurrentSpeed();
-      var newSpeed = CalculateSpeed( value, currentSpeed, m_limits.MaxLinearAcceleration );
-      SetSpeed( m_excavator.StickPrismatic, newSpeed, immediateStop );
+      m_stickActuator?.Apply( value, immediateStop );
     }
 
     private void SetBucket( float value, bool immediateStop )
     {
-      if ( m_excavator.BucketPrismatic == null )
-        return;
-
-      var currentSpeed = (float)m_excavator.BucketPrismatic.Native.asPrismatic().getCurrentSpeed();
-      var newSpeed = CalculateSpeed( value, currentSpeed, m_limits.MaxLinearAcceleration );
-      SetSpeed( m_excavator.BucketPrismatic, newSpeed, immediateStop );
+      m_bucketActuator?.Apply( value, immediateStop );
     }
 
-    private float CalculateSpeed( float desiredSpeed, float currentSpeed, float maxAcceleration )
+    private bool EnsureAxisActuators()
     {
-      var simulation = GetSimulation();
-      var deltaTime = simulation != null ? (float)simulation.getTimeStep() : Time.deltaTime;
-      var maxDeltaSpeed = Mathf.Abs( maxAcceleration * Mathf.Max( deltaTime, 0.0f ) );
-      return Mathf.Clamp( desiredSpeed, currentSpeed - maxDeltaSpeed, currentSpeed + maxDeltaSpeed );
-    }
+      if ( m_excavator == null && !ResolveReferences() )
+        return false;
 
-    private void SetSpeed( Constraint constraint, float speed, bool immediateStop )
-    {
-      if ( constraint == null )
-        return;
+      if ( m_axisActuatorsInitialized && m_axisActuatorRig == m_excavator ) {
+        if ( m_pendingHydraulicSwingActuatorRetry )
+          RetryHydraulicSwingActuator();
 
-      var speedController = constraint.GetController<TargetSpeedController>();
-      if ( speedController == null )
-        return;
-
-      var lockController = constraint.GetController<LockController>();
-
-      if ( immediateStop && Mathf.Abs( speed ) < 1.0e-4f ) {
-        speedController.Speed = 0.0f;
-        speedController.LockAtZeroSpeed = false;
-
-        if ( lockController != null ) {
-          speedController.Enable = false;
-          lockController.Position = constraint.GetCurrentAngle();
-          lockController.Enable = true;
-        }
-        else {
-          speedController.Enable = true;
-        }
-
-        return;
+        return true;
       }
 
-      speedController.LockAtZeroSpeed = false;
-      speedController.Enable = true;
-      speedController.Speed = Mathf.Abs( speed ) < 1.0e-4f ? 0.0f : speed;
-      if ( lockController != null )
-        lockController.Enable = false;
+      if ( m_limits == null )
+        m_limits = new ExcavatorActuationLimits();
+
+      m_axisActuatorRig = m_excavator;
+      m_swingActuator = CreateSwingActuator();
+      m_boomActuator = m_excavator.BoomPrismatics != null && m_excavator.BoomPrismatics.Length > 0 ?
+                       new TargetSpeedConstraintAxisActuator( m_excavator.BoomPrismatics,
+                                                              m_limits.MaxLinearAcceleration,
+                                                              GetSimulationDeltaTime ) :
+                       null;
+      m_stickActuator = m_excavator.StickPrismatic != null ?
+                        new TargetSpeedConstraintAxisActuator( m_excavator.StickPrismatic,
+                                                               m_limits.MaxLinearAcceleration,
+                                                               GetSimulationDeltaTime ) :
+                        null;
+      m_bucketActuator = m_excavator.BucketPrismatic != null ?
+                         new TargetSpeedConstraintAxisActuator( m_excavator.BucketPrismatic,
+                                                                m_limits.MaxLinearAcceleration,
+                                                                GetSimulationDeltaTime ) :
+                         null;
+      m_axisActuatorsInitialized = true;
+      return true;
+    }
+
+    private IExcavatorAxisActuator CreateSwingActuator()
+    {
+      if ( m_excavator.SwingHinge == null )
+        return null;
+
+      if ( m_swingBackend == ExcavatorAxisActuatorBackend.Hydraulic ) {
+        m_hydraulicSystem = ExcavatorRigLocator.ResolveComponent( this, m_hydraulicSystem );
+        if ( m_hydraulicSystem != null &&
+             m_hydraulicSystem.TryCreateSwingActuator( m_excavator.SwingHinge, out var hydraulicActuator ) ) {
+          m_pendingHydraulicSwingActuatorRetry = false;
+          return hydraulicActuator;
+        }
+
+        m_pendingHydraulicSwingActuatorRetry = true;
+
+        if ( m_hydraulicSystem == null && !m_hydraulicSwingFallbackWarningLogged ) {
+          Debug.LogWarning(
+            "Swing backend is set to Hydraulic, but no ExcavatorHydraulicSystem was found. Falling back to TargetSpeed.",
+            this );
+          m_hydraulicSwingFallbackWarningLogged = true;
+        }
+      }
+
+      return new TargetSpeedConstraintAxisActuator( m_excavator.SwingHinge,
+                                                   m_limits.MaxRotationalAcceleration,
+                                                   GetSimulationDeltaTime );
+    }
+
+    private void RetryHydraulicSwingActuator()
+    {
+      if ( m_swingBackend != ExcavatorAxisActuatorBackend.Hydraulic ||
+           m_excavator == null ||
+           m_excavator.SwingHinge == null )
+        return;
+
+      m_hydraulicSystem = ExcavatorRigLocator.ResolveComponent( this, m_hydraulicSystem );
+      if ( m_hydraulicSystem == null )
+        return;
+
+      if ( m_hydraulicSystem.TryCreateSwingActuator( m_excavator.SwingHinge, out var hydraulicActuator ) ) {
+        m_swingActuator = hydraulicActuator;
+        m_pendingHydraulicSwingActuatorRetry = false;
+      }
+    }
+
+    private float GetSimulationDeltaTime()
+    {
+      var simulation = GetSimulation();
+      return simulation != null ? (float)simulation.getTimeStep() : Time.deltaTime;
     }
 
     private bool ResolveReferences()
     {
+      var previousExcavator = m_excavator;
       m_excavator = ExcavatorRigLocator.ResolveComponent( this, m_excavator );
+      m_hydraulicSystem = ExcavatorRigLocator.ResolveComponent( this, m_hydraulicSystem );
+      if ( previousExcavator != m_excavator )
+        InvalidateAxisActuators();
 
       if ( m_bucketReference == null && m_excavator != null )
         m_bucketReference = FindChildRecursive( m_excavator.transform, "Bucket" );
 
       return m_excavator != null;
+    }
+
+    private void InvalidateAxisActuators()
+    {
+      m_axisActuatorRig = null;
+      m_axisActuatorsInitialized = false;
+      m_swingActuator = null;
+      m_boomActuator = null;
+      m_stickActuator = null;
+      m_bucketActuator = null;
+      m_pendingHydraulicSwingActuatorRetry = false;
     }
 
     private static Transform FindChildRecursive( Transform root, string targetName )
