@@ -69,10 +69,10 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       command.StartEpisodeRequested = m_startEpisodeAction != null && m_startEpisodeAction.WasPressedThisFrame();
       command.StopEpisodeRequested = m_stopEpisodeAction != null && m_stopEpisodeAction.WasPressedThisFrame();
 #else
-      command.LeftStickX = ReadAxis( KeyCode.T, KeyCode.U );
-      command.LeftStickY = ReadAxis( KeyCode.End, KeyCode.Home );
-      command.RightStickX = ReadAxis( KeyCode.Delete, KeyCode.Insert );
-      command.RightStickY = ReadAxis( KeyCode.PageDown, KeyCode.PageUp );
+      command.LeftStickX = ReadAxis( KeyCode.F, KeyCode.H );
+      command.LeftStickY = ReadAxis( KeyCode.G, KeyCode.T );
+      command.RightStickX = ReadAxis( KeyCode.J, KeyCode.L );
+      command.RightStickY = ReadAxis( KeyCode.I, KeyCode.K );
       command.Drive = ReadAxis( KeyCode.UpArrow, KeyCode.DownArrow );
       command.Steer = ReadAxis( KeyCode.RightArrow, KeyCode.LeftArrow );
       command.ResetRequested = Input.GetKeyDown( KeyCode.R );
@@ -89,10 +89,10 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       if ( m_actionsInitialized )
         return;
 
-      m_leftStickXAction = CreateAxisAction( "LeftStickX", "<Keyboard>/t", "<Keyboard>/u" );
-      m_leftStickYAction = CreateAxisAction( "LeftStickY", "<Keyboard>/end", "<Keyboard>/home" );
-      m_rightStickXAction = CreateAxisAction( "RightStickX", "<Keyboard>/delete", "<Keyboard>/insert" );
-      m_rightStickYAction = CreateAxisAction( "RightStickY", "<Keyboard>/pageDown", "<Keyboard>/pageUp" );
+      m_leftStickXAction = CreateAxisAction( "LeftStickX", "<Keyboard>/f", "<Keyboard>/h" );
+      m_leftStickYAction = CreateAxisAction( "LeftStickY", "<Keyboard>/g", "<Keyboard>/t" );
+      m_rightStickXAction = CreateAxisAction( "RightStickX", "<Keyboard>/j", "<Keyboard>/l" );
+      m_rightStickYAction = CreateAxisAction( "RightStickY", "<Keyboard>/i", "<Keyboard>/k" );
       m_driveAction = CreateAxisAction( "Drive", "<Keyboard>/upArrow", "<Keyboard>/downArrow" );
       m_steerAction = CreateAxisAction( "Steer", "<Keyboard>/rightArrow", "<Keyboard>/leftArrow" );
 

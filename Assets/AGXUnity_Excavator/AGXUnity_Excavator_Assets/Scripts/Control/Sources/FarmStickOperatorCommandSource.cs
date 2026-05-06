@@ -1034,23 +1034,23 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
                                                         float boomBucketStickY,
                                                         ref OperatorCommand command )
     {
-      // Real excavator-aligned FarmStick layout:
-      // Y on the swing/stick side drives swing, X drives stick.
-      // Swing and stick are both inverted here to match the current real machine.
-      // Y on the boom/bucket side drives boom, X drives bucket with inverted direction.
-      command.LeftStickX = -swingStickY;
-      command.LeftStickY = -swingStickX;
-      command.RightStickX = -boomBucketStickX;
+      // Unity standalone FarmStick layout:
+      // left X -> swing, left Y -> stick (forward raise, back lower),
+      // right Y -> boom (forward lower, back raise), right X -> bucket (left open, right close).
+      // The signs below compensate for ExcavatorCommandInterpreter's per-joint scale signs.
+      command.LeftStickX = swingStickX; // 操纵杆左右x,上下y
+      command.LeftStickY = swingStickY;
+      command.RightStickX = boomBucketStickX;
       command.RightStickY = boomBucketStickY;
     }
 
     private string BuildBindingStatus( string status )
     {
       var modeLabel = IsDualStickConfigured ?
-                      m_usedStableDualDeviceAssignmentFallback ? "Dual Main Sticks + Track Levers (stable device order, Left Y->Swing[inverted]/X->Stick[inverted]; Right Y->Boom/X->Bucket[inverted])" :
-                                                                  "Dual Main Sticks + Track Levers (Left Y->Swing[inverted]/X->Stick[inverted]; Right Y->Boom/X->Bucket[inverted])" :
-                      m_stickModeSwapActive ? "Main(Y->Boom/X->Bucket[inverted]), Mini(Y->Swing[inverted]/X->Stick[inverted])" :
-                                              "Main(Y->Swing[inverted]/X->Stick[inverted]), Mini(Y->Boom/X->Bucket[inverted])";
+                      m_usedStableDualDeviceAssignmentFallback ? "Dual Main Sticks + Track Levers (stable device order, Left X->Swing/Y->Stick; Right Y->Boom/X->Bucket)" :
+                                                                  "Dual Main Sticks + Track Levers (Left X->Swing/Y->Stick; Right Y->Boom/X->Bucket)" :
+                      m_stickModeSwapActive ? "Main(Y->Boom/X->Bucket), Mini(X->Swing/Y->Stick)" :
+                                              "Main(X->Swing/Y->Stick), Mini(Y->Boom/X->Bucket)";
       return string.IsNullOrWhiteSpace( status ) ? modeLabel : $"{status} | {modeLabel}";
     }
 

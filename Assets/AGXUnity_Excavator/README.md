@@ -81,20 +81,18 @@ Unity 侧原有的 ready-anchor HUD / 3D marker 代码目前只保留为历史�
 
 ### FarmStick (current default)
 
-- Left Main Stick Y  - Swing
-- Left Main Stick X  - Stick
-  Swing / Stick 两个轴在 FarmStick source 里都会额外反向一次，用来对齐当前真机手感。
-- Right Main Stick Y - Boom
-- Right Main Stick X - Bucket
-  Bucket 轴会额外反向一次，用来对齐当前真机 bucket 手感。
+- Left Main Stick X  - Swing
+- Left Main Stick Y  - Stick: forward raise, back lower
+- Right Main Stick Y - Boom: forward lower, back raise
+- Right Main Stick X - Bucket: left open, right close
 - Left/Right Rocker  - Drive / Steer
 
 ### Keyboard
 
-- PageUp/Down       - Boom up/down
-- Insert/Delete     - Move bucket
-- T/U               - Swing left/right
-- Home/End          - Stick up/down
+- I/K               - Boom up/down
+- J/L               - Bucket curl/dump
+- F/H               - Swing left/right
+- T/G               - Stick in/out
 - Up/Down           - Forward/Backward
 - Left/Right        - Turn Left/Right
 
