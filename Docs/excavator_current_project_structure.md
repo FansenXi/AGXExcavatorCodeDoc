@@ -242,7 +242,7 @@ Unity 组件化输入源基类
 
 当前液压迁移策略是先保持输入、Python 通信和执行命令结构不变，只替换执行后端。`MachineController` 目前提供 swing 后端选择：默认 `TargetSpeed`；切到 `Hydraulic` 时会尝试使用共享 `ExcavatorHydraulicSystem` 中的最小物理回路，失败则回退到 `TargetSpeed`。后续建议继续在同一个共享液压系统里添加 stick / bucket cylinder 分支，最后处理包含多个 prismatic 的 boom。
 
-当前 swing 液压分支已经从理想 `ConstantFlowValve` 过渡模型改为泵驱动的 V1 最小网络：`agxDriveTrain.FixedVelocityEngine -> agxHydraulics.Pump -> Pipe -> NeedleValve -> HydraulicMotorActuator(SwingHinge)`。`Swing` 输入目前控制 `NeedleValve` 阀口开度，并临时用输入正负切换固定转速发动机目标 rpm 的符号来支持双向回转；后续应替换为更真实的方向阀 / 多路阀结构。调试字段包含 pump pressure、supply flow、pump rpm、swing branch flow、valve opening 和 swing speed。
+当前 swing 液压分支已经升级为 V2 开式回路雏形：`FixedVelocityEngine -> Pump -> SupplyPipe -> ReliefValve -> metering NeedleValve -> SpoolValve(P/A/B/T) -> HydraulicMotorActuator(SwingHinge) -> TankPipe`。泵侧由 `ExcavatorHydraulicSystem` 上的固定 `m_pumpThrottle` 和 `m_pumpTargetRpm` 提供供能，不再从 swing command 的正负切换泵转向；`Swing` 输入的绝对值控制 metering `NeedleValve` 开度，输入正负通过原生 `agxHydraulics.SpoolValve` 动态切换 `P->A / B->T` 或 `P->B / A->T`。泄压使用原生 `agxHydraulics.ReliefValve` 的 cracking / fully-open pressure 和 drain-to-tank 机制。调试字段包含 pump pressure、supply/tank/relief flow、pump rpm、swing branch flow、metering opening、spool direction 和 swing speed。
 
 ### 4.5 `Experiment`
 
