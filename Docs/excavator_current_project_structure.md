@@ -244,6 +244,14 @@ Unity 组件化输入源基类
 
 当前 swing 液压分支已经升级为 V2 开式回路雏形：`FixedVelocityEngine -> Pump -> SupplyPipe -> ReliefValve -> metering NeedleValve -> SpoolValve(P/A/B/T) -> HydraulicMotorActuator(SwingHinge) -> TankPipe`。泵侧由 `ExcavatorHydraulicSystem` 上的固定 `m_pumpThrottle` 和 `m_pumpTargetRpm` 提供供能，不再从 swing command 的正负切换泵转向；`Swing` 输入的绝对值控制 metering `NeedleValve` 开度，输入正负通过原生 `agxHydraulics.SpoolValve` 动态切换 `P->A / B->T` 或 `P->B / A->T`。泄压使用原生 `agxHydraulics.ReliefValve` 的 cracking / fully-open pressure 和 drain-to-tank 机制。调试字段包含 pump pressure、supply/tank/relief flow、pump rpm、swing branch flow、metering opening、spool direction 和 swing speed。
 
+V2 **油箱与回油路在 AGX 里的含义（避免与「必须有显式油箱 GameObject」混淆）**：
+
+- **隐式油箱（求解器边界）**：`agxHydraulics::FlowUnit` 文档写明，每个 `FlowUnit` 有接入与接出端；若某一端 **未连接到其他 `FlowConnector`，则假定该端接在 tank（油箱参考压力）上**，网络仍满足流量守恒。详见 [FlowUnit Class Reference](https://www.algoryx.se/documentation/complete/agx/tags/latest/doc/html/classagxHydraulics_1_1FlowUnit.html) 类说明第一段及 `getPressure` 相关说明。**这不是**带液位、补气、滤清器容量的「容积油箱」模型。
+- **`TankPipe` 在本项目**：脚本里的 `TankPipe` 是一段原生 `Pipe`（长、截面积、密度），用在换向低压侧等位置，建模 **低压回油管段上的压损与流量**；它不替代上述隐式油箱边界。若拓扑中仍有悬空流量端或被 `Pump` 等元件按惯例接到参考压力，则由 AGX **隐式 tank** 收口，不要求在场景里再接一个单独的「油箱元件」才能完成 **数学上的回油闭环**。
+- **`Pump`**：同一文档注明 `Pump` 等连接器与纯 `FlowUnit` 的连接语义不同——开式回路中泵吸油侧常由框架用 **隐式油箱参考**承担，不要求用户再手绘一根 suction 管接上「几何油箱」方块。
+
+综上：**V2 已具备可用的低压参考与回油管段建模；未建模的是油箱容积动力学等工程细节**，若以后要更高保真再在 AGX 中引入 `Accumulator` 等更合适。
+
 ### 4.5 `Experiment`
 
 这一层负责实验生命周期、日志和数据导出。
