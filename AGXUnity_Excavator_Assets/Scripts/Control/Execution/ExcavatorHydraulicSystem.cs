@@ -3,20 +3,14 @@ using UnityEngine;
 
 namespace AGXUnity_Excavator.Scripts.Control.Execution
 {
-  /// <summary>
-  /// Shared AGX hydraulics network. The current V1 swing circuit is:
-  /// FixedVelocityEngine -> Pump -> Supply Pipe -> NeedleValve -> HydraulicMotorActuator(SwingHinge).
-  /// Future boom/stick/bucket branches should be attached to the same PowerLine and supply network.
-  /// </summary>
   public class ExcavatorHydraulicSystem : ScriptComponent
   {
-    /// <summary>Shared supply: a fixed velocity engine drives a pump, and the pump outlet feeds a supply pipe.</summary>
+    //共享供油系统
     private sealed class SharedSupply
     {
       public readonly agxDriveTrain.FixedVelocityEngine Engine = null;
       public readonly agxHydraulics.Pump Pump = null;
       public readonly agxHydraulics.Pipe SupplyPipe = null;
-
       public SharedSupply( agxDriveTrain.FixedVelocityEngine engine,
                            agxHydraulics.Pump pump,
                            agxHydraulics.Pipe supplyPipe )
@@ -48,13 +42,11 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
           Engine.setTargetRpm( 0.0 );
       }
     }
-
-    /// <summary>Swing branch: NeedleValve opening is the swing valve command, and the motor is coupled to SwingHinge.</summary>
+    //多路阀的swing分支
     private sealed class SwingBranch
     {
       private readonly agxHydraulics.NeedleValve m_valve = null;
       private readonly agxHydraulics.HydraulicMotorActuator m_motor = null;
-
       public SwingBranch( agxHydraulics.NeedleValve valve,
                           agxHydraulics.HydraulicMotorActuator motor )
       {
@@ -85,6 +77,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
       }
     }
 
+    #region 参数配置
     [SerializeField]
     [Tooltip( "Fluid density in kg/m^3. Captured when the native pipe/valve/motor are created." )]
     [Min( 0.0f )]
@@ -165,7 +158,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
     [SerializeField]
     [Tooltip( "Read-only: current SwingHinge speed." )]
     private float m_debugSwingSpeed = 0.0f;
-
+#endregion
     public agxPowerLine.PowerLine Native { get; private set; } = null;
 
     private SharedSupply m_sharedSupply = null;
@@ -184,7 +177,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
 
       return true;
     }
-
+    //关键入口，创建供油系统，创建swing分支，返回适配器
     internal bool TryCreateSwingActuator( Constraint swingHinge, out IExcavatorAxisActuator actuator )
     {
       actuator = null;
@@ -302,6 +295,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
       base.OnDestroy();
     }
 
+    //适配器，把“控制系统”接到“液压系统”，外部只调用Apply(command)
     private sealed class HydraulicSwingAxisActuator : IExcavatorAxisActuator
     {
       private readonly Constraint m_constraint = null;
