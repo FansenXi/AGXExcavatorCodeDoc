@@ -45,6 +45,13 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
       if ( referenceConstraint == null )
         return;
 
+      if ( immediateStop && Mathf.Abs( command ) < ZeroSpeedThreshold ) {
+        foreach ( var constraint in m_constraints )
+          SetSpeed( constraint, 0.0f, true );
+
+        return;
+      }
+
       var currentSpeed = referenceConstraint.GetCurrentSpeed();
       var newSpeed = CalculateSpeed( command, currentSpeed, m_maxAcceleration, GetDeltaTime() );
       foreach ( var constraint in m_constraints )

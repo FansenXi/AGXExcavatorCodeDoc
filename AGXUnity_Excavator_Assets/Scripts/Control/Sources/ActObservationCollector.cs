@@ -1,9 +1,15 @@
+using System;
+using System.Globalization;
+using System.IO;
 using AGXUnity;
 using AGXUnity_Excavator.Scripts;
 using AGXUnity_Excavator.Scripts.Control.Core;
 using AGXUnity_Excavator.Scripts.Control.Execution;
 using UnityEngine;
 using UnityEngine.Serialization;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 namespace AGXUnity_Excavator.Scripts.Control.Sources
 {
@@ -18,6 +24,12 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
 
     public float Min => m_min;
     public float Max => m_max;
+
+    public void Set( float min, float max )
+    {
+      m_min = min;
+      m_max = max;
+    }
 
     public float Normalize( float value )
     {
@@ -55,12 +67,20 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       has_sample = false;
     }
 
-    public void Update( float rawValue, float normalizedValue, ActuatorNormalizationRange range )
+    public bool HasUsableObservedRange( float minWidth = 1.0e-5f )
+    {
+      return has_sample && Mathf.Abs( observed_raw_max - observed_raw_min ) > minWidth;
+    }
+
+    public void Update( float rawValue, float normalizedValue, ActuatorNormalizationRange range, bool trackObservedRange = true )
     {
       configured_min = range != null ? range.Min : 0.0f;
       configured_max = range != null ? range.Max : 0.0f;
       current_raw = rawValue;
       current_normalized = normalizedValue;
+
+      if ( !trackObservedRange )
+        return;
 
       if ( !has_sample ) {
         observed_raw_min = rawValue;
@@ -81,8 +101,10 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
     {
       if ( !has_sample ) {
         return string.Format(
-          "{0}: no samples yet  cfg_raw=[{1:0.###}, {2:0.###}]",
+          "{0}: no samples yet  norm={1:0.###} raw={2:0.###} cfg_raw=[{3:0.###}, {4:0.###}]",
           label,
+          current_normalized,
+          current_raw,
           configured_min,
           configured_max );
       }
@@ -101,13 +123,54 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
     }
   }
 
+  [System.Serializable]
+  public class ActuatorNormalizationAxisProfile
+  {
+    public float min = -1.0f;
+    public float max = 1.0f;
+
+    public ActuatorNormalizationAxisProfile()
+    {
+    }
+
+    public ActuatorNormalizationAxisProfile( float min, float max )
+    {
+      this.min = min;
+      this.max = max;
+    }
+  }
+
+  [System.Serializable]
+  public class ActuatorNormalizationProfile
+  {
+    public string profile_name = string.Empty;
+    public string machine_name = string.Empty;
+    public string created_utc = string.Empty;
+    public string qpos_order = "swing_position_norm,boom_position_norm,stick_position_norm,bucket_position_norm";
+    public ActuatorNormalizationAxisProfile swing = new ActuatorNormalizationAxisProfile( -Mathf.PI, Mathf.PI );
+    public ActuatorNormalizationAxisProfile boom = new ActuatorNormalizationAxisProfile();
+    public ActuatorNormalizationAxisProfile stick = new ActuatorNormalizationAxisProfile();
+    public ActuatorNormalizationAxisProfile bucket = new ActuatorNormalizationAxisProfile();
+  }
+
   public class ActObservationCollector : MonoBehaviour
   {
+    private const string DefaultNormalizationProfilePath =
+      "Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/Calibration/CAT365_norm.json";
+    private const string DefaultCalibrationSaveDirectory =
+      "Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/Calibration";
+
     [SerializeField]
     private ExcavatorMachineController m_machineController = null;
 
     [SerializeField]
     private Excavator m_excavator = null;
+
+    [SerializeField]
+    private global::ExcavatorE85 m_e85Excavator = null;
+
+    [SerializeField]
+    private Transform m_machineRoot = null;
 
     [FormerlySerializedAs( "m_massVolumeCounter" )]
     [SerializeField]
@@ -135,6 +198,25 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
     [SerializeField]
     private ActuatorNormalizationRange m_bucketRange = new ActuatorNormalizationRange();
 
+    [Header( "QPos Normalization Profiles" )]
+    [SerializeField]
+    private bool m_loadNormalizationProfileOnAwake = true;
+
+    [SerializeField]
+    private TextAsset m_normalizationProfileAsset = null;
+
+    [SerializeField]
+    private string m_normalizationProfilePath = DefaultNormalizationProfilePath;
+
+    [SerializeField]
+    private string m_calibrationSaveDirectory = DefaultCalibrationSaveDirectory;
+
+    [SerializeField]
+    private string m_calibrationProfileName = "E85 norm";
+
+    [SerializeField]
+    private bool m_keepSwingRangeAtPi = true;
+
     private Vector3 m_lastBasePosition = Vector3.zero;
     private Quaternion m_lastBaseRotation = Quaternion.identity;
     private float m_lastBaseSampleTime = -1.0f;
@@ -145,13 +227,31 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
     private readonly ActuatorCalibrationDebugInfo m_boomCalibration = new ActuatorCalibrationDebugInfo { label = "Boom" };
     private readonly ActuatorCalibrationDebugInfo m_stickCalibration = new ActuatorCalibrationDebugInfo { label = "Stick" };
     private readonly ActuatorCalibrationDebugInfo m_bucketCalibration = new ActuatorCalibrationDebugInfo { label = "Bucket" };
+    private bool m_calibrationTrackingEnabled = false;
+    private string m_loadedNormalizationProfileName = "serialized fallback";
+    private string m_lastCalibrationMessage = string.Empty;
 
     public ActObservation LastCollectedObservation => m_lastCollectedObservation;
     public ActTaskState LastTaskState => m_lastCollectedObservation != null ? m_lastCollectedObservation.task_state : null;
+    public bool IsCalibrationTrackingEnabled => m_calibrationTrackingEnabled;
+    public string LoadedNormalizationProfileName => m_loadedNormalizationProfileName;
+    public string NormalizationProfilePath => m_normalizationProfilePath;
+    public string LastCalibrationMessage => m_lastCalibrationMessage;
+    public string CalibrationProfileName
+    {
+      get => m_calibrationProfileName;
+      set
+      {
+        if ( !string.IsNullOrWhiteSpace( value ) )
+          m_calibrationProfileName = value.Trim();
+      }
+    }
 
     private void Awake()
     {
       ResolveReferences();
+      if ( m_loadNormalizationProfileOnAwake )
+        LoadNormalizationProfileFromConfiguredPath();
       RefreshCalibrationConfiguredRanges();
     }
 
@@ -165,7 +265,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       m_lastCollectedObservation = null;
       m_activeTargetCollisionMonitor?.ResetMonitoring();
 
-      var baseTransform = m_excavator != null ? m_excavator.transform : transform;
+      var baseTransform = ResolveMachineRoot();
       m_lastBasePosition = baseTransform != null ? baseTransform.position : Vector3.zero;
       m_lastBaseRotation = baseTransform != null ? baseTransform.rotation : Quaternion.identity;
     }
@@ -178,6 +278,120 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       m_stickCalibration.Reset();
       m_bucketCalibration.Reset();
       RefreshCalibrationConfiguredRanges();
+    }
+
+    public void BeginCalibrationTracking()
+    {
+      ResetCalibrationTracking();
+      m_calibrationTrackingEnabled = true;
+      m_lastCalibrationMessage = "Calibration tracking started.";
+    }
+
+    public void EndCalibrationTracking()
+    {
+      m_calibrationTrackingEnabled = false;
+      m_lastCalibrationMessage = "Calibration tracking stopped.";
+    }
+
+    [ContextMenu( "Load Normalization Profile" )]
+    public bool LoadNormalizationProfileFromConfiguredPath()
+    {
+      if ( m_normalizationProfileAsset != null ) {
+        var assetPath = m_normalizationProfileAsset.name;
+#if UNITY_EDITOR
+        assetPath = AssetDatabase.GetAssetPath( m_normalizationProfileAsset );
+#endif
+        return LoadNormalizationProfileJson( m_normalizationProfileAsset.text, assetPath, assetPath );
+      }
+
+      return LoadNormalizationProfile( m_normalizationProfilePath );
+    }
+
+    public bool LoadNormalizationProfile( string profilePath )
+    {
+      var absolutePath = ResolveProfilePath( profilePath );
+      if ( string.IsNullOrWhiteSpace( absolutePath ) || !File.Exists( absolutePath ) ) {
+        m_lastCalibrationMessage = $"Normalization profile not found: {profilePath}";
+        return false;
+      }
+
+      try {
+        return LoadNormalizationProfileJson( File.ReadAllText( absolutePath ), profilePath, ToProjectRelativePath( absolutePath ) );
+      }
+      catch ( System.Exception exception ) {
+        m_lastCalibrationMessage = $"Normalization profile load failed: {exception.Message}";
+        return false;
+      }
+    }
+
+    private bool LoadNormalizationProfileJson( string json, string sourceLabel, string projectRelativePath )
+    {
+      var profile = JsonUtility.FromJson<ActuatorNormalizationProfile>( json );
+      if ( profile == null ) {
+        m_lastCalibrationMessage = $"Normalization profile could not be parsed: {sourceLabel}";
+        return false;
+      }
+
+      ApplyNormalizationProfile( profile );
+      if ( !string.IsNullOrWhiteSpace( projectRelativePath ) )
+        m_normalizationProfilePath = projectRelativePath;
+      m_loadedNormalizationProfileName = string.IsNullOrWhiteSpace( profile.profile_name ) ?
+                                         Path.GetFileNameWithoutExtension( sourceLabel ) :
+                                         profile.profile_name;
+      m_lastCalibrationMessage = $"Loaded normalization profile: {m_loadedNormalizationProfileName}";
+      RefreshCalibrationConfiguredRanges();
+      return true;
+    }
+
+    [ContextMenu( "Save Observed Normalization Profile" )]
+    public bool SaveObservedNormalizationProfile()
+    {
+      return SaveObservedNormalizationProfile( m_calibrationProfileName );
+    }
+
+    public bool SaveObservedNormalizationProfile( string profileName )
+    {
+      RefreshCalibrationTrackingFromRigState();
+
+      if ( string.IsNullOrWhiteSpace( profileName ) )
+        profileName = "Actuator norm";
+
+      if ( !TryBuildObservedNormalizationProfile( profileName.Trim(), out var profile ) )
+        return false;
+
+      try {
+        var directory = ResolveProfilePath( m_calibrationSaveDirectory );
+        if ( string.IsNullOrWhiteSpace( directory ) )
+          directory = ResolveProfilePath( DefaultCalibrationSaveDirectory );
+
+        Directory.CreateDirectory( directory );
+        var fileName = SanitizeFileName( profile.profile_name );
+        if ( string.IsNullOrWhiteSpace( fileName ) )
+          fileName = "Actuator_norm";
+
+        var path = Path.Combine( directory, fileName + ".json" );
+        File.WriteAllText( path, JsonUtility.ToJson( profile, true ) );
+        m_normalizationProfileAsset = null;
+        m_normalizationProfilePath = ToProjectRelativePath( path );
+        ApplyNormalizationProfile( profile );
+        RefreshCalibrationConfiguredRanges();
+        m_loadedNormalizationProfileName = profile.profile_name;
+        m_calibrationTrackingEnabled = false;
+        m_lastCalibrationMessage = $"Saved normalization profile: {m_normalizationProfilePath}";
+#if UNITY_EDITOR
+        AssetDatabase.Refresh();
+#endif
+        return true;
+      }
+      catch ( System.Exception exception ) {
+        m_lastCalibrationMessage = $"Normalization profile save failed: {exception.Message}";
+        return false;
+      }
+    }
+
+    public string GetCalibrationStatusLine()
+    {
+      return $"Profile: {m_loadedNormalizationProfileName}    File: {m_normalizationProfilePath}    Tracking: {m_calibrationTrackingEnabled}";
     }
 
     public string[] GetCalibrationDebugLines()
@@ -204,7 +418,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
         previous_operator_command = ActWireOperatorCommand.FromOperatorCommand( previousOperatorCommand.WithoutEpisodeSignals() )
       };
 
-      var baseTransform = m_excavator != null ? m_excavator.transform : transform;
+      var baseTransform = ResolveMachineRoot();
       UpdateBaseVelocity( baseTransform );
 
       observation.base_pose_world.Set( baseTransform.position, baseTransform.rotation );
@@ -214,10 +428,10 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       if ( bucketReference != null )
         observation.bucket_pose_world.Set( bucketReference.position, bucketReference.rotation );
 
-      var swingConstraint = m_excavator != null ? m_excavator.SwingHinge : null;
-      var boomConstraint = m_excavator != null && m_excavator.BoomPrismatics.Length > 0 ? m_excavator.BoomPrismatics[ 0 ] : null;
-      var stickConstraint = m_excavator != null ? m_excavator.StickPrismatic : null;
-      var bucketConstraint = m_excavator != null ? m_excavator.BucketPrismatic : null;
+      var swingConstraint = ResolveSwingConstraint();
+      var boomConstraint = ResolveBoomConstraint();
+      var stickConstraint = ResolveStickConstraint();
+      var bucketConstraint = ResolveBucketConstraint();
 
       var swingPositionRaw = ReadConstraintPosition( swingConstraint );
       var boomPositionRaw = ReadConstraintPosition( boomConstraint );
@@ -233,10 +447,10 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       observation.actuator_state.bucket_speed = ReadConstraintSpeed( bucketConstraint );
       observation.actuator_state.swing_speed = ReadConstraintSpeed( swingConstraint );
 
-      UpdateCalibrationDebug( m_swingCalibration, swingConstraint, swingPositionRaw, observation.actuator_state.swing_position_norm, m_swingRange );
-      UpdateCalibrationDebug( m_boomCalibration, boomConstraint, boomPositionRaw, observation.actuator_state.boom_position_norm, m_boomRange );
-      UpdateCalibrationDebug( m_stickCalibration, stickConstraint, stickPositionRaw, observation.actuator_state.stick_position_norm, m_stickRange );
-      UpdateCalibrationDebug( m_bucketCalibration, bucketConstraint, bucketPositionRaw, observation.actuator_state.bucket_position_norm, m_bucketRange );
+      UpdateCalibrationDebug( m_swingCalibration, swingConstraint, swingPositionRaw, observation.actuator_state.swing_position_norm, m_swingRange, m_calibrationTrackingEnabled );
+      UpdateCalibrationDebug( m_boomCalibration, boomConstraint, boomPositionRaw, observation.actuator_state.boom_position_norm, m_boomRange, m_calibrationTrackingEnabled );
+      UpdateCalibrationDebug( m_stickCalibration, stickConstraint, stickPositionRaw, observation.actuator_state.stick_position_norm, m_stickRange, m_calibrationTrackingEnabled );
+      UpdateCalibrationDebug( m_bucketCalibration, bucketConstraint, bucketPositionRaw, observation.actuator_state.bucket_position_norm, m_bucketRange, m_calibrationTrackingEnabled );
 
       if ( m_massTracker != null ) {
         observation.task_state.mass_in_bucket_kg = m_massTracker.MassInBucket;
@@ -289,32 +503,43 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
     {
       ResolveReferences();
 
-      var swingConstraint = m_excavator != null ? m_excavator.SwingHinge : null;
-      var boomConstraint = m_excavator != null && m_excavator.BoomPrismatics.Length > 0 ? m_excavator.BoomPrismatics[ 0 ] : null;
-      var stickConstraint = m_excavator != null ? m_excavator.StickPrismatic : null;
-      var bucketConstraint = m_excavator != null ? m_excavator.BucketPrismatic : null;
+      var swingConstraint = ResolveSwingConstraint();
+      var boomConstraint = ResolveBoomConstraint();
+      var stickConstraint = ResolveStickConstraint();
+      var bucketConstraint = ResolveBucketConstraint();
 
       var swingPositionRaw = ReadConstraintPosition( swingConstraint );
       var boomPositionRaw = ReadConstraintPosition( boomConstraint );
       var stickPositionRaw = ReadConstraintPosition( stickConstraint );
       var bucketPositionRaw = ReadConstraintPosition( bucketConstraint );
 
-      UpdateCalibrationDebug( m_swingCalibration, swingConstraint, swingPositionRaw, NormalizeConstraintPosition( swingPositionRaw, m_swingRange ), m_swingRange );
-      UpdateCalibrationDebug( m_boomCalibration, boomConstraint, boomPositionRaw, NormalizeConstraintPosition( boomPositionRaw, m_boomRange ), m_boomRange );
-      UpdateCalibrationDebug( m_stickCalibration, stickConstraint, stickPositionRaw, NormalizeConstraintPosition( stickPositionRaw, m_stickRange ), m_stickRange );
-      UpdateCalibrationDebug( m_bucketCalibration, bucketConstraint, bucketPositionRaw, NormalizeConstraintPosition( bucketPositionRaw, m_bucketRange ), m_bucketRange );
+      UpdateCalibrationDebug( m_swingCalibration, swingConstraint, swingPositionRaw, NormalizeConstraintPosition( swingPositionRaw, m_swingRange ), m_swingRange, m_calibrationTrackingEnabled );
+      UpdateCalibrationDebug( m_boomCalibration, boomConstraint, boomPositionRaw, NormalizeConstraintPosition( boomPositionRaw, m_boomRange ), m_boomRange, m_calibrationTrackingEnabled );
+      UpdateCalibrationDebug( m_stickCalibration, stickConstraint, stickPositionRaw, NormalizeConstraintPosition( stickPositionRaw, m_stickRange ), m_stickRange, m_calibrationTrackingEnabled );
+      UpdateCalibrationDebug( m_bucketCalibration, bucketConstraint, bucketPositionRaw, NormalizeConstraintPosition( bucketPositionRaw, m_bucketRange ), m_bucketRange, m_calibrationTrackingEnabled );
     }
 
     private void ResolveReferences()
     {
       m_machineController = ExcavatorRigLocator.ResolveComponent( this, m_machineController );
-      m_excavator = ExcavatorRigLocator.ResolveComponent( this, m_excavator );
+      if ( !ExcavatorRigLocator.IsSelectable( m_machineRoot ) && m_machineController != null )
+        m_machineRoot = m_machineController.MachineRoot;
+
+      if ( ExcavatorRigLocator.IsSelectable( m_machineRoot ) ) {
+        m_excavator = ExcavatorRigLocator.ResolveActiveComponentInRoot( m_machineRoot, m_excavator );
+        m_e85Excavator = ExcavatorRigLocator.ResolveActiveComponentInRoot( m_machineRoot, m_e85Excavator );
+      }
+      else {
+        m_excavator = ExcavatorRigLocator.ResolveActiveComponent( this, m_excavator );
+        m_e85Excavator = ExcavatorRigLocator.ResolveActiveComponent( this, m_e85Excavator );
+      }
       m_massTracker = ExcavatorRigLocator.ResolveComponent( this, m_massTracker );
       m_targetMassSensor = ExcavatorRigLocator.ResolveComponent( this, m_targetMassSensor );
       m_activeTargetCollisionMonitor = ExcavatorRigLocator.ResolveComponent( this, m_activeTargetCollisionMonitor );
       m_digAreaMeasurement = ExcavatorRigLocator.ResolveComponent( this, m_digAreaMeasurement );
       if ( m_activeTargetCollisionMonitor == null ) {
-        var monitorHost = m_excavator != null ? m_excavator.gameObject : gameObject;
+        var machineRoot = ResolveMachineRoot();
+        var monitorHost = machineRoot != null ? machineRoot.gameObject : gameObject;
         m_activeTargetCollisionMonitor = monitorHost.GetComponent<global::ActiveTargetCollisionMonitor>();
         if ( m_activeTargetCollisionMonitor == null )
           m_activeTargetCollisionMonitor = monitorHost.AddComponent<global::ActiveTargetCollisionMonitor>();
@@ -324,6 +549,69 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       else
         m_digAreaMeasurement.ResolveReferences();
       m_targetMassSensor?.RefreshTargets();
+    }
+
+    private Transform ResolveMachineRoot()
+    {
+      if ( m_machineController != null )
+        return m_machineController.MachineRoot;
+
+      if ( m_machineRoot != null )
+        return m_machineRoot;
+
+      if ( m_e85Excavator != null )
+        return m_e85Excavator.transform;
+
+      if ( m_excavator != null )
+        return m_excavator.transform;
+
+      return transform;
+    }
+
+    private Constraint ResolveSwingConstraint()
+    {
+      if ( m_machineController != null )
+        return m_machineController.SwingConstraint;
+
+      if ( m_e85Excavator != null )
+        return m_e85Excavator.CabinHinge;
+
+      return m_excavator != null ? m_excavator.SwingHinge : null;
+    }
+
+    private Constraint ResolveBoomConstraint()
+    {
+      if ( m_machineController != null ) {
+        var boomConstraints = m_machineController.BoomConstraints;
+        return boomConstraints != null && boomConstraints.Length > 0 ? boomConstraints[ 0 ] : null;
+      }
+
+      if ( m_e85Excavator != null )
+        return m_e85Excavator.ArmPrismatic;
+
+      return m_excavator != null && m_excavator.BoomPrismatics.Length > 0 ? m_excavator.BoomPrismatics[ 0 ] : null;
+    }
+
+    private Constraint ResolveStickConstraint()
+    {
+      if ( m_machineController != null )
+        return m_machineController.StickConstraint;
+
+      if ( m_e85Excavator != null )
+        return m_e85Excavator.StickPrismatic;
+
+      return m_excavator != null ? m_excavator.StickPrismatic : null;
+    }
+
+    private Constraint ResolveBucketConstraint()
+    {
+      if ( m_machineController != null )
+        return m_machineController.BucketConstraint;
+
+      if ( m_e85Excavator != null )
+        return m_e85Excavator.BucketPrismatic;
+
+      return m_excavator != null ? m_excavator.BucketPrismatic : null;
     }
 
     private void UpdateBaseVelocity( Transform baseTransform )
@@ -386,7 +674,8 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
                                                 Constraint constraint,
                                                 float rawPosition,
                                                 float normalizedPosition,
-                                                ActuatorNormalizationRange range )
+                                                ActuatorNormalizationRange range,
+                                                bool trackObservedRange )
     {
       if ( debugInfo == null ) {
         return;
@@ -398,7 +687,128 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
         return;
       }
 
-      debugInfo.Update( rawPosition, normalizedPosition, range );
+      debugInfo.Update( rawPosition, normalizedPosition, range, trackObservedRange );
+    }
+
+    private void ApplyNormalizationProfile( ActuatorNormalizationProfile profile )
+    {
+      if ( profile == null )
+        return;
+
+      ApplyAxisProfile( m_swingRange, profile.swing );
+      ApplyAxisProfile( m_boomRange, profile.boom );
+      ApplyAxisProfile( m_stickRange, profile.stick );
+      ApplyAxisProfile( m_bucketRange, profile.bucket );
+    }
+
+    private static void ApplyAxisProfile( ActuatorNormalizationRange range, ActuatorNormalizationAxisProfile profile )
+    {
+      if ( range == null || profile == null )
+        return;
+
+      if ( Mathf.Abs( profile.max - profile.min ) < 1.0e-5f )
+        return;
+
+      range.Set( profile.min, profile.max );
+    }
+
+    private bool TryBuildObservedNormalizationProfile( string profileName, out ActuatorNormalizationProfile profile )
+    {
+      profile = null;
+
+      if ( !TryCreateAxisProfile( m_boomCalibration, "boom", out var boom ) ||
+           !TryCreateAxisProfile( m_stickCalibration, "stick", out var stick ) ||
+           !TryCreateAxisProfile( m_bucketCalibration, "bucket", out var bucket ) )
+        return false;
+
+      var swing = m_keepSwingRangeAtPi ?
+                  new ActuatorNormalizationAxisProfile( -Mathf.PI, Mathf.PI ) :
+                  null;
+      if ( swing == null && !TryCreateAxisProfile( m_swingCalibration, "swing", out swing ) )
+        return false;
+
+      var machineRoot = ResolveMachineRoot();
+      profile = new ActuatorNormalizationProfile
+      {
+        profile_name = profileName,
+        machine_name = machineRoot != null ? machineRoot.name : string.Empty,
+        created_utc = DateTime.UtcNow.ToString( "o", CultureInfo.InvariantCulture ),
+        qpos_order = "swing_position_norm,boom_position_norm,stick_position_norm,bucket_position_norm",
+        swing = swing,
+        boom = boom,
+        stick = stick,
+        bucket = bucket
+      };
+      return true;
+    }
+
+    private bool TryCreateAxisProfile( ActuatorCalibrationDebugInfo debugInfo,
+                                       string axisName,
+                                       out ActuatorNormalizationAxisProfile profile )
+    {
+      profile = null;
+      if ( debugInfo == null || !debugInfo.HasUsableObservedRange() ) {
+        m_lastCalibrationMessage =
+          $"Cannot save normalization profile: {axisName} does not have a usable observed raw range.";
+        return false;
+      }
+
+      profile = new ActuatorNormalizationAxisProfile( debugInfo.observed_raw_min, debugInfo.observed_raw_max );
+      return true;
+    }
+
+    private static string ResolveProfilePath( string path )
+    {
+      if ( string.IsNullOrWhiteSpace( path ) )
+        return string.Empty;
+
+      var normalized = path.Trim().Replace( '\\', '/' );
+      if ( Path.IsPathRooted( normalized ) )
+        return normalized;
+
+      if ( normalized.Equals( "Assets", StringComparison.OrdinalIgnoreCase ) )
+        return Application.dataPath;
+
+      if ( normalized.StartsWith( "Assets/", StringComparison.OrdinalIgnoreCase ) ) {
+        var relativeToAssets = normalized.Substring( "Assets/".Length );
+        return Path.Combine( Application.dataPath, relativeToAssets.Replace( '/', Path.DirectorySeparatorChar ) );
+      }
+
+      return Path.Combine( Application.dataPath, normalized.Replace( '/', Path.DirectorySeparatorChar ) );
+    }
+
+    private static string ToProjectRelativePath( string absolutePath )
+    {
+      if ( string.IsNullOrWhiteSpace( absolutePath ) )
+        return string.Empty;
+
+      var fullPath = Path.GetFullPath( absolutePath );
+      var assetsPath = Path.GetFullPath( Application.dataPath );
+      if ( fullPath.StartsWith( assetsPath, StringComparison.OrdinalIgnoreCase ) ) {
+        var relative = fullPath.Substring( assetsPath.Length ).TrimStart( Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar );
+        return string.IsNullOrWhiteSpace( relative ) ?
+               "Assets" :
+               "Assets/" + relative.Replace( Path.DirectorySeparatorChar, '/' ).Replace( Path.AltDirectorySeparatorChar, '/' );
+      }
+
+      return fullPath;
+    }
+
+    private static string SanitizeFileName( string value )
+    {
+      if ( string.IsNullOrWhiteSpace( value ) )
+        return string.Empty;
+
+      var chars = value.Trim().ToCharArray();
+      for ( var index = 0; index < chars.Length; ++index ) {
+        var character = chars[ index ];
+        if ( char.IsLetterOrDigit( character ) || character == '-' || character == '_' )
+          continue;
+
+        chars[ index ] = '_';
+      }
+
+      return new string( chars ).Trim( '_' );
     }
   }
 }

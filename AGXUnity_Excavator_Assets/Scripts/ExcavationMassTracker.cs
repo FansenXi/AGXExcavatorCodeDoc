@@ -1,4 +1,7 @@
 using AGXUnity;
+using AGXUnity_Excavator.Scripts;
+using AGXUnity_Excavator.Scripts.Control.Core;
+using AGXUnity_Excavator.Scripts.Control.Execution;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
@@ -7,6 +10,9 @@ public class ExcavationMassTracker : ScriptComponent
 {
   public AGXUnity.Model.DeformableTerrainShovel shovel;
   public AGXUnity.Model.DeformableTerrain m_terrain;
+
+  [SerializeField]
+  private Transform m_machineRoot = null;
 
   [SerializeField]
   private Transform m_bucketMeasurementFrame = null;
@@ -59,6 +65,7 @@ public class ExcavationMassTracker : ScriptComponent
 
   protected override bool Initialize()
   {
+    ResolveSemanticBindings();
     var texts = GetComponentsInChildren<Text>();
     m_infoText = texts.FirstOrDefault( t => t.name == "Information" );
     ResetMeasurements();
@@ -68,6 +75,7 @@ public class ExcavationMassTracker : ScriptComponent
 
   public void ResetMeasurements()
   {
+    ResolveSemanticBindings();
     m_excavatedMass = 0;
     m_massInBucket = ReadMassInBucket();
     m_previousMassInBucket = m_massInBucket;
@@ -76,6 +84,7 @@ public class ExcavationMassTracker : ScriptComponent
 
   void Update()
   {
+    ResolveSemanticBindings();
     m_massInBucket = ReadMassInBucket();
     m_excavatedMass += Mathf.Max( 0.0f, m_massInBucket - m_previousMassInBucket );
     m_previousMassInBucket = m_massInBucket;
@@ -123,6 +132,8 @@ public class ExcavationMassTracker : ScriptComponent
 
   private float ReadMassInBucket()
   {
+    ResolveSemanticBindings();
+
     var terrainDynamicMass = 0.0f;
     if ( m_terrain != null && m_terrain.Native != null && shovel != null && shovel.Native != null )
       terrainDynamicMass = (float)m_terrain.Native.getDynamicMass( shovel.Native );
@@ -145,13 +156,82 @@ public class ExcavationMassTracker : ScriptComponent
 
   private Transform ResolveBucketMeasurementFrame()
   {
-    if ( m_bucketMeasurementFrame != null )
+    ResolveSemanticBindings();
+
+    if ( ExcavatorRigLocator.IsSelectable( m_bucketMeasurementFrame ) )
       return m_bucketMeasurementFrame;
 
     if ( shovel != null && shovel.RigidBody != null )
       return shovel.RigidBody.transform;
 
     return shovel != null ? shovel.transform : null;
+  }
+
+  private void ResolveSemanticBindings()
+  {
+    var machineController = ExcavatorRigLocator.ResolveComponent<ExcavatorMachineController>( this, null );
+    if ( !ExcavatorRigLocator.IsSelectable( m_machineRoot ) && machineController != null )
+      m_machineRoot = machineController.MachineRoot;
+
+    if ( ExcavatorRigLocator.IsSelectable( m_machineRoot ) )
+      shovel = ExcavatorRigLocator.ResolveComponentInRoot( m_machineRoot, shovel );
+    else
+      shovel = ExcavatorRigLocator.ResolveComponent( this, shovel );
+
+    m_terrain = ExcavatorRigLocator.ResolveComponent( this, m_terrain );
+
+    var previousMeasurementFrame = m_bucketMeasurementFrame;
+    if ( !IsUsableMeasurementFrame( m_bucketMeasurementFrame ) )
+      m_bucketMeasurementFrame = null;
+
+    if ( m_bucketMeasurementFrame == null ) {
+      var shovelFrame = ResolveShovelFrame();
+      if ( ExcavatorRigLocator.IsSelectable( shovelFrame ) ) {
+        m_bucketMeasurementFrame = shovelFrame;
+      }
+      else {
+        var machineRoot = machineController != null ?
+                          machineController.MachineRoot :
+                          ExcavatorRigLocator.ResolveMachineRoot( this, null, m_machineRoot );
+        m_bucketMeasurementFrame = machineRoot != null ?
+                                   ExcavatorRigLocator.ResolveBucketReference( machineRoot, null ) :
+                                   null;
+      }
+    }
+
+    if ( previousMeasurementFrame != m_bucketMeasurementFrame ) {
+      m_cachedBucketMeasurementFrame = null;
+      m_hasAutoBucketLocalBounds = false;
+    }
+  }
+
+  private bool IsUsableMeasurementFrame( Transform measurementFrame )
+  {
+    if ( !ExcavatorRigLocator.IsSelectable( measurementFrame ) )
+      return false;
+
+    if ( ExcavatorRigLocator.IsSelectable( m_machineRoot ) &&
+         !ExcavatorRigLocator.IsInRoot( measurementFrame, m_machineRoot ) )
+      return false;
+
+    if ( shovel == null )
+      return true;
+
+    var shovelFrame = ResolveShovelFrame();
+    if ( !ExcavatorRigLocator.IsSelectable( shovelFrame ) )
+      return true;
+
+    return measurementFrame == shovelFrame ||
+           measurementFrame.IsChildOf( shovelFrame ) ||
+           shovelFrame.IsChildOf( measurementFrame );
+  }
+
+  private Transform ResolveShovelFrame()
+  {
+    if ( shovel == null )
+      return null;
+
+    return shovel.RigidBody != null ? shovel.RigidBody.transform : shovel.transform;
   }
 
   private bool TryGetBucketMeasurement( out Vector3 measurementCenter, out Vector3 measurementHalfExtents )

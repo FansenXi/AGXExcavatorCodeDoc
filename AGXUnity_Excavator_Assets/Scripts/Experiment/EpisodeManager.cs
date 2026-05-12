@@ -833,6 +833,20 @@ namespace AGXUnity_Excavator.Scripts.Experiment
           $"Disabled legacy ExcavatorInputController on '{legacyController.gameObject.name}' because EpisodeManager is using the new control chain.",
           legacyController );
       }
+
+      var legacyE85Controllers = FindObjectsByType<global::ExcavatorE85InputController>(
+        FindObjectsInactive.Include,
+        FindObjectsSortMode.None );
+
+      foreach ( var legacyController in legacyE85Controllers ) {
+        if ( legacyController == null || !legacyController.enabled )
+          continue;
+
+        legacyController.enabled = false;
+        Debug.LogWarning(
+          $"Disabled legacy ExcavatorE85InputController on '{legacyController.gameObject.name}' because EpisodeManager is using the semantic control chain.",
+          legacyController );
+      }
     }
 
     private void ArmInputCut()

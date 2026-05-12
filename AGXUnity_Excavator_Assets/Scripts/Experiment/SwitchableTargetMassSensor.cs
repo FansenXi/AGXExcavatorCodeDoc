@@ -25,6 +25,9 @@ public class SwitchableTargetMassSensor : MonoBehaviour
   [SerializeField]
   private KeyCode m_nextTargetKey = KeyCode.F9;
 
+  [SerializeField]
+  private string[] m_preferredDefaultTargetNames = { "ContainerBox", "Dump", "DumpBox", "DumpArea" };
+
   private TargetMassSensorBase[] m_runtimeTargets = Array.Empty<TargetMassSensorBase>();
   private int m_currentTargetIndex = 0;
 
@@ -70,7 +73,10 @@ public class SwitchableTargetMassSensor : MonoBehaviour
       }
     }
 
-    m_currentTargetIndex = Mathf.Clamp( m_defaultTargetIndex, 0, m_runtimeTargets.Length - 1 );
+    var semanticDefaultIndex = FindPreferredDefaultTargetIndex();
+    m_currentTargetIndex = semanticDefaultIndex >= 0 ?
+      semanticDefaultIndex :
+      Mathf.Clamp( m_defaultTargetIndex, 0, m_runtimeTargets.Length - 1 );
   }
 
   public bool SetActiveTargetByIndex( int index )
@@ -192,6 +198,36 @@ public class SwitchableTargetMassSensor : MonoBehaviour
       return -1;
 
     return string.Compare( left.TargetName, right.TargetName, StringComparison.Ordinal );
+  }
+
+  private int FindPreferredDefaultTargetIndex()
+  {
+    if ( m_preferredDefaultTargetNames == null ||
+         m_preferredDefaultTargetNames.Length == 0 ||
+         m_runtimeTargets == null ||
+         m_runtimeTargets.Length == 0 )
+      return -1;
+
+    foreach ( var preferredTargetName in m_preferredDefaultTargetNames ) {
+      if ( string.IsNullOrWhiteSpace( preferredTargetName ) )
+        continue;
+
+      for ( var targetIndex = 0; targetIndex < m_runtimeTargets.Length; ++targetIndex ) {
+        var candidate = m_runtimeTargets[targetIndex];
+        if ( candidate == null )
+          continue;
+
+        var targetName = candidate.TargetName;
+        if ( string.IsNullOrWhiteSpace( targetName ) )
+          targetName = candidate.gameObject.name;
+
+        if ( targetName.IndexOf( preferredTargetName, StringComparison.OrdinalIgnoreCase ) >= 0 ||
+             candidate.gameObject.name.IndexOf( preferredTargetName, StringComparison.OrdinalIgnoreCase ) >= 0 )
+          return targetIndex;
+      }
+    }
+
+    return -1;
   }
 
   private int GetTargetCycleDirectionHotkey()

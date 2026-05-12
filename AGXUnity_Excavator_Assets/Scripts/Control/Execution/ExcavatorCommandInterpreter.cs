@@ -16,18 +16,18 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
     private ExcavatorJoystickPattern m_joystickPattern = ExcavatorJoystickPattern.ISO;
 
     [SerializeField]
-    private float m_boomScale = 0.3f;
+    private float m_boomScale = 0.2f;
 
     [SerializeField]
     // Keep bucket scale negative so right-stick left maps to bucket curl-in,
     // which matches the expected ISO/SAE excavator convention.
-    private float m_bucketScale = -0.7f;
+    private float m_bucketScale = -0.45f;
 
     [SerializeField]
-    private float m_stickScale = -0.7f;
+    private float m_stickScale = -0.45f;
 
     [SerializeField]
-    private float m_swingScale = 0.6f;
+    private float m_swingScale = 0.4f;
 
     [SerializeField]
     private float m_swingDeadZone = 0.3f;

@@ -1,3 +1,5 @@
+using AGXUnity_Excavator.Scripts;
+using AGXUnity_Excavator.Scripts.Control.Core;
 using UnityEngine;
 
 #if ENABLE_INPUT_SYSTEM
@@ -7,6 +9,15 @@ using UnityEngine.InputSystem;
 [RequireComponent(typeof(Camera))]
 public class LinkCamera : MonoBehaviour
 {
+  private static readonly string[] ChassisObserverSemanticNames =
+  {
+    "ChassieObserver",
+    "ChassisObserver",
+    "UnderCarriageObserver",
+    "Chassie",
+    "Chassis"
+  };
+
   [SerializeField]
   public bool Enabled = true;
 
@@ -51,13 +62,23 @@ public class LinkCamera : MonoBehaviour
   private float m_fieldOfView = 0.0f;
 
   [SerializeField]
+  private Transform m_machineRoot = null;
+
+  [SerializeField]
   private GameObject m_follow_object = null;
 
   private Camera m_camera = null;
+  private GameObject m_lastLoggedFollowObject = null;
+  private bool m_hasLoggedFollowObjectState = false;
+  private bool m_missingFollowWarningLogged = false;
 
   public GameObject Target
   {
-    get { return m_follow_object; }
+    get
+    {
+      ResolveFollowObject();
+      return m_follow_object;
+    }
     set
     {
       m_follow_object = value;
@@ -68,9 +89,28 @@ public class LinkCamera : MonoBehaviour
   {
   }
 
+  [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+  private static void BindMainCameraAfterSceneLoad()
+  {
+    var mainCamera = ResolveMainCamera();
+    if (mainCamera == null)
+      return;
+
+    var linkCamera = mainCamera.GetComponent<LinkCamera>();
+    if (linkCamera == null)
+      linkCamera = mainCamera.gameObject.AddComponent<LinkCamera>();
+
+    linkCamera.enabled = true;
+    linkCamera.Enabled = true;
+    linkCamera.EnsureCamera();
+    linkCamera.ResolveFollowObject();
+    linkCamera.LogFollowObjectBinding();
+  }
+
   private void Awake()
   {
     EnsureCamera();
+    ResolveFollowObject();
     SyncFieldOfViewFromCamera();
     ApplyFieldOfView();
   }
@@ -85,6 +125,7 @@ public class LinkCamera : MonoBehaviour
 #endif
 
     ApplyFieldOfView();
+    ResolveFollowObject();
   }
 
   private void OnDisable()
@@ -104,6 +145,7 @@ public class LinkCamera : MonoBehaviour
   private void OnValidate()
   {
     EnsureCamera();
+    ResolveFollowObject();
     ClampPitchRange();
     SyncFieldOfViewFromCamera();
     ApplyFieldOfView();
@@ -112,6 +154,7 @@ public class LinkCamera : MonoBehaviour
   private void LateUpdate()
   {
     ApplyFieldOfView();
+    ResolveFollowObject();
     UpdateToggleState();
 
     if (Target == null || !Enabled)
@@ -167,6 +210,127 @@ public class LinkCamera : MonoBehaviour
     m_fieldOfView = Mathf.Clamp(m_fieldOfView, 1.0f, 179.0f);
     if (!Mathf.Approximately(m_camera.fieldOfView, m_fieldOfView))
       m_camera.fieldOfView = m_fieldOfView;
+  }
+
+  private void ResolveFollowObject()
+  {
+    m_machineRoot = ExcavatorRigLocator.ResolveMachineRoot(this, m_machineRoot);
+    var excavatorRoot = m_machineRoot;
+    if (IsValidFollowObject(m_follow_object, excavatorRoot)) {
+      LogFollowObjectBinding();
+      return;
+    }
+
+    var currentTransform = m_follow_object != null ? m_follow_object.transform : null;
+    var followTransform = ExcavatorRigLocator.ResolveSemanticChild(
+      excavatorRoot,
+      currentTransform,
+      ChassisObserverSemanticNames);
+
+    if (followTransform == null)
+      followTransform = FindActiveSceneFollowTarget();
+
+    m_follow_object = followTransform != null ? followTransform.gameObject : null;
+    LogFollowObjectBinding();
+  }
+
+  private static bool IsValidFollowObject(GameObject followObject, Transform excavatorRoot)
+  {
+    if (followObject == null || !ExcavatorRigLocator.IsSelectable(followObject.transform))
+      return false;
+
+    return excavatorRoot == null || followObject.transform.IsChildOf(excavatorRoot);
+  }
+
+  private void LogFollowObjectBinding()
+  {
+    if (m_hasLoggedFollowObjectState && m_follow_object == m_lastLoggedFollowObject)
+      return;
+
+    m_hasLoggedFollowObjectState = true;
+    m_lastLoggedFollowObject = m_follow_object;
+    if (m_follow_object != null) {
+      m_missingFollowWarningLogged = false;
+      Debug.Log($"LinkCamera bound {name} to {GetTransformPath(m_follow_object.transform)}.", this);
+      return;
+    }
+
+    if (!m_missingFollowWarningLogged) {
+      m_missingFollowWarningLogged = true;
+      Debug.LogWarning("LinkCamera could not find an active chassis observer target for Main Camera.", this);
+    }
+  }
+
+  private static Transform FindActiveSceneFollowTarget()
+  {
+    var transforms = Object.FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+    Transform fallback = null;
+    foreach (var candidate in transforms) {
+      if (!ExcavatorRigLocator.IsSelectable(candidate))
+        continue;
+
+      if (NameMatches(candidate.name, "ChassieObserver") ||
+          NameMatches(candidate.name, "ChassisObserver"))
+        return candidate;
+
+      if (fallback == null &&
+          (NameContains(candidate.name, "UnderCarriageObserver") ||
+           NameContains(candidate.name, "Chassie") ||
+           NameContains(candidate.name, "Chassis")))
+        fallback = candidate;
+    }
+
+    return fallback;
+  }
+
+  private static bool NameMatches(string candidateName, string semanticName)
+  {
+    return NormalizeName(candidateName) == NormalizeName(semanticName);
+  }
+
+  private static bool NameContains(string candidateName, string semanticName)
+  {
+    return NormalizeName(candidateName).Contains(NormalizeName(semanticName));
+  }
+
+  private static string NormalizeName(string value)
+  {
+    if (string.IsNullOrWhiteSpace(value))
+      return string.Empty;
+
+    return value.Replace(" ", string.Empty)
+                .Replace("_", string.Empty)
+                .Replace("-", string.Empty)
+                .ToLowerInvariant();
+  }
+
+  private static Camera ResolveMainCamera()
+  {
+    if (Camera.main != null)
+      return Camera.main;
+
+    var cameras = Object.FindObjectsByType<Camera>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+    foreach (var candidate in cameras) {
+      if (candidate != null && candidate.name == "Main Camera")
+        return candidate;
+    }
+
+    return null;
+  }
+
+  private static string GetTransformPath(Transform transform)
+  {
+    if (transform == null)
+      return string.Empty;
+
+    var path = transform.name;
+    var parent = transform.parent;
+    while (parent != null) {
+      path = parent.name + "/" + path;
+      parent = parent.parent;
+    }
+
+    return path;
   }
 
   private void UpdateToggleState()

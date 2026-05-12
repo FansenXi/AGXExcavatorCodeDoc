@@ -4,6 +4,7 @@ using AGXUnity;
 using AGXUnity.Collide;
 using AGXUnity_Excavator.Scripts;
 using AGXUnity_Excavator.Scripts.Control.Core;
+using AGXUnity_Excavator.Scripts.Control.Execution;
 using UnityEngine;
 
 public abstract class TargetMassSensorBase : ScriptComponent
@@ -33,6 +34,15 @@ public class ActiveTargetCollisionMonitor : MonoBehaviour
 {
   [SerializeField]
   private Excavator m_excavator = null;
+
+  [SerializeField]
+  private global::ExcavatorE85 m_e85Excavator = null;
+
+  [SerializeField]
+  private Transform m_machineRoot = null;
+
+  [SerializeField]
+  private ExcavatorMachineController m_machineController = null;
 
   [SerializeField]
   private global::SwitchableTargetMassSensor m_targetMassSensor = null;
@@ -94,9 +104,30 @@ public class ActiveTargetCollisionMonitor : MonoBehaviour
 
   private void ResolveReferences()
   {
-    m_excavator = ExcavatorRigLocator.ResolveComponent( this, m_excavator );
+    var previousExcavator = m_excavator;
+    var previousE85Excavator = m_e85Excavator;
+    var previousMachineRoot = m_machineRoot;
+    m_machineController = ExcavatorRigLocator.ResolveComponent( this, m_machineController );
+    if ( !ExcavatorRigLocator.IsSelectable( m_machineRoot ) && m_machineController != null )
+      m_machineRoot = m_machineController.MachineRoot;
+
+    if ( ExcavatorRigLocator.IsSelectable( m_machineRoot ) ) {
+      m_excavator = ExcavatorRigLocator.ResolveActiveComponentInRoot( m_machineRoot, m_excavator );
+      m_e85Excavator = ExcavatorRigLocator.ResolveActiveComponentInRoot( m_machineRoot, m_e85Excavator );
+    }
+    else {
+      m_excavator = ExcavatorRigLocator.ResolveActiveComponent( this, m_excavator );
+      m_e85Excavator = ExcavatorRigLocator.ResolveActiveComponent( this, m_e85Excavator );
+    }
     m_targetMassSensor = ExcavatorRigLocator.ResolveComponent( this, m_targetMassSensor );
     m_targetMassSensor?.RefreshTargets();
+
+    if ( ( previousExcavator != null && previousExcavator != m_excavator ) ||
+         ( previousE85Excavator != null && previousE85Excavator != m_e85Excavator ) ||
+         ( previousMachineRoot != null && previousMachineRoot != m_machineRoot ) ) {
+      UnregisterCallbacks();
+      ResetMonitoring();
+    }
   }
 
   private void TryInitializeMonitor()
@@ -202,10 +233,11 @@ public class ActiveTargetCollisionMonitor : MonoBehaviour
     m_sourceShapeIds.Clear();
     m_sourceShapes = Array.Empty<Shape>();
 
-    if ( m_excavator == null )
+    var sourceRoot = ResolveSourceRoot();
+    if ( sourceRoot == null )
       return;
 
-    var discoveredShapes = m_excavator.GetComponentsInChildren<Shape>( true );
+    var discoveredShapes = sourceRoot.GetComponentsInChildren<Shape>( true );
     if ( discoveredShapes == null || discoveredShapes.Length == 0 )
       return;
 
@@ -271,5 +303,19 @@ public class ActiveTargetCollisionMonitor : MonoBehaviour
     return shape != null &&
            shape.CollisionsEnabled &&
            shape.NativeGeometry != null;
+  }
+
+  private Transform ResolveSourceRoot()
+  {
+    if ( m_machineController != null )
+      return m_machineController.MachineRoot;
+
+    if ( m_machineRoot != null )
+      return m_machineRoot;
+
+    if ( m_e85Excavator != null )
+      return m_e85Excavator.transform;
+
+    return m_excavator != null ? m_excavator.transform : null;
   }
 }

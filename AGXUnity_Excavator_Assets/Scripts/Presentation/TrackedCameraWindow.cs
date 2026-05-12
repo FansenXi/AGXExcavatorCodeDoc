@@ -175,13 +175,30 @@ namespace AGXUnity_Excavator.Scripts.Presentation
     {
       switch ( m_anchorMode ) {
         case AnchorMode.CustomTransform:
-          return m_customTarget;
+          return ResolveCustomTarget();
         case AnchorMode.MachineRoot:
-          return m_machineController != null ? m_machineController.transform : null;
+          return m_machineController != null ? m_machineController.MachineRoot : null;
         case AnchorMode.BucketReference:
         default:
           return m_machineController != null ? m_machineController.BucketReference : null;
       }
+    }
+
+    private Transform ResolveCustomTarget()
+    {
+      var machineRoot = m_machineController != null ? m_machineController.MachineRoot : null;
+      m_customTarget = ExcavatorRigLocator.ResolveSemanticChild(
+        machineRoot,
+        m_customTarget,
+        "Cabin",
+        "Cab",
+        "Seat",
+        "Operator" );
+
+      if ( ExcavatorRigLocator.IsSelectable( m_customTarget ) )
+        return m_customTarget;
+
+      return m_machineController != null ? m_machineController.BucketReference : null;
     }
 
     private void EnsureRenderTexture()

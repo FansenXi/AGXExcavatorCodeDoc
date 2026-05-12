@@ -16,6 +16,9 @@ public class DigAreaMeasurement : MonoBehaviour
   private string m_digAreaRootName = DefaultDigAreaRootName;
 
   [SerializeField]
+  private bool m_enableRuntimeVisuals = false;
+
+  [SerializeField]
   private MeshRenderer m_fillRenderer = null;
 
   [SerializeField]
@@ -45,6 +48,10 @@ public class DigAreaMeasurement : MonoBehaviour
 
   private Material m_runtimeFillMaterial = null;
   private Material m_runtimeContourMaterial = null;
+  private MeshRenderer m_cachedFillRenderer = null;
+  private Material m_originalFillMaterial = null;
+  private bool m_originalFillRendererEnabled = false;
+  private bool m_hasOriginalFillRendererState = false;
 
   private void OnEnable()
   {
@@ -60,6 +67,7 @@ public class DigAreaMeasurement : MonoBehaviour
 
   private void OnDestroy()
   {
+    RestoreFillRendererState();
     DestroyRuntimeMaterials();
   }
 
@@ -106,6 +114,7 @@ public class DigAreaMeasurement : MonoBehaviour
 
     if ( m_fillRenderer == null || !m_fillRenderer.transform.IsChildOf( m_digAreaRoot ) )
       m_fillRenderer = ResolveFillRenderer( m_digAreaRoot );
+    CacheFillRendererState();
 
     if ( m_contourRenderer == null || !m_contourRenderer.transform.IsChildOf( m_digAreaRoot ) )
       m_contourRenderer = ResolveContourRenderer( m_digAreaRoot );
@@ -147,60 +156,20 @@ public class DigAreaMeasurement : MonoBehaviour
       return 0.0f;
 
     var digAreaTransform = m_digAreaBox.transform;
-    var digAreaHalfExtents = m_digAreaBox.HalfExtents;
-    var resolution = Mathf.Max( 3, m_depthSamplingResolution );
-    var denominator = Mathf.Max( 1, resolution - 1 );
-    var blendDistance = Mathf.Max( 0.0f, m_depthHorizontalBlendDistance );
-    var maxEffectiveDepth = 0.0f;
-
-    // Weight vertical depth by how close the sampled bucket point is to the
-    // DigArea footprint so the metric rises smoothly near the boundary.
-    for ( var xIndex = 0; xIndex < resolution; ++xIndex ) {
-      var normalizedX = Mathf.Lerp( -1.0f, 1.0f, xIndex / (float)denominator );
-      for ( var yIndex = 0; yIndex < resolution; ++yIndex ) {
-        var normalizedY = Mathf.Lerp( -1.0f, 1.0f, yIndex / (float)denominator );
-        for ( var zIndex = 0; zIndex < resolution; ++zIndex ) {
-          var normalizedZ = Mathf.Lerp( -1.0f, 1.0f, zIndex / (float)denominator );
-          var bucketSampleWorld = bucketBox.SamplePointWorld( normalizedX, normalizedY, normalizedZ );
-          var bucketSampleDigAreaLocal = digAreaTransform.InverseTransformPoint( bucketSampleWorld );
-          var rawDepthBelowPlane = Mathf.Max( 0.0f, -bucketSampleDigAreaLocal.y );
-          if ( rawDepthBelowPlane <= 0.0f )
-            continue;
-
-          var footprintInsetMeters = EvaluateDigAreaFootprintInsetMeters( bucketSampleDigAreaLocal,
-                                                                          digAreaHalfExtents );
-          var footprintWeight = EvaluateFootprintWeight( footprintInsetMeters, blendDistance );
-          if ( footprintWeight <= 0.0f )
-            continue;
-
-          maxEffectiveDepth = Mathf.Max( maxEffectiveDepth, rawDepthBelowPlane * footprintWeight );
+    var minBucketDigAreaLocalY = float.PositiveInfinity;
+    for ( var xSign = -1; xSign <= 1; xSign += 2 ) {
+      for ( var ySign = -1; ySign <= 1; ySign += 2 ) {
+        for ( var zSign = -1; zSign <= 1; zSign += 2 ) {
+          var bucketCornerWorld = bucketBox.CornerWorld( xSign, ySign, zSign );
+          var bucketCornerDigAreaLocal = digAreaTransform.InverseTransformPoint( bucketCornerWorld );
+          minBucketDigAreaLocalY = Mathf.Min( minBucketDigAreaLocalY, bucketCornerDigAreaLocal.y );
         }
       }
     }
 
-    return maxEffectiveDepth;
-  }
-
-  private static float EvaluateDigAreaFootprintInsetMeters( Vector3 digAreaLocalPoint,
-                                                            Vector3 digAreaHalfExtents )
-  {
-    var q = new Vector2( Mathf.Abs( digAreaLocalPoint.x ) - digAreaHalfExtents.x,
-                         Mathf.Abs( digAreaLocalPoint.z ) - digAreaHalfExtents.z );
-    var outside = new Vector2( Mathf.Max( q.x, 0.0f ), Mathf.Max( q.y, 0.0f ) );
-    var signedDistanceToFootprint = outside.magnitude + Mathf.Min( Mathf.Max( q.x, q.y ), 0.0f );
-    return -signedDistanceToFootprint;
-  }
-
-  private static float EvaluateFootprintWeight( float footprintInsetMeters, float blendDistance )
-  {
-    if ( blendDistance <= 1.0e-5f )
-      return footprintInsetMeters >= 0.0f ? 1.0f : 0.0f;
-
-    return Mathf.SmoothStep( 0.0f,
-                             1.0f,
-                             Mathf.InverseLerp( -blendDistance,
-                                                blendDistance,
-                                                footprintInsetMeters ) );
+    return float.IsPositiveInfinity( minBucketDigAreaLocalY ) ?
+           0.0f :
+           Mathf.Max( 0.0f, -minBucketDigAreaLocalY );
   }
 
   private static Transform FindDigAreaRoot( string digAreaRootName )
@@ -252,6 +221,14 @@ public class DigAreaMeasurement : MonoBehaviour
 
   private void ApplyVisuals()
   {
+    if ( !m_enableRuntimeVisuals ) {
+      RestoreFillRendererState();
+      SetRendererEnabled( m_fillRenderer, false );
+      if ( m_contourRenderer != null )
+        m_contourRenderer.enabled = false;
+      return;
+    }
+
     ApplyFillVisual();
     ApplyContourVisual();
     RefreshContourGeometry();
@@ -273,7 +250,8 @@ public class DigAreaMeasurement : MonoBehaviour
 
       m_runtimeFillMaterial = new Material( fillShader )
       {
-        name = "DigAreaFillRuntime"
+        name = "DigAreaFillRuntime",
+        hideFlags = HideFlags.DontSave
       };
       ConfigureStandardTransparentMaterial( m_runtimeFillMaterial );
     }
@@ -283,6 +261,7 @@ public class DigAreaMeasurement : MonoBehaviour
 
     m_runtimeFillMaterial.renderQueue = 3000;
     m_fillRenderer.sharedMaterial = m_runtimeFillMaterial;
+    m_fillRenderer.enabled = true;
     m_fillRenderer.shadowCastingMode = ShadowCastingMode.Off;
     m_fillRenderer.receiveShadows = false;
   }
@@ -302,7 +281,8 @@ public class DigAreaMeasurement : MonoBehaviour
 
       m_runtimeContourMaterial = new Material( contourShader )
       {
-        name = "DigAreaContourRuntime"
+        name = "DigAreaContourRuntime",
+        hideFlags = HideFlags.DontSave
       };
       if ( m_runtimeContourMaterial.HasProperty( "_Color" ) )
         m_runtimeContourMaterial.color = m_contourColor;
@@ -329,6 +309,9 @@ public class DigAreaMeasurement : MonoBehaviour
   private void RefreshContourGeometry()
   {
     if ( m_digAreaBox == null || m_contourRenderer == null )
+      return;
+
+    if ( !m_enableRuntimeVisuals )
       return;
 
     var halfExtents = m_digAreaBox.HalfExtents;
@@ -363,6 +346,45 @@ public class DigAreaMeasurement : MonoBehaviour
     }
 
     return null;
+  }
+
+  private static void SetRendererEnabled( Renderer renderer, bool enabled )
+  {
+    if ( renderer != null )
+      renderer.enabled = enabled;
+  }
+
+  private void CacheFillRendererState()
+  {
+    if ( m_fillRenderer == null ) {
+      m_cachedFillRenderer = null;
+      m_originalFillMaterial = null;
+      m_hasOriginalFillRendererState = false;
+      return;
+    }
+
+    if ( m_cachedFillRenderer == m_fillRenderer && m_hasOriginalFillRendererState )
+      return;
+
+    m_cachedFillRenderer = m_fillRenderer;
+    m_originalFillMaterial = m_fillRenderer.sharedMaterial;
+    m_originalFillRendererEnabled = m_fillRenderer.enabled;
+    m_hasOriginalFillRendererState = true;
+  }
+
+  private void RestoreFillRendererState()
+  {
+    if ( !m_hasOriginalFillRendererState || m_cachedFillRenderer == null )
+      return;
+
+    if ( m_cachedFillRenderer.sharedMaterial == m_runtimeFillMaterial )
+      m_cachedFillRenderer.sharedMaterial = m_originalFillMaterial;
+    m_cachedFillRenderer.enabled = m_originalFillRendererEnabled;
+
+    m_cachedFillRenderer = null;
+    m_originalFillMaterial = null;
+    m_originalFillRendererEnabled = false;
+    m_hasOriginalFillRendererState = false;
   }
 
   private static LineRenderer ResolveContourRenderer( Transform digAreaRoot )

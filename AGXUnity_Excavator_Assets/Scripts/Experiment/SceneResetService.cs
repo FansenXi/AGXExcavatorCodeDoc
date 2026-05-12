@@ -64,6 +64,12 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     private Excavator m_excavator = null;
 
     [SerializeField]
+    private global::ExcavatorE85 m_e85Excavator = null;
+
+    [SerializeField]
+    private Transform m_machineRoot = null;
+
+    [SerializeField]
     private EpisodeManager m_episodeManager = null;
 
     [FormerlySerializedAs( "m_massVolumeCounters" )]
@@ -79,6 +85,15 @@ namespace AGXUnity_Excavator.Scripts.Experiment
 
     [SerializeField]
     private AGXUnity.Model.DeformableTerrain[] m_fallbackTerrains = null;
+
+    [SerializeField]
+    private global::DumpParticleStaticTerrainCompactor[] m_dumpParticleCompactors = null;
+
+    [SerializeField]
+    private global::SettledTerrainParticleCompactor[] m_settledTerrainParticleCompactors = null;
+
+    [SerializeField]
+    private bool m_clearSoilParticlesOnReset = true;
 
     private readonly List<RigidBodySnapshot> m_rigidBodySnapshots = new List<RigidBodySnapshot>();
     private readonly List<ConstraintSnapshot> m_constraintSnapshots = new List<ConstraintSnapshot>();
@@ -108,6 +123,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     public void CaptureResetSnapshot()
     {
       ResolveReferences();
+      m_machineController?.ReleaseParkingBrake();
       m_pendingInitialSnapshotCapture = false;
 
       m_rigidBodySnapshots.Clear();
@@ -206,6 +222,11 @@ namespace AGXUnity_Excavator.Scripts.Experiment
 
         ResetTerrains( resetTerrain );
 
+        if ( resetTerrain ) {
+          ClearDynamicSoilParticles();
+          ResetSoilCompactors();
+        }
+
         if ( resetPose ) {
           RestoreRigidBodiesFromSnapshot();
           RestoreConstraintControllersFromSnapshot();
@@ -270,14 +291,39 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       }
     }
 
-    private void ResetMeasurementTrackers()
+    private void ClearDynamicSoilParticles()
     {
-      if ( m_massTrackers == null )
+      if ( !m_clearSoilParticlesOnReset )
         return;
 
-      foreach ( var tracker in m_massTrackers ) {
-        if ( tracker != null )
-          tracker.ResetMeasurements();
+      global::DeformableTerrainParticleResetUtility.RemoveAllParticlesInScene();
+    }
+
+    private void ResetSoilCompactors()
+    {
+      if ( m_dumpParticleCompactors != null ) {
+        foreach ( var compactor in m_dumpParticleCompactors ) {
+          if ( compactor != null )
+            compactor.ResetCompactionState();
+        }
+      }
+
+      if ( m_settledTerrainParticleCompactors == null )
+        return;
+
+      foreach ( var compactor in m_settledTerrainParticleCompactors ) {
+        if ( compactor != null )
+          compactor.ResetCompactionState();
+      }
+    }
+
+    private void ResetMeasurementTrackers()
+    {
+      if ( m_massTrackers != null ) {
+        foreach ( var tracker in m_massTrackers ) {
+          if ( tracker != null )
+            tracker.ResetMeasurements();
+        }
       }
 
       if ( m_targetMassSensors == null )
@@ -454,6 +500,27 @@ namespace AGXUnity_Excavator.Scripts.Experiment
           constraints.Add( constraint );
       }
 
+      if ( m_machineController != null ) {
+        if ( m_machineController.SwingConstraint != null )
+          constraints.Add( m_machineController.SwingConstraint );
+
+        foreach ( var boomConstraint in m_machineController.BoomConstraints ) {
+          if ( boomConstraint != null )
+            constraints.Add( boomConstraint );
+        }
+
+        if ( m_machineController.StickConstraint != null )
+          constraints.Add( m_machineController.StickConstraint );
+
+        if ( m_machineController.BucketConstraint != null )
+          constraints.Add( m_machineController.BucketConstraint );
+
+        foreach ( var trackConstraint in m_machineController.TrackConstraints ) {
+          if ( trackConstraint != null )
+            constraints.Add( trackConstraint );
+        }
+      }
+
       if ( m_excavator != null ) {
         foreach ( var sprocketHinge in m_excavator.SprocketHinges ) {
           if ( sprocketHinge != null )
@@ -483,6 +550,14 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     private IEnumerable<AGXUnity.Model.Track> EnumerateTracksToReset()
     {
       var tracks = new HashSet<AGXUnity.Model.Track>();
+      var machineRoot = ResolveMachineRoot();
+      if ( machineRoot != null ) {
+        foreach ( var track in machineRoot.GetComponentsInChildren<AGXUnity.Model.Track>( true ) ) {
+          if ( track != null )
+            tracks.Add( track );
+        }
+      }
+
       if ( m_excavator != null ) {
         foreach ( var track in m_excavator.GetComponentsInChildren<AGXUnity.Model.Track>( true ) ) {
           if ( track != null )
@@ -511,7 +586,27 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     private void ResolveReferences()
     {
       m_machineController = ExcavatorRigLocator.ResolveComponent( this, m_machineController );
-      m_excavator = ExcavatorRigLocator.ResolveComponent( this, m_excavator );
+      var previousExcavator = m_excavator;
+      var previousE85Excavator = m_e85Excavator;
+      var previousMachineRoot = m_machineRoot;
+      if ( !ExcavatorRigLocator.IsSelectable( m_machineRoot ) && m_machineController != null )
+        m_machineRoot = m_machineController.MachineRoot;
+
+      if ( ExcavatorRigLocator.IsSelectable( m_machineRoot ) ) {
+        m_excavator = ExcavatorRigLocator.ResolveActiveComponentInRoot( m_machineRoot, m_excavator );
+        m_e85Excavator = ExcavatorRigLocator.ResolveActiveComponentInRoot( m_machineRoot, m_e85Excavator );
+      }
+      else {
+        m_excavator = ExcavatorRigLocator.ResolveActiveComponent( this, m_excavator );
+        m_e85Excavator = ExcavatorRigLocator.ResolveActiveComponent( this, m_e85Excavator );
+      }
+      if ( previousExcavator != null && previousExcavator != m_excavator )
+        ClearResetSnapshot();
+      if ( previousE85Excavator != null && previousE85Excavator != m_e85Excavator )
+        ClearResetSnapshot();
+      if ( previousMachineRoot != null && previousMachineRoot != m_machineRoot )
+        ClearResetSnapshot();
+
       m_episodeManager = ExcavatorRigLocator.ResolveComponent( this, m_episodeManager );
 
       if ( !HasAssignedEntries( m_massTrackers ) )
@@ -525,6 +620,35 @@ namespace AGXUnity_Excavator.Scripts.Experiment
 
       if ( !HasAssignedEntries( m_fallbackTerrains ) )
         m_fallbackTerrains = FindObjectsOfType<AGXUnity.Model.DeformableTerrain>();
+
+      if ( !HasAssignedEntries( m_dumpParticleCompactors ) )
+        m_dumpParticleCompactors = FindObjectsOfType<global::DumpParticleStaticTerrainCompactor>();
+
+      if ( !HasAssignedEntries( m_settledTerrainParticleCompactors ) )
+        m_settledTerrainParticleCompactors = FindObjectsOfType<global::SettledTerrainParticleCompactor>();
+    }
+
+    private Transform ResolveMachineRoot()
+    {
+      if ( m_machineController != null )
+        return m_machineController.MachineRoot;
+
+      if ( m_machineRoot != null )
+        return m_machineRoot;
+
+      if ( m_e85Excavator != null )
+        return m_e85Excavator.transform;
+
+      return m_excavator != null ? m_excavator.transform : null;
+    }
+
+    private void ClearResetSnapshot()
+    {
+      m_rigidBodySnapshots.Clear();
+      m_constraintSnapshots.Clear();
+      m_driveTrainSnapshot = null;
+      m_hasSnapshot = false;
+      m_pendingInitialSnapshotCapture = Application.isPlaying && m_captureSnapshotOnFirstFixedUpdate;
     }
 
     private static bool HasAssignedEntries<T>( T[] values ) where T : UnityEngine.Object

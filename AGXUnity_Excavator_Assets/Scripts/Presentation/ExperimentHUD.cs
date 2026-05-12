@@ -40,6 +40,7 @@ namespace AGXUnity_Excavator.Scripts.Presentation
     private GUIStyle m_popupBodyStyle = null;
     private TrackedCameraWindow[] m_cameraWindows = Array.Empty<TrackedCameraWindow>();
     private float m_nextRuntimeRefreshTime = 0.0f;
+    private string m_calibrationProfileNameDraft = string.Empty;
 
     private void Awake()
     {
@@ -272,6 +273,38 @@ namespace AGXUnity_Excavator.Scripts.Presentation
 
       GUILayout.Space( 6.0f );
       GUILayout.Label( "<b>Actuator Calibration</b>", m_style );
+      GUILayout.Label( m_observationCollector.GetCalibrationStatusLine(), m_style );
+      if ( !string.IsNullOrWhiteSpace( m_observationCollector.LastCalibrationMessage ) )
+        GUILayout.Label( m_observationCollector.LastCalibrationMessage, m_style );
+
+      if ( string.IsNullOrWhiteSpace( m_calibrationProfileNameDraft ) )
+        m_calibrationProfileNameDraft = m_observationCollector.CalibrationProfileName;
+
+      GUILayout.BeginHorizontal();
+      GUILayout.Label( "Profile name:", m_style, GUILayout.Width( 88.0f ) );
+      m_calibrationProfileNameDraft = GUILayout.TextField( m_calibrationProfileNameDraft ?? string.Empty );
+      m_observationCollector.CalibrationProfileName = m_calibrationProfileNameDraft;
+      GUILayout.EndHorizontal();
+
+      GUILayout.BeginHorizontal();
+      var trackingButtonLabel = m_observationCollector.IsCalibrationTrackingEnabled ? "Stop Tracking" : "Start Tracking";
+      if ( GUILayout.Button( trackingButtonLabel ) ) {
+        if ( m_observationCollector.IsCalibrationTrackingEnabled )
+          m_observationCollector.EndCalibrationTracking();
+        else
+          m_observationCollector.BeginCalibrationTracking();
+      }
+
+      if ( GUILayout.Button( "Reset Samples" ) )
+        m_observationCollector.ResetCalibrationTracking();
+
+      if ( GUILayout.Button( "Save JSON" ) )
+        m_observationCollector.SaveObservedNormalizationProfile( m_calibrationProfileNameDraft );
+
+      if ( GUILayout.Button( "Reload JSON" ) )
+        m_observationCollector.LoadNormalizationProfileFromConfiguredPath();
+      GUILayout.EndHorizontal();
+
       var debugLines = m_observationCollector.GetCalibrationDebugLines();
       if ( debugLines == null || debugLines.Length == 0 ) {
         GUILayout.Label( "No actuator calibration samples yet.", m_style );
