@@ -19,6 +19,8 @@ namespace AGXUnity_Excavator.Scripts.Editor
     private const string TerrainAssetDirectory = "Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/Terrains";
     private const string DigTerrainAssetPath = TerrainAssetDirectory + "/CodexDigTerrain.asset";
     private const string GravelTerrainLayerPath = "Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/materials/Gravel_03-terrainlayer.terrainlayer";
+    private const string RuntimeDigAreaFillMaterialName = "DigAreaFillRuntime";
+    private const string RuntimeDigAreaContourMaterialName = "DigAreaContourRuntime";
 
     private const float EnvironmentScale = CodexSceneScaleConfig.DefaultEnvironmentScale;
     private const float BoardThickness = CodexSceneScaleConfig.BoardThickness;
@@ -134,6 +136,10 @@ namespace AGXUnity_Excavator.Scripts.Editor
         EditorUtility.SetDirty( collider );
         EditorUtility.SetDirty( terrainData );
 
+        result.runtime_area_material_references_removed = ClearSavedRuntimeAreaMaterials();
+        result.runtime_area_material_cleanup =
+          $"{result.runtime_area_material_references_removed} saved runtime DigArea material reference(s) removed";
+
         AssetDatabase.SaveAssets();
         EditorSceneManager.MarkSceneDirty( scene );
         EditorSceneManager.SaveScene( scene );
@@ -184,6 +190,49 @@ namespace AGXUnity_Excavator.Scripts.Editor
 
       terrainData.SetHeights( 0, 0, heights );
       return terrainData;
+    }
+
+    private static int ClearSavedRuntimeAreaMaterials()
+    {
+      var removedReferences = 0;
+      var renderers = Resources.FindObjectsOfTypeAll<Renderer>();
+      foreach ( var renderer in renderers ) {
+        if ( renderer == null || !renderer.gameObject.scene.IsValid() )
+          continue;
+
+        var sharedMaterials = renderer.sharedMaterials;
+        var changed = false;
+        for ( var i = 0; i < sharedMaterials.Length; ++i ) {
+          if ( !IsRuntimeDigAreaMaterial( sharedMaterials[ i ] ) )
+            continue;
+
+          sharedMaterials[ i ] = null;
+          changed = true;
+          ++removedReferences;
+        }
+
+        if ( changed ) {
+          renderer.sharedMaterials = sharedMaterials;
+          EditorUtility.SetDirty( renderer );
+        }
+      }
+
+      var materials = Resources.FindObjectsOfTypeAll<Material>();
+      foreach ( var material in materials ) {
+        if ( IsRuntimeDigAreaMaterial( material ) && !AssetDatabase.Contains( material ) )
+          UnityEngine.Object.DestroyImmediate( material );
+      }
+
+      return removedReferences;
+    }
+
+    private static bool IsRuntimeDigAreaMaterial( Material material )
+    {
+      if ( material == null || string.IsNullOrEmpty( material.name ) )
+        return false;
+
+      return material.name.StartsWith( RuntimeDigAreaFillMaterialName, StringComparison.Ordinal ) ||
+             material.name.StartsWith( RuntimeDigAreaContourMaterialName, StringComparison.Ordinal );
     }
 
     private static GameObject CreateTerrainObject( string name )
@@ -278,6 +327,8 @@ namespace AGXUnity_Excavator.Scripts.Editor
       public string world_position;
       public string world_size;
       public string soil_top_height_m;
+      public int runtime_area_material_references_removed;
+      public string runtime_area_material_cleanup;
     }
   }
 }

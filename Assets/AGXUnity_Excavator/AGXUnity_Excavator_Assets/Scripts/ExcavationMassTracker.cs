@@ -27,6 +27,10 @@ public class ExcavationMassTracker : ScriptComponent
   [Min( 0.0f )]
   private float m_handledAsParticleRigidBodyPadding = 0.1f;
 
+  [SerializeField]
+  [Min( 0.0f )]
+  private float m_massInBucketDeadbandKg = 2.0f;
+
   [Header( "Target Distance Proxy" )]
   [SerializeField]
   private bool m_useDedicatedTargetDistanceProxy = true;
@@ -48,6 +52,7 @@ public class ExcavationMassTracker : ScriptComponent
 
   float m_excavatedMass = 0;
   float m_massInBucket = 0;
+  float m_rawMassInBucket = 0;
   float m_previousMassInBucket = 0;
 
   Text m_infoText;
@@ -60,6 +65,8 @@ public class ExcavationMassTracker : ScriptComponent
   // by accumulating positive changes in bucket load across the episode.
   public float ExcavatedMass => m_excavatedMass;
   public float MassInBucket => m_massInBucket;
+  public float RawMassInBucket => m_rawMassInBucket;
+  public float MassInBucketDeadbandKg => Mathf.Max( 0.0f, m_massInBucketDeadbandKg );
   public Transform BucketMeasurementFrame => ResolveBucketMeasurementFrame();
 
 
@@ -131,6 +138,13 @@ public class ExcavationMassTracker : ScriptComponent
   }
 
   private float ReadMassInBucket()
+  {
+    m_rawMassInBucket = ReadRawMassInBucket();
+    var nonNegativeMass = Mathf.Max( 0.0f, m_rawMassInBucket );
+    return nonNegativeMass < MassInBucketDeadbandKg ? 0.0f : nonNegativeMass;
+  }
+
+  private float ReadRawMassInBucket()
   {
     ResolveSemanticBindings();
 

@@ -53,6 +53,11 @@ qpos normalization:
 - the HUD calibration controls can start/stop raw range tracking, reset samples, save the observed range to a named JSON profile, and reload the selected profile
 - swing normalization should normally remain `[-pi, pi]`; saved manual calibration profiles keep that default unless explicitly configured otherwise
 
+`mass_in_bucket_kg` semantics:
+- this field is the current bucket-contained dynamic material estimate
+- Unity sums the AGX shovel dynamic terrain mass and configured `HandleAsParticle` dynamic rigid bodies inside the bucket measurement volume
+- bucket mass readings below `2.0 kg` are treated as `0.0 kg` to suppress empty-bucket residual noise
+
 `mass_in_target_box_kg` semantics:
 - this field always refers to the **currently active Unity dump target**
 - the current main scene can switch between `ContainerBox` and `TruckBed`

@@ -84,6 +84,29 @@ Scene scale:
 - the scale tool scans the loaded scene for spatial scene elements and excludes
   the excavator hierarchy automatically, so newly added non-excavator objects
   are included without extending a hard-coded object-name list
+- use `Tools/AGX Excavator/Codex/Audit Scene Environment Scale` after a scale
+  migration to compare generated object dimensions, AGX `Box.HalfExtents`, and
+  terrain sizes against the `1.5` design values; request-file automation is
+  available through `Temp/CodexSceneScaleAudit.request`
+- use `Tools/AGX Excavator/Codex/Repair Audited Scene Environment Dimensions`
+  or `Temp/CodexSceneScaleRepair.request` only to correct audited generated
+  scene-environment dimension drift; it does not move or resize the excavator
+- use `Tools/AGX Excavator/Codex/Capture Excavator Pose Snapshot` or
+  `Temp/CodexExcavatorPoseSnapshot.request` after the excavator has been posed
+  in Play Mode to export the current excavator root transform, rigid-body
+  transforms, constraint frames, controller values, and key component transforms
+  for IK/initial-pose baking analysis
+- use `Tools/AGX Excavator/Codex/Bake Excavator Pose Snapshot To Scene` or
+  `Temp/CodexExcavatorPoseBake.request` to apply a captured Play Mode pose
+  snapshot back to the Edit Mode scene; the request defaults to
+  `Temp/CodexExcavatorPoseSnapshot/playmode_target_pose.json` and writes the
+  excavator transform samples, AGX constraint frames, and captured controller
+  values into the scene after first backing up the `.unity` file
+- use `Tools/AGX Excavator/Codex/Capture Mass Telemetry Snapshot` or
+  `Temp/CodexMassTelemetrySnapshot.request` during Play Mode when debugging
+  reward/mass telemetry; it exports the current bucket tracker, active target
+  router, observation collector values, and target-sensor internal accumulation
+  fields to `Temp/CodexMassTelemetrySnapshot/result.json`
 
 Runtime target routing is implemented, so the same exported field names continue to refer to the **currently active target**.
 The runtime HUD also exposes DigArea good-start state, DigArea touch state, and
@@ -168,6 +191,10 @@ The current reset path already restores:
 - terrain state
 - target mass counters
 - bucket / target measurement baselines
+- the editor DigTerrain repair path also rebuilds the filled terrain data and
+  removes saved `DigArea*Runtime` visual material references before saving the
+  scene, so Play Mode-only terrain offsets and transparent overlays do not
+  persist into the scene asset
 
 The current reset goal is stable baseline reproducibility, not strict seeded determinism.
 
@@ -269,7 +296,7 @@ Current `env_state` order:
 
 Field semantics:
 
-- `mass_in_bucket_kg`: current bucket-contained dynamic material estimate
+- `mass_in_bucket_kg`: current bucket-contained dynamic material estimate; readings below `2.0 kg` are treated as `0.0 kg` to suppress empty-bucket residual noise
 - `excavated_mass_kg`: current excavation progress signal from the bucket-side tracker
 - `mass_in_target_box_kg`: current mass retained in the active dump target
 - `deposited_mass_in_target_box_kg`: reset-relative net retained mass in the active dump target

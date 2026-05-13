@@ -406,6 +406,7 @@ V2 **油箱与回油路在 AGX 里的含义（避免与「必须有显式油箱 
 
 - bucket 内 terrain 对 shovel 的动态质量统计仍然保留
 - 同时会在 bucket 的局部测量体积内，额外统计 `HandleAsParticle` 的动态刚体质量
+- `2.0 kg` 以下的 bucket 质量读数会按 `0.0 kg` 输出，用来屏蔽空斗姿态下的残留噪声
 
 这意味着：
 
@@ -635,6 +636,7 @@ Python client
 
 - bucket 内质量仍保留 terrain 对 shovel 的动态质量统计
 - 另外会在 bucket 局部测量体积里额外统计 `HandleAsParticle` 动态刚体的质量
+- `2.0 kg` 以下的 bucket 质量读数会按 `0.0 kg` 输出
 - 这使 `MassInBucket` / `ExcavatedMass` 可以覆盖 `Dynamic Rock` 这类被当成粒子处理的动态石块
 
 ### 7.2 历史 Sidecar 导出
