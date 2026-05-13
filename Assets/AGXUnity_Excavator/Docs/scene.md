@@ -296,7 +296,7 @@ Current `env_state` order:
 
 Field semantics:
 
-- `mass_in_bucket_kg`: current bucket-contained dynamic material estimate; readings below `2.0 kg` are treated as `0.0 kg` to suppress empty-bucket residual noise
+- `mass_in_bucket_kg`: current bucket-contained dynamic material estimate; readings at or below `2.0 kg` are treated as `0.0 kg` to suppress empty-bucket residual noise
 - `excavated_mass_kg`: current excavation progress signal from the bucket-side tracker
 - `mass_in_target_box_kg`: current mass retained in the active dump target
 - `deposited_mass_in_target_box_kg`: reset-relative net retained mass in the active dump target

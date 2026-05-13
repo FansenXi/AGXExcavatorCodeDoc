@@ -141,7 +141,7 @@ public class ExcavationMassTracker : ScriptComponent
   {
     m_rawMassInBucket = ReadRawMassInBucket();
     var nonNegativeMass = Mathf.Max( 0.0f, m_rawMassInBucket );
-    return nonNegativeMass < MassInBucketDeadbandKg ? 0.0f : nonNegativeMass;
+    return nonNegativeMass <= MassInBucketDeadbandKg ? 0.0f : nonNegativeMass;
   }
 
   private float ReadRawMassInBucket()

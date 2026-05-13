@@ -56,7 +56,7 @@ qpos normalization:
 `mass_in_bucket_kg` semantics:
 - this field is the current bucket-contained dynamic material estimate
 - Unity sums the AGX shovel dynamic terrain mass and configured `HandleAsParticle` dynamic rigid bodies inside the bucket measurement volume
-- bucket mass readings below `2.0 kg` are treated as `0.0 kg` to suppress empty-bucket residual noise
+- bucket mass readings at or below `2.0 kg` are treated as `0.0 kg` to suppress empty-bucket residual noise
 
 `mass_in_target_box_kg` semantics:
 - this field always refers to the **currently active Unity dump target**
