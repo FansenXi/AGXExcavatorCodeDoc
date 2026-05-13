@@ -1,0 +1,125 @@
+# E85 baseline tracking policy:
+# keep source code, documentation, text configs, Unity scenes, and their
+# matching Unity metadata; leave generated files, textures, models, binaries,
+# materials, logs, and local run artifacts outside Git.
+
+# Ignore everything by default, then opt in to source-like files below.
+*
+!*/
+
+# Unity generated folders
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+
+# IDE and generated project files
+.vs/
+.vscode/
+.idea/
+*.csproj
+*.sln
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# Unity crash and profiler output
+sysinfo.txt
+*.stackdump
+*.pid
+*.pid.lock
+*.log
+*.traceevents
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local run artifacts
+ExperimentLogs/
+CodexSceneBackups/
+
+# Repository metadata and docs
+!.gitignore
+!README.md
+!**/*.md
+!**/*.md.meta
+!**/*.txt
+!**/*.txt.meta
+
+# Unity project/package configuration
+!Packages/**/*.json
+!Packages/**/*.json.meta
+!ProjectSettings/**/*.asset
+!ProjectSettings/**/*.json
+!ProjectSettings/**/*.txt
+
+# Text configuration and schema files
+!**/*.json
+!**/*.json.meta
+!**/*.yaml
+!**/*.yaml.meta
+!**/*.yml
+!**/*.yml.meta
+!**/*.cfg
+!**/*.cfg.meta
+!**/*.schema
+!**/*.schema.meta
+!**/*.inputactions
+!**/*.inputactions.meta
+
+# Unity scenes
+!**/*.unity
+!**/*.unity.meta
+
+# Source code and shader code
+!**/*.cs
+!**/*.cs.meta
+!**/*.asmdef
+!**/*.asmdef.meta
+!**/*.asmref
+!**/*.asmref.meta
+!**/*.shader
+!**/*.shader.meta
+!**/*.shadergraph
+!**/*.shadergraph.meta
+!**/*.compute
+!**/*.compute.meta
+!**/*.cginc
+!**/*.cginc.meta
+!**/*.hlsl
+!**/*.hlsl.meta
+!**/*.glsl
+!**/*.glsl.meta
+!**/*.cl
+!**/*.cl.meta
+!**/*.js
+!**/*.js.meta
+!**/*.ts
+!**/*.ts.meta
+!**/*.html
+!**/*.html.meta
+!**/*.css
+!**/*.css.meta
+!**/*.uxml
+!**/*.uxml.meta
+!**/*.uss
+!**/*.uss.meta
+!**/*.frag
+!**/*.frag.meta
+!**/*.vert
+!**/*.vert.meta
+!**/*.xq
+!**/*.xq.meta
+!**/Makefile
+!**/Makefile.meta

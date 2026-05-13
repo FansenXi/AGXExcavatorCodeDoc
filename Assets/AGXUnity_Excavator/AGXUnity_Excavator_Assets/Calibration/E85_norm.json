@@ -1,0 +1,22 @@
+{
+    "profile_name": "E85 norm",
+    "machine_name": "Excavator_BobcatE85",
+    "created_utc": "2026-05-12T08:55:11.1344072Z",
+    "qpos_order": "swing_position_norm,boom_position_norm,stick_position_norm,bucket_position_norm",
+    "swing": {
+        "min": -3.1415927410125734,
+        "max": 3.1415927410125734
+    },
+    "boom": {
+        "min": -0.39485156536102297,
+        "max": 0.14228641986846925
+    },
+    "stick": {
+        "min": -0.6745443344116211,
+        "max": 0.19139017164707185
+    },
+    "bucket": {
+        "min": -0.3270776867866516,
+        "max": 0.3034883737564087
+    }
+}

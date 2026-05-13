@@ -1,0 +1,22 @@
+{
+    "profile_name": "CAT 365 norm",
+    "machine_name": "CAT365",
+    "created_utc": "2026-05-12T00:00:00.0000000Z",
+    "qpos_order": "swing_position_norm,boom_position_norm,stick_position_norm,bucket_position_norm",
+    "swing": {
+        "min": -3.1415927,
+        "max": 3.1415927
+    },
+    "boom": {
+        "min": -0.703,
+        "max": 0.406
+    },
+    "stick": {
+        "min": -0.893,
+        "max": 0.813
+    },
+    "bucket": {
+        "min": -0.977,
+        "max": 0.439
+    }
+}
