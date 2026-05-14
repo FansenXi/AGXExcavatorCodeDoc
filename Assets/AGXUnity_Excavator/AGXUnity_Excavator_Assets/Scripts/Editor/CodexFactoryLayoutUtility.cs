@@ -600,9 +600,32 @@ namespace AGXUnity_Excavator.Scripts.Editor
         return;
       }
 
-      digArea.transform.position = new Vector3( digCenter.x, 0.025f * EnvironmentScale, digCenter.z );
-      digArea.transform.rotation = Quaternion.identity;
-      SetFirstAgxBoxHalfExtents( digArea, new Vector3( AreaSizeX * 0.5f, 0.025f * EnvironmentScale, AreaSizeZ * 0.5f ) );
+      var digTerrain = FindSceneObject( "DigTerrain" );
+      var terrain = digTerrain != null ? digTerrain.GetComponent<Terrain>() : null;
+      var digAreaHalfExtents = new Vector3(
+        AreaSizeX * 0.5f,
+        0.025f * EnvironmentScale,
+        AreaSizeZ * 0.5f );
+      if ( terrain != null && terrain.terrainData != null ) {
+        var terrainSize = terrain.terrainData.size;
+        digArea.transform.SetParent( terrain.transform, false );
+        digArea.transform.localPosition = new Vector3(
+          0.5f * terrainSize.x,
+          terrain.terrainData.GetInterpolatedHeight( 0.5f, 0.5f ),
+          0.5f * terrainSize.z );
+        digArea.transform.localRotation = Quaternion.identity;
+        digArea.transform.localScale = Vector3.one;
+        digAreaHalfExtents = new Vector3(
+          0.5f * terrainSize.x,
+          0.025f * EnvironmentScale,
+          0.5f * terrainSize.z );
+      }
+      else {
+        digArea.transform.position = new Vector3( digCenter.x, 0.025f * EnvironmentScale, digCenter.z );
+        digArea.transform.rotation = Quaternion.identity;
+      }
+      SetFirstAgxBoxHalfExtents( digArea, digAreaHalfExtents );
+      ResetFirstAgxBoxLocalTransform( digArea );
       EditorUtility.SetDirty( digArea );
       result.updated_dig_area = true;
 
@@ -612,30 +635,23 @@ namespace AGXUnity_Excavator.Scripts.Editor
 
     private static void UpdateExistingDumpSensor( Vector3 dumpCenter, FactoryLayoutResult result )
     {
-      var submergedBox = FindSceneObject( "SubmergedBox" );
-      if ( submergedBox == null ) {
-        result.warnings.Add( "Existing SubmergedBox dump sensor was not found; only visual dump boards were created." );
+      var dumpArea = FindSceneObject( "DumpArea" );
+      if ( dumpArea == null ) {
+        result.warnings.Add( "Existing DumpArea dump sensor was not found; only visual dump boards were created." );
         return;
       }
 
-      submergedBox.SetActive( true );
-      submergedBox.transform.position = new Vector3( dumpCenter.x, AreaHeight * 0.5f, dumpCenter.z );
-      submergedBox.transform.rotation = Quaternion.identity;
-      SetFirstAgxBoxHalfExtents( submergedBox, new Vector3( AreaSizeX * 0.5f, AreaHeight * 0.5f, AreaSizeZ * 0.5f ) );
-      SetAgxBoxVisualRenderers( submergedBox, false );
-      EditorUtility.SetDirty( submergedBox );
+      dumpArea.SetActive( true );
+      dumpArea.transform.position = new Vector3( dumpCenter.x, AreaHeight * 0.5f, dumpCenter.z );
+      dumpArea.transform.rotation = Quaternion.identity;
+      SetFirstAgxBoxHalfExtents( dumpArea, new Vector3( AreaSizeX * 0.5f, AreaHeight * 0.5f, AreaSizeZ * 0.5f ) );
+      SetAgxBoxVisualRenderers( dumpArea, false );
+      EditorUtility.SetDirty( dumpArea );
       result.updated_dump_sensor = true;
     }
 
     private static void HideLegacyObjects( FactoryLayoutResult result )
     {
-      var bedTruck = FindSceneObject( "BedTruck" );
-      if ( bedTruck != null ) {
-        bedTruck.SetActive( false );
-        EditorUtility.SetDirty( bedTruck );
-        result.hidden_legacy_objects.Add( "BedTruck" );
-      }
-
       var terrainMesh = FindSceneObject( "Terrain mesh" );
       if ( terrainMesh != null ) {
         terrainMesh.SetActive( false );
@@ -900,6 +916,21 @@ namespace AGXUnity_Excavator.Scripts.Editor
           EditorUtility.SetDirty( component );
           return;
         }
+      }
+    }
+
+    private static void ResetFirstAgxBoxLocalTransform( GameObject root )
+    {
+      var components = root.GetComponentsInChildren<Component>( true );
+      foreach ( var component in components ) {
+        if ( component == null || component.GetType().FullName != "AGXUnity.Collide.Box" )
+          continue;
+
+        component.transform.localPosition = Vector3.zero;
+        component.transform.localRotation = Quaternion.identity;
+        component.transform.localScale = Vector3.one;
+        EditorUtility.SetDirty( component.transform );
+        return;
       }
     }
 

@@ -10,7 +10,7 @@ using UnityEngine;
 public class TerrainParticleBoxMassSensor : TargetMassSensorBase
 {
   [SerializeField]
-  private string m_targetName = "ContainerBox";
+  private string m_targetName = "DumpArea";
 
   [SerializeField]
   public DeformableTerrain m_terrain = null;
@@ -52,7 +52,7 @@ public class TerrainParticleBoxMassSensor : TargetMassSensorBase
   private bool m_autoDiscoverSettledMassCompactors = true;
 
   [SerializeField]
-  private bool m_accumulateBucketUnloadNearTarget = true;
+  private bool m_accumulateBucketUnloadNearTarget = false;
 
   [SerializeField]
   private ExcavationMassTracker m_bucketMassTracker = null;
@@ -62,13 +62,24 @@ public class TerrainParticleBoxMassSensor : TargetMassSensorBase
   private float m_bucketUnloadTargetDistanceTolerance = 0.75f;
 
   [SerializeField]
+  [Min( 0.0f )]
+  private float m_dumpClearanceHorizontalToleranceMeters = 0.0f;
+
+  [SerializeField]
   private bool m_accumulateEnteredParticleMass = true;
 
   [SerializeField]
-  private bool m_useEnteredParticleMassForDepositedMass = true;
+  private bool m_useStaticTerrainHeightForRetainedMass = false;
 
   [SerializeField]
-  private bool m_useEnteredParticleMassForMassInBox = true;
+  private DeformableTerrainBase[] m_staticMassTerrains = null;
+
+  [SerializeField]
+  private bool m_autoDiscoverStaticMassTerrains = true;
+
+  [SerializeField]
+  [Min( 0.0f )]
+  private float m_staticTerrainBulkDensity = 1600.0f;
 
   private float m_massInBox = 0.0f;
   private float m_depositedMass = 0.0f;
@@ -76,17 +87,32 @@ public class TerrainParticleBoxMassSensor : TargetMassSensorBase
   private float m_bucketUnloadNearTargetMass = 0.0f;
   private float m_previousBucketMass = 0.0f;
   private bool m_hasPreviousBucketMass = false;
+  private float m_resetBaselineLiveTerrainMassInBox = 0.0f;
+  private float m_resetBaselineHandledAsParticleMassInBox = 0.0f;
   private float m_resetBaselineMassInBox = 0.0f;
   private float m_resetBaselineSettledCompactorMass = 0.0f;
   private float m_nextSampleTime = 0.0f;
   private readonly HashSet<uint> m_enteredParticleHashes = new HashSet<uint>();
+  private readonly HashSet<uint> m_activeParticleHashes = new HashSet<uint>();
+  private readonly List<StaticTerrainBaseline> m_staticTerrainBaselines = new List<StaticTerrainBaseline>();
   private Transform m_cachedTargetDistanceBoundsTransform = null;
   private Bounds m_cachedTargetDistanceLocalBounds = default;
   private bool m_hasCachedTargetDistanceLocalBounds = false;
 
+  private sealed class StaticTerrainBaseline
+  {
+    public DeformableTerrainBase Terrain = null;
+    public Terrain UnityTerrain = null;
+    public TerrainData TerrainData = null;
+    public float[,] Heights = null;
+    public int Resolution = 0;
+    public Vector3 Size = Vector3.zero;
+  }
+
   public override string TargetName => string.IsNullOrWhiteSpace( m_targetName ) ? gameObject.name : m_targetName;
   public override float MassInBox => m_massInBox;
   public override float DepositedMass => m_depositedMass;
+  public override float TargetDumpClearanceHorizontalToleranceMeters => Mathf.Max( 0.0f, m_dumpClearanceHorizontalToleranceMeters );
   public override Shape[] GetCollisionShapes()
   {
     var shapes = GetComponentsInChildren<Shape>( true );
@@ -150,6 +176,27 @@ public class TerrainParticleBoxMassSensor : TargetMassSensorBase
     return true;
   }
 
+  public override bool TryGetTargetClearanceVolume( out Transform measurementFrame,
+                                                    out Vector3 measurementCenterLocal,
+                                                    out Vector3 measurementHalfExtents )
+  {
+    ResolveReferences();
+
+    if ( m_sensorFootprint != null ) {
+      measurementFrame = m_sensorFootprint.transform;
+      measurementCenterLocal = Vector3.zero;
+      measurementHalfExtents = m_sensorFootprint.HalfExtents;
+      return measurementFrame != null &&
+             measurementHalfExtents.x > 0.0f &&
+             measurementHalfExtents.y > 0.0f &&
+             measurementHalfExtents.z > 0.0f;
+    }
+
+    return TryGetMeasurementVolume( out measurementFrame,
+                                    out measurementCenterLocal,
+                                    out measurementHalfExtents );
+  }
+
   protected override bool Initialize()
   {
     ResolveReferences();
@@ -163,15 +210,20 @@ public class TerrainParticleBoxMassSensor : TargetMassSensorBase
     ResolveReferences();
 
     m_enteredParticleHashes.Clear();
+    m_activeParticleHashes.Clear();
     m_enteredParticleMass = 0.0f;
     m_bucketUnloadNearTargetMass = 0.0f;
     m_previousBucketMass = ReadBucketMass();
     m_hasPreviousBucketMass = true;
-    var liveMassInBox = ReadLiveMassInBox();
-    m_resetBaselineMassInBox = liveMassInBox;
+    var liveTerrainMassInBox = ReadLiveTerrainParticleMassInBox();
+    var liveHandledAsParticleMassInBox = ReadLiveHandledAsParticleMassInBox();
+    m_resetBaselineLiveTerrainMassInBox = liveTerrainMassInBox;
+    m_resetBaselineHandledAsParticleMassInBox = liveHandledAsParticleMassInBox;
+    m_resetBaselineMassInBox = liveTerrainMassInBox + liveHandledAsParticleMassInBox;
     m_resetBaselineSettledCompactorMass = ReadSettledCompactorMass();
+    CaptureStaticTerrainBaselines();
     PrimeEnteredParticleHashes();
-    m_massInBox = liveMassInBox;
+    m_massInBox = 0.0f;
     m_depositedMass = 0.0f;
     m_nextSampleTime = Time.time + Mathf.Max( 0.01f, m_updateIntervalSeconds );
   }
@@ -180,6 +232,8 @@ public class TerrainParticleBoxMassSensor : TargetMassSensorBase
   {
     if ( !Application.isPlaying )
       return;
+
+    AccumulateEnteredParticleMass();
 
     if ( Time.time + 1.0e-5f < m_nextSampleTime )
       return;
@@ -214,23 +268,28 @@ public class TerrainParticleBoxMassSensor : TargetMassSensorBase
     AccumulateEnteredParticleMass();
     AccumulateBucketUnloadNearTargetMass();
 
-    var liveMassInBox = ReadLiveMassInBox();
-    var liveDepositedMass = NormalizeMeasuredMass( liveMassInBox );
-    var particleDepositedMass = m_useEnteredParticleMassForDepositedMass ?
-                                Mathf.Max( liveDepositedMass, m_enteredParticleMass ) :
-                                liveDepositedMass;
-    var physicalTargetMass = TryReadNormalizedSettledCompactorMass( out var settledCompactorMass ) ?
-                               Mathf.Max( particleDepositedMass, settledCompactorMass ) :
-                               particleDepositedMass;
-    m_depositedMass = Mathf.Max( physicalTargetMass, m_bucketUnloadNearTargetMass );
-    m_massInBox = m_useEnteredParticleMassForMassInBox ?
-                    Mathf.Max( liveMassInBox, physicalTargetMass ) :
-                    liveMassInBox;
+    var liveHandledAsParticleMassInBox = ReadLiveHandledAsParticleMassInBox();
+    var liveHandledAsParticleDepositedMass = Mathf.Max( 0.0f, liveHandledAsParticleMassInBox - m_resetBaselineHandledAsParticleMassInBox );
+    var targetTerrainMass = m_accumulateEnteredParticleMass ?
+                              Mathf.Max( 0.0f, m_enteredParticleMass ) :
+                              ReadRetainedTerrainMassFallback();
+    var deliveredMass = targetTerrainMass + liveHandledAsParticleDepositedMass;
+
+    m_depositedMass = deliveredMass;
+    m_massInBox = deliveredMass;
   }
 
-  private float NormalizeMeasuredMass( float currentMassInBox )
+  private float ReadRetainedTerrainMassFallback()
   {
-    return Mathf.Max( 0.0f, currentMassInBox - m_resetBaselineMassInBox );
+    var liveTerrainMassInBox = ReadLiveTerrainParticleMassInBox();
+    var liveTerrainDepositedMass = Mathf.Max( 0.0f, liveTerrainMassInBox - m_resetBaselineLiveTerrainMassInBox );
+    var fallbackStaticTerrainMass = ReadStaticTerrainMassFromBaseline();
+    var settledCompactorMass = 0.0f;
+    var hasSettledCompactorMass = TryReadNormalizedSettledCompactorMass( out settledCompactorMass );
+    var staticTerrainMass = hasSettledCompactorMass ?
+                              settledCompactorMass :
+                              fallbackStaticTerrainMass;
+    return Mathf.Max( liveTerrainDepositedMass, staticTerrainMass );
   }
 
   private bool TryReadNormalizedSettledCompactorMass( out float settledCompactorMass )
@@ -265,21 +324,39 @@ public class TerrainParticleBoxMassSensor : TargetMassSensorBase
 
   private float ReadLiveMassInBox()
   {
-    ResolveReferences();
-    var halfExtents = GetMeasurementHalfExtents();
-    if ( halfExtents.x <= 0.0f || halfExtents.y <= 0.0f || halfExtents.z <= 0.0f )
+    return ReadLiveTerrainParticleMassInBox() + ReadLiveHandledAsParticleMassInBox();
+  }
+
+  private float ReadLiveTerrainParticleMassInBox()
+  {
+    if ( !TryGetMeasurementBox( out var measurementCenterLocal, out var halfExtents ) )
       return 0.0f;
 
-    var measurementCenterLocal = GetMeasurementCenterLocal();
-    var totalMass = DeformableTerrainParticleMassUtility.SumMassInOrientedBox( transform,
-                                                                               measurementCenterLocal,
-                                                                               halfExtents,
-                                                                               m_terrain );
+    return DeformableTerrainParticleMassUtility.SumMassInOrientedBox( transform,
+                                                                      measurementCenterLocal,
+                                                                      halfExtents,
+                                                                      m_terrain );
+  }
 
-    if ( m_includeHandledAsParticleRigidBodies )
-      totalMass += ReadHandledAsParticleRigidBodyMassInBox( measurementCenterLocal, halfExtents );
+  private float ReadLiveHandledAsParticleMassInBox()
+  {
+    if ( !m_includeHandledAsParticleRigidBodies )
+      return 0.0f;
 
-    return totalMass;
+    if ( !TryGetMeasurementBox( out var measurementCenterLocal, out var halfExtents ) )
+      return 0.0f;
+
+    return ReadHandledAsParticleRigidBodyMassInBox( measurementCenterLocal, halfExtents );
+  }
+
+  private bool TryGetMeasurementBox( out Vector3 measurementCenterLocal,
+                                     out Vector3 halfExtents )
+  {
+    ResolveReferences();
+
+    measurementCenterLocal = GetMeasurementCenterLocal();
+    halfExtents = GetMeasurementHalfExtents();
+    return halfExtents.x > 0.0f && halfExtents.y > 0.0f && halfExtents.z > 0.0f;
   }
 
   private void AccumulateEnteredParticleMass()
@@ -290,6 +367,9 @@ public class TerrainParticleBoxMassSensor : TargetMassSensorBase
     var halfExtents = GetMeasurementHalfExtents();
     if ( halfExtents.x <= 0.0f || halfExtents.y <= 0.0f || halfExtents.z <= 0.0f )
       return;
+
+    DeformableTerrainParticleMassUtility.CollectActiveParticleHashes( m_terrain, m_activeParticleHashes );
+    m_enteredParticleHashes.IntersectWith( m_activeParticleHashes );
 
     m_enteredParticleMass += DeformableTerrainParticleMassUtility.SumNewParticleMassInOrientedBox(
       transform,
@@ -338,11 +418,20 @@ public class TerrainParticleBoxMassSensor : TargetMassSensorBase
     if ( m_bucketMassTracker == null )
       return false;
 
-    return BucketTargetDistanceMeasurementUtility.TryMeasureDistance( m_bucketMassTracker.BucketMeasurementFrame,
-                                                                     this,
-                                                                     out var minDistanceMeters ) &&
-           minDistanceMeters >= 0.0f &&
-           minDistanceMeters <= m_bucketUnloadTargetDistanceTolerance;
+    if ( !BucketTargetDistanceMeasurementUtility.TryMeasureTargetGeometry(
+           m_bucketMassTracker.BucketMeasurementFrame,
+           this,
+           out var metrics ) ||
+         !metrics.IsValid )
+      return false;
+
+    if ( metrics.DumpClearanceOkMask >= 0.5f ||
+         metrics.BucketOverTargetFootprintMask >= 0.5f )
+      return true;
+
+    return metrics.BucketHeightAboveTargetRimMeters >= 0.0f &&
+           metrics.BucketDumpAreaFootprintOutsideDistanceMeters >= 0.0f &&
+           metrics.BucketDumpAreaFootprintOutsideDistanceMeters <= m_bucketUnloadTargetDistanceTolerance;
   }
 
   private void PrimeEnteredParticleHashes()
@@ -353,6 +442,8 @@ public class TerrainParticleBoxMassSensor : TargetMassSensorBase
     var halfExtents = GetMeasurementHalfExtents();
     if ( halfExtents.x <= 0.0f || halfExtents.y <= 0.0f || halfExtents.z <= 0.0f )
       return;
+
+    DeformableTerrainParticleMassUtility.CollectActiveParticleHashes( m_terrain, m_activeParticleHashes );
 
     DeformableTerrainParticleMassUtility.SumNewParticleMassInOrientedBox(
       transform,
@@ -386,6 +477,113 @@ public class TerrainParticleBoxMassSensor : TargetMassSensorBase
       Mathf.Max( 0.01f, footprintHalfExtents.z + m_additionalHalfExtents.z ) );
   }
 
+  private void CaptureStaticTerrainBaselines()
+  {
+    m_staticTerrainBaselines.Clear();
+    if ( !m_useStaticTerrainHeightForRetainedMass )
+      return;
+
+    ResolveStaticMassTerrains();
+    if ( !HasStaticMassTerrains() )
+      return;
+
+    foreach ( var terrain in m_staticMassTerrains ) {
+      if ( terrain == null )
+        continue;
+
+      var unityTerrain = terrain.GetComponent<Terrain>();
+      var terrainData = unityTerrain != null ? unityTerrain.terrainData : null;
+      if ( terrainData == null || terrainData.heightmapResolution < 2 )
+        continue;
+
+      var resolution = terrainData.heightmapResolution;
+      m_staticTerrainBaselines.Add( new StaticTerrainBaseline {
+        Terrain = terrain,
+        UnityTerrain = unityTerrain,
+        TerrainData = terrainData,
+        Heights = terrainData.GetHeights( 0, 0, resolution, resolution ),
+        Resolution = resolution,
+        Size = terrainData.size
+      } );
+    }
+  }
+
+  private float ReadStaticTerrainMassFromBaseline()
+  {
+    if ( !m_useStaticTerrainHeightForRetainedMass )
+      return 0.0f;
+
+    if ( m_staticTerrainBaselines.Count == 0 )
+      return 0.0f;
+
+    var totalMass = 0.0f;
+    foreach ( var baseline in m_staticTerrainBaselines )
+      totalMass += ReadStaticTerrainMassFromBaseline( baseline );
+
+    return totalMass;
+  }
+
+  private float ReadStaticTerrainMassFromBaseline( StaticTerrainBaseline baseline )
+  {
+    if ( baseline == null ||
+         baseline.UnityTerrain == null ||
+         baseline.TerrainData == null ||
+         baseline.Heights == null ||
+         baseline.Resolution < 2 )
+      return 0.0f;
+
+    var terrainData = baseline.UnityTerrain.terrainData;
+    if ( terrainData == null || terrainData.heightmapResolution != baseline.Resolution )
+      return 0.0f;
+
+    var currentHeights = terrainData.GetHeights( 0, 0, baseline.Resolution, baseline.Resolution );
+    var size = terrainData.size;
+    var cellSizeX = size.x / ( baseline.Resolution - 1 );
+    var cellSizeZ = size.z / ( baseline.Resolution - 1 );
+    var cellArea = Mathf.Max( 1.0e-5f, cellSizeX * cellSizeZ );
+    var density = Mathf.Max( 0.0f, m_staticTerrainBulkDensity );
+    if ( density <= 0.0f )
+      return 0.0f;
+
+    if ( !TryGetMeasurementVolume( out var measurementFrame, out var measurementCenterLocal, out var measurementHalfExtents ) )
+      return 0.0f;
+
+    var totalVolume = 0.0f;
+    for ( var z = 0; z < baseline.Resolution - 1; ++z ) {
+      for ( var x = 0; x < baseline.Resolution - 1; ++x ) {
+        var deltaHeight =
+          ( ( currentHeights[ z, x ] - baseline.Heights[ z, x ] ) +
+            ( currentHeights[ z + 1, x ] - baseline.Heights[ z + 1, x ] ) +
+            ( currentHeights[ z, x + 1 ] - baseline.Heights[ z, x + 1 ] ) +
+            ( currentHeights[ z + 1, x + 1 ] - baseline.Heights[ z + 1, x + 1 ] ) ) *
+          0.25f *
+          size.y;
+        if ( deltaHeight <= 0.0f )
+          continue;
+
+        var currentHeight =
+          ( currentHeights[ z, x ] +
+            currentHeights[ z + 1, x ] +
+            currentHeights[ z, x + 1 ] +
+            currentHeights[ z + 1, x + 1 ] ) *
+          0.25f *
+          size.y;
+        var localPosition = new Vector3( ( x + 0.5f ) * cellSizeX,
+                                         currentHeight,
+                                         ( z + 0.5f ) * cellSizeZ );
+        var worldPosition = baseline.UnityTerrain.transform.TransformPoint( localPosition );
+        var targetLocalPosition = measurementFrame.InverseTransformPoint( worldPosition ) - measurementCenterLocal;
+        if ( Mathf.Abs( targetLocalPosition.x ) > measurementHalfExtents.x ||
+             Mathf.Abs( targetLocalPosition.z ) > measurementHalfExtents.z )
+          continue;
+
+        totalVolume += deltaHeight * cellArea;
+      }
+    }
+
+    return Mathf.Max( 0.0f, totalVolume * density );
+  }
+
   private void ResolveReferences()
   {
     if ( m_sensorFootprint == null )
@@ -395,6 +593,7 @@ public class TerrainParticleBoxMassSensor : TargetMassSensorBase
       m_terrain = FindObjectOfType<DeformableTerrain>();
 
     ResolveSettledMassCompactors();
+    ResolveStaticMassTerrains();
     ResolveBucketMassTracker();
   }
 
@@ -415,6 +614,49 @@ public class TerrainParticleBoxMassSensor : TargetMassSensorBase
 
     foreach ( var compactor in m_settledMassCompactors ) {
       if ( compactor != null )
+        return true;
+    }
+
+    return false;
+  }
+
+  private void ResolveStaticMassTerrains()
+  {
+    if ( HasStaticMassTerrains() || !m_autoDiscoverStaticMassTerrains )
+      return;
+
+    var terrains = new List<DeformableTerrainBase>();
+    if ( HasSettledMassCompactors() ) {
+      foreach ( var compactor in m_settledMassCompactors ) {
+        var terrain = compactor != null ? compactor.GetComponent<DeformableTerrainBase>() : null;
+        if ( terrain != null && !terrains.Contains( terrain ) )
+          terrains.Add( terrain );
+      }
+    }
+
+    if ( terrains.Count == 0 ) {
+      var allTerrains = FindObjectsByType<DeformableTerrainBase>(
+        FindObjectsInactive.Include,
+        FindObjectsSortMode.None );
+      foreach ( var terrain in allTerrains ) {
+        if ( terrain != null &&
+             terrain.name.IndexOf( "DumpTerrainReceiver", System.StringComparison.OrdinalIgnoreCase ) >= 0 &&
+             !terrains.Contains( terrain ) )
+          terrains.Add( terrain );
+      }
+    }
+
+    if ( terrains.Count > 0 )
+      m_staticMassTerrains = terrains.ToArray();
+  }
+
+  private bool HasStaticMassTerrains()
+  {
+    if ( m_staticMassTerrains == null || m_staticMassTerrains.Length == 0 )
+      return false;
+
+    foreach ( var terrain in m_staticMassTerrains ) {
+      if ( terrain != null )
         return true;
     }
 
@@ -645,6 +887,38 @@ internal static class DeformableTerrainParticleMassUtility
     }
 
     return totalMass;
+  }
+
+  public static void CollectActiveParticleHashes( DeformableTerrainBase preferredTerrain,
+                                                  ISet<uint> activeParticleHashes )
+  {
+    if ( activeParticleHashes == null )
+      return;
+
+    activeParticleHashes.Clear();
+    var candidateTerrains = GetCandidateTerrains( preferredTerrain );
+    foreach ( var terrain in candidateTerrains ) {
+      if ( terrain == null || !terrain.isActiveAndEnabled )
+        continue;
+
+      var particles = terrain.GetParticles();
+      if ( particles == null )
+        continue;
+
+      var numParticles = particles.size();
+      for ( uint particleIndex = 0; particleIndex < numParticles; ++particleIndex ) {
+        var particle = particles.at( particleIndex );
+        if ( particle == null )
+          continue;
+
+        try {
+          activeParticleHashes.Add( particle.hash() );
+        }
+        finally {
+          particle.ReturnToPool();
+        }
+      }
+    }
   }
 
   private static bool TryGetParticleMassInOrientedBox( Transform measurementFrame,

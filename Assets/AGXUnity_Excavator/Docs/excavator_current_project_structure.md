@@ -56,22 +56,21 @@ C# namespace 仍保留 `AGXUnity_Excavator`，用于兼容现有场景引用。
 `deposited_mass_in_target_box_kg`，作为 backup success proxy；Repo A /
 testbed 仍然基于导出的 `env_state` 本地计算主 excavation mission reward
 - 当前 step-ack `env_state` 顺序是：
-`[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n, min_distance_to_dig_area_m, bucket_depth_below_dig_area_plane_m]`
-- `mass_in_target_box_kg` 当前表示“运行时选中的接料目标”
-当前主场景支持 `ContainerBox` 和 `TruckBed`
+`[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n, min_distance_to_dig_area_m, bucket_depth_below_dig_area_plane_m, target_horizontal_distance_m, bucket_height_above_target_rim_m, bucket_over_target_footprint_mask, dump_clearance_ok_mask, bucket_dump_area_relative_x_m, bucket_dump_area_relative_z_m, bucket_dump_area_footprint_outside_distance_m]`
+- `mass_in_target_box_kg` 当前表示 reset 后交付到 `DumpArea` 的累计质量；terrain particle 第一次进入 DumpArea 测量体积时按自身 AGX particle mass 计一次
 - `min_distance_to_target_m` 当前表示 bucket target-distance proxy 到当前激活目标 distance geometry 的近似最小距离
 - `target_hard_collision_count` / `target_contact_max_normal_force_n` 当前表示
 excavator 与当前激活目标硬表面的每步硬碰撞摘要信号
 - `min_distance_to_dig_area_m` / `bucket_depth_below_dig_area_plane_m` 当前表示
 bucket 量测体相对场景 `DigArea` 的起挖几何信号
-- 当当前激活目标是 `TruckBed` 时，硬碰撞监控范围覆盖整台 `BedTruck`，而不只是 bed / trunk 量测区域
+- `DumpArea` 硬碰撞监控范围覆盖其接料区域硬表面，而质量统计和 clearance 几何使用 `DumpArea` footprint
 - 当前共享状态字段仍然以
 `deposited_mass_in_target_box_kg`
 作为最终成功信号主轴
 - Repo A 当前业务 baseline 默认使用
 `dump_complete_final_hold`
 口径：
-  - retained mass `>= 300 kg`
+  - delivered mass `>= 300 kg`
   - residual bucket mass `<= 100 kg`
   - 连续保持 `25` 个 control step
 - 旧的 `100 kg / 25 step` 规则主要用于更早的 `v0/fulltest` 历史基线
@@ -269,7 +268,7 @@ V2 **油箱与回油路在 AGX 里的含义（避免与「必须有显式油箱 
 - `SceneResetService.cs`
 - `ExperimentLogger.cs`
 - `TerrainParticleBoxMassSensor.cs`
-- `TruckBedMassSensor.cs`
+- `TerrainParticleBoxMassSensor.cs`
 - `SwitchableTargetMassSensor.cs`
 - `TargetMassSensorBase.cs`
 - `BucketTargetDistanceMeasurementUtility.cs`
@@ -312,58 +311,53 @@ V2 **油箱与回油路在 AGX 里的含义（避免与「必须有显式油箱 
 - `EpisodeManager`
 负责回合开始、结束、重置、输入源切换，以及主控制链驱动
 - `SceneResetService`
-负责场景重置；当前会对全场景刚体与约束做快照/恢复，所以 `BedTruck` 的车体姿态和 bed 相关约束状态也会随 reset 一起回到初始基线
+负责场景重置；当前会对全场景刚体与约束做快照/恢复，所以 `DumpArea` 的车体姿态和 dump area 相关约束状态也会随 reset 一起回到初始基线
 - `ExperimentLogger`
 负责导出逐帧 CSV 日志
 - `TerrainParticleBoxMassSensor`
-负责把场景里的目标箱体/接料面当成“接料质量传感区域”，统计当前箱内质量与 reset 以来的净沉积质量，来源同时包含 terrain soil particles 和 `HandleAsParticle` 动态刚体（例如 `Dynamic Rock`）
-- `TruckBedMassSensor`
-负责把 `BedTruck` 的 `Bed` / trunk 区域当成接料质量传感区域，优先按 `Bed` 子树中的 AGX `Box` 碰撞几何合成局部包围盒并加顶部余量，统计当前质量和 reset 以来的净沉积质量；统计时会聚合所有活跃 `DeformableTerrain`，避免 truck bed support terrain 让粒子质量漏计
+负责把 `DumpArea` 接料面当成质量传感区域，维护 reset-relative unique particle-entry ledger；terrain particle 第一次进入 DumpArea 测量体积时按自身 AGX particle mass 计一次。ledger 使用全局 `particle.hash()` 去重，并在 particle 消失后释放 hash，避免同一 live particle 经多个 terrain provider 暴露时被双计，同时允许后续铲次在 AGX 复用 hash 后重新计入。正式 `mass_in_target_box_kg` / `deposited_mass_in_target_box_kg` 不再依赖 bucket-unload 推断量、heightmap-density 换算，或 live/settled/static 状态拼接
 - `SwitchableTargetMassSensor`
-负责在多个目标传感器之间做运行时切换，并把当前激活目标统一暴露给 `EpisodeManager`、`ActObservationCollector`、HUD 和 reset 链路
+负责把当前 `DumpArea` 目标统一暴露给 `EpisodeManager`、`ActObservationCollector`、HUD 和 reset 链路
 
 ### 4.5.1 当前质量统计支线
 
-当前主场景里，和“目标箱体 / 接料目标质量统计”相关的实现已经明确分成两类：场景目标箱体统计，以及 truck bed 统计。
+当前主场景里，“接料目标质量统计”统一落在 `DumpArea`。
 
-#### A. `SubmergedBox` 目标箱体统计
+#### A. `DumpArea` 目标统计
 
-主场景中的 `SubmergedBox` 当前挂载的是 `TerrainParticleBoxMassSensor`。
+主场景中的 `DumpArea` 当前挂载的是 `TerrainParticleBoxMassSensor`。
 
 它的场景结构约束是：
 
-- `SubmergedBox` 根节点保留一个 AGX `Box`，作为传感器 footprint / 底板
-- `SubmergedBox` 的四个墙体子物体分别挂各自的 AGX `Box`
+- `DumpArea` 根节点保留一个 AGX `Box`，作为传感器 footprint / 底板
+- `DumpArea` 的四个墙体子物体分别挂各自的 AGX `Box`
 - 这四个墙体 `Box` 作为静态几何体参与 AGX 碰撞
 
 它的统计方式是：
 
-- 直接遍历场景中所有活跃 `DeformableTerrainBase` 的当前 soil particles
-- 这里包含 truck bed 使用的 `MovableTerrain`
+- 每个 Unity `Update` 先扫描场景中所有活跃 `DeformableTerrainBase` 的当前 soil particles
+- particle 第一次进入 `DumpArea` 上方定向盒体测量体积时，把全局 `particle.hash()` 记入账本，并按 AGX particle 自身质量累计一次
+- 已计入但不再存活的 particle hash 会在下一次扫描前释放，防止第二铲、第三铲的新粒子复用旧 hash 后被漏计；同一个 live particle 即使被多个 terrain provider 暴露，也只会计一次
+- reset 时先 prime 已经在测量体积内的 particle hash，避免把回合初始残留当作新增交付质量
 - 同时遍历场景里 `HandleAsParticle = true` 且当前仍为 `DYNAMICS` 的刚体，例如 `Dynamic Rock`
-- 只对位于 `SubmergedBox` 上方定向盒体测量体积内的对象累加质量
 
-因此，`SubmergedBox` 当前统计到的是两部分质量之和：
+因此，`mass_in_target_box_kg` 当前统计到的是两部分 reset-relative delivered mass：
 
-- 测量体积内的 terrain soil particle 质量
-- 测量体积内、被当成粒子处理的动态刚体质量
+- terrain 侧 delivered mass：进入 DumpArea 测量体积的 unique particle ledger
+- 测量体积内、被当成粒子处理的动态刚体 reset-relative live mass
 
-#### B. `TruckBedMassSensor` 统计
+`deposited_mass_in_target_box_kg` 在当前 E85 场景中使用同一套 unique particle-entry ledger：
 
-`TruckBedMassSensor` 的目标是稳定统计 `BedTruck` 接料区域内的质量，并避免 truck 自带 terrain/碰撞结构导致漏计。
+- terrain 侧直接使用已经累计的 entered-particle mass，不做 density / heightmap 换算
+- `DumpParticleStaticTerrainCompactor` 与 `DumpTerrainReceiver` 高度场增量只作为诊断 fallback，默认不参与正式质量输出
 
-当前行为是：
-
-- 在 AGX 初始化前，临时禁用 truck 的 `BedTerrain` 子物体
-- 重新启用 `Bed` 现有的支撑 `Box` 碰撞
-- 优先使用这些 `Box` 碰撞几何，再加顶部 headroom，构造 truck 的测量体积
-- 以本次 reset 时测得的质量作为基线，输出 truck target 当前质量和净沉积质量
+它不再合入 bucket-unload near target 的推断质量。unique entered-particle ledger 是当前正式成功/QC 质量源，而不是诊断旁路。
 
 这样做的直接目的，是避免以下几类问题：
 
-- truck 的 `MovableTerrain` merge 成高度场后漏计
+- dump area 的 soil particle 或 receiver terrain 状态导致漏计
 - 底板穿透导致统计不稳定
-- 只统计到床斗底部一层质量
+- 只统计到接料区域底部一层质量
 
 #### C. reset 后的质量行为
 
@@ -371,7 +365,7 @@ V2 **油箱与回油路在 AGX 里的含义（避免与「必须有显式油箱 
 
 - terrain native 层会清掉动态粒子
 - 各质量传感器的当前计数会同步归零
-- truck target 的净沉积质量基线也会按本次 reset 重新建立
+- dump-area target 的 delivered-mass ledger 也会按本次 reset 重新建立
 
 #### D. 当前数据出口
 
@@ -383,12 +377,12 @@ V2 **油箱与回油路在 AGX 里的含义（避免与「必须有显式油箱 
 
 当前二进制 `STEP_RESP.env_state` 的顺序是：
 
-`[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n, min_distance_to_dig_area_m, bucket_depth_below_dig_area_plane_m]`
+`[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n, min_distance_to_dig_area_m, bucket_depth_below_dig_area_plane_m, target_horizontal_distance_m, bucket_height_above_target_rim_m, bucket_over_target_footprint_mask, dump_clearance_ok_mask, bucket_dump_area_relative_x_m, bucket_dump_area_relative_z_m, bucket_dump_area_footprint_outside_distance_m]`
 
 其中：
 
-- `mass_in_target_box_kg` 表示当前激活接料目标内的实时质量
-- `deposited_mass_in_target_box_kg` 表示相对本次 reset 基线的净沉积质量
+- `mass_in_target_box_kg` 表示当前激活 `DumpArea` 的 reset-relative delivered mass，terrain particle 第一次进入测量体积时按自身质量计一次
+- `deposited_mass_in_target_box_kg` 在当前 E85 场景中使用同一套 unique particle-entry ledger；static dump-terrain height mass 和 settled compactor mass 只作为诊断 fallback，不参与默认正式输出
 - `min_distance_to_target_m` 表示 bucket target-distance proxy 到当前激活目标 distance geometry 的近似最小距离；不可计算时为 `-1`
 - `target_hard_collision_count` 表示当前 episode 内累计的监控 excavator-vs-active-target 硬碰撞次数
 - 同一段连续接触期间，这个累计值最多只增加一次；必须先离开目标，下一次接触才会再次增加
@@ -565,7 +559,7 @@ Python client
 - `RESET` 和 `STEP` 前会确保 `Simulation.AutoSteppingMode = Disabled`
 - `STEP_REQ` 会应用 4 维 action，然后调用一次 `DoStep()`
 - `STEP_RESP` 返回 4D `qpos`、4D `qvel`、`env_state`、`reward`、`sim_time_ns` 和 FPV 原始图像
-- `env_state` 现在保持前 7 个字段兼容，并在尾部追加 DigArea good-start 信号
+- `env_state` 当前按 16 个字段导出，其中尾部 7 个字段是 target / dump-area geometry 信号
 - server 在 serving 时可以暂时禁用 `EpisodeManager`，避免常规实验链和手动步进同时驱动仿真
 
 ## 6. 主场景中的当前集成角色
@@ -585,7 +579,7 @@ Python client
 - `ActOperatorCommandSource`
 - `TcpJsonLinesActBackendClient`
 - `AgxSimStepAckServer`
-- `TerrainParticleBoxMassSensor`（场景中的 `SubmergedBox` 挂载）
+- `TerrainParticleBoxMassSensor`（场景中的 `DumpArea` 挂载）
 
 可以把它理解成一个“实验控制中枢”：
 
@@ -610,27 +604,27 @@ Python client
 - 执行命令
 - bucket 位姿
 - 任务质量统计
-- 目标箱体当前质量与 reset 以来净沉积质量
+- 目标箱体当前 delivered mass 与 reset 以来 delivered mass
 - bucket 到当前目标的最小距离
 - 硬件输入快照
 - ACT 诊断字段
 
 当前主场景里新增了一条“目标箱体粒子质量统计”支线：
 
-- 场景对象 `SubmergedBox` 挂 `TerrainParticleBoxMassSensor`
-- `SubmergedBox` 根节点保留一个 AGX `Box` 作为传感器 footprint / 底板
-- `SubmergedBox` 四个墙子物体现在各自挂 AGX `Box`，作为静态几何体参与 AGX 碰撞
-- 传感器直接遍历所有活跃 `DeformableTerrainBase` 当前 soil particles，包含 truck bed 使用的 `MovableTerrain`
+- 场景对象 `DumpArea` 挂 `TerrainParticleBoxMassSensor`
+- `DumpArea` 根节点保留一个 AGX `Box` 作为传感器 footprint / 底板
+- `DumpArea` 四个墙子物体现在各自挂 AGX `Box`，作为静态几何体参与 AGX 碰撞
+- 传感器直接遍历所有活跃 `DeformableTerrainBase` 当前 soil particles，包含 dump area 使用的 `MovableTerrain`
 - 同时遍历场景里 `HandleAsParticle` 且仍为 `DYNAMICS` 的刚体，例如 `Dynamic Rock`
-- 在 `SubmergedBox` 上方的定向盒体体积内累加 soil particle 质量与上述动态刚体质量
-- `TruckBedMassSensor` 会在 AGX 初始化前禁用 truck 的 `BedTerrain` 子物体、重新启用 `Bed` 现有支撑 `Box` 碰撞，并优先用这些 `Box` 碰撞几何加顶部 headroom 构造 truck 测量体积，以本次 reset 时的质量为基线输出 truck target 质量，避免 truck 的 `MovableTerrain` merge 成高度场后漏计、底板穿透或只统计到床斗底部一层
+- 在 `DumpArea` 上方的定向盒体体积内累加 soil particle 质量与上述动态刚体质量
+- `TerrainParticleBoxMassSensor` 用 `DumpArea` footprint 和测量高度构造 dump-area 测量体积，reset 后通过 unique entered-particle ledger 输出 dump-area delivered mass，避免 receiver terrain / soil particle 状态导致漏计或底板穿透造成统计不稳定
 - `BucketTargetDistanceMeasurementUtility` 会基于 bucket 本体的局部包围盒和当前激活目标的测量体积，输出近似最小距离
 - `DigAreaMeasurement` 现在优先复用 bucket 的 target-distance proxy 几何，输出 bucket 到 `DigArea` 的近似最小距离，以及相对 DigArea 中心平面的平滑“有效下探深度”
 - `ActiveTargetCollisionMonitor` 会监听 AGX solved contact，只统计 excavator 与当前激活目标硬表面之间的接触；其中 `target_hard_collision_count` 是按“接触开始 -> 离开 -> 再次接触”语义累计的 episode 计数，`target_contact_max_normal_force_n` 是当前步最大法向力
 - `SceneResetService.ResetScene(resetTerrain: true, ...)` 后，terrain native 会清掉动态粒子，传感器计数同步归零
 - 这条质量数据当前进入 `ExperimentHUD`、`ExperimentLogger` 和 `ActObservation.task_state.*`
 - 二进制 `STEP_RESP.env_state` 当前顺序是：
-`[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n, min_distance_to_dig_area_m, bucket_depth_below_dig_area_plane_m]`
+`[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n, min_distance_to_dig_area_m, bucket_depth_below_dig_area_plane_m, target_horizontal_distance_m, bucket_height_above_target_rim_m, bucket_over_target_footprint_mask, dump_clearance_ok_mask, bucket_dump_area_relative_x_m, bucket_dump_area_relative_z_m, bucket_dump_area_footprint_outside_distance_m]`
 
 `ExcavationMassTracker` 当前也不再只依赖 `terrain.getDynamicMass(shovel)`：
 

@@ -23,9 +23,6 @@ namespace AGXUnity_Excavator.Scripts.Editor
     private const string RuntimeDigAreaContourMaterialName = "DigAreaContourRuntime";
 
     private const float EnvironmentScale = CodexSceneScaleConfig.DefaultEnvironmentScale;
-    private const float BoardThickness = CodexSceneScaleConfig.BoardThickness;
-    private const float AreaSizeX = CodexSceneScaleConfig.AreaSizeX;
-    private const float AreaSizeZ = CodexSceneScaleConfig.AreaSizeZ;
     private const float DigSoilHeight = CodexSceneScaleConfig.DigSoilHeight;
     private const float TerrainVerticalScale = CodexSceneScaleConfig.TerrainVerticalScale;
     private const float TerrainMaximumDepth = CodexSceneScaleConfig.TerrainMaximumDepth;
@@ -100,9 +97,9 @@ namespace AGXUnity_Excavator.Scripts.Editor
         if ( collider == null )
           collider = terrainObject.AddComponent<TerrainCollider>();
 
-        var terrainData = CreateOrUpdateDigTerrainData();
-        var innerMin = new Vector2( DigMin.x + BoardThickness, DigMin.y + BoardThickness );
-        var worldPosition = new Vector3( innerMin.x, 0.0f, innerMin.y );
+        var terrainSpec = CodexAreaFootprintUtility.ResolveTerrainSpec( "Dig", DigMin );
+        var terrainData = CreateOrUpdateDigTerrainData( terrainSpec.InnerSizeXZ );
+        var worldPosition = terrainSpec.TerrainWorldMin;
 
         terrain.transform.position = worldPosition;
         terrain.transform.rotation = Quaternion.identity;
@@ -148,6 +145,8 @@ namespace AGXUnity_Excavator.Scripts.Editor
         result.world_position = FormatVector( terrain.transform.position );
         result.world_size = FormatVector( terrainData.size );
         result.soil_top_height_m = DigSoilHeight.ToString( "0.###", CultureInfo.InvariantCulture );
+        result.inner_board_size_xz = FormatVector( terrainSpec.InnerSizeXZ );
+        result.board_thickness_m = terrainSpec.BoardThickness.ToString( "0.###", CultureInfo.InvariantCulture );
         result.message = $"Repaired DigTerrain from {source}: moved it into the dig frame and rebuilt the filled soil height.";
         WriteResult( true, result.message, result );
       }
@@ -160,7 +159,7 @@ namespace AGXUnity_Excavator.Scripts.Editor
       }
     }
 
-    private static TerrainData CreateOrUpdateDigTerrainData()
+    private static TerrainData CreateOrUpdateDigTerrainData( Vector2 sizeXZ )
     {
       var terrainData = AssetDatabase.LoadAssetAtPath<TerrainData>( DigTerrainAssetPath );
       if ( terrainData == null ) {
@@ -171,9 +170,7 @@ namespace AGXUnity_Excavator.Scripts.Editor
       if ( terrainData.heightmapResolution != HeightmapResolution )
         terrainData.heightmapResolution = HeightmapResolution;
 
-      terrainData.size = new Vector3( AreaSizeX - 2.0f * BoardThickness,
-                                      TerrainVerticalScale,
-                                      AreaSizeZ - 2.0f * BoardThickness );
+      terrainData.size = new Vector3( sizeXZ.x, TerrainVerticalScale, sizeXZ.y );
       terrainData.alphamapResolution = Mathf.Max( 16, terrainData.alphamapResolution );
       terrainData.baseMapResolution = Mathf.Max( 16, terrainData.baseMapResolution );
 
@@ -300,6 +297,14 @@ namespace AGXUnity_Excavator.Scripts.Editor
                             value.z );
     }
 
+    private static string FormatVector( Vector2 value )
+    {
+      return string.Format( CultureInfo.InvariantCulture,
+                            "({0:0.###}, {1:0.###})",
+                            value.x,
+                            value.y );
+    }
+
     private static void WriteResult( bool success, string message, DigTerrainRepairResult result )
     {
       Directory.CreateDirectory( GetProjectRelativeAbsolutePath( OutputDirectory ) );
@@ -327,6 +332,8 @@ namespace AGXUnity_Excavator.Scripts.Editor
       public string world_position;
       public string world_size;
       public string soil_top_height_m;
+      public string inner_board_size_xz;
+      public string board_thickness_m;
       public int runtime_area_material_references_removed;
       public string runtime_area_material_cleanup;
     }

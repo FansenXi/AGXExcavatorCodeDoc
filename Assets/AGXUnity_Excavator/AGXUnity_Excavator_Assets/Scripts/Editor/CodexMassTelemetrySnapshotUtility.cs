@@ -227,22 +227,37 @@ namespace AGXUnity_Excavator.Scripts.Editor
       target.mass_in_box_field_kg = FormatFloat( GetField<float>( sensor, "m_massInBox" ) );
       target.deposited_mass_field_kg = FormatFloat( GetField<float>( sensor, "m_depositedMass" ) );
       target.entered_particle_mass_kg = FormatFloat( GetField<float>( sensor, "m_enteredParticleMass" ) );
+      target.entered_particle_hash_count = GetCollectionCount( sensor, "m_enteredParticleHashes" );
+      target.active_particle_hash_count = GetCollectionCount( sensor, "m_activeParticleHashes" );
       target.bucket_unload_near_target_mass_kg = FormatFloat( GetField<float>( sensor, "m_bucketUnloadNearTargetMass" ) );
       target.previous_bucket_mass_kg = FormatFloat( GetField<float>( sensor, "m_previousBucketMass" ) );
+      target.reset_baseline_live_terrain_mass_in_box_kg = FormatFloat( GetField<float>( sensor, "m_resetBaselineLiveTerrainMassInBox" ) );
+      target.reset_baseline_handled_as_particle_mass_in_box_kg = FormatFloat( GetField<float>( sensor, "m_resetBaselineHandledAsParticleMassInBox" ) );
       target.reset_baseline_mass_in_box_kg = FormatFloat( GetField<float>( sensor, "m_resetBaselineMassInBox" ) );
       target.reset_baseline_settled_compactor_mass_kg = FormatFloat( GetField<float>( sensor, "m_resetBaselineSettledCompactorMass" ) );
       target.accumulate_bucket_unload_near_target = GetField<bool>( sensor, "m_accumulateBucketUnloadNearTarget" );
       target.bucket_unload_target_distance_tolerance_m = FormatFloat( GetField<float>( sensor, "m_bucketUnloadTargetDistanceTolerance" ) );
       target.accumulate_entered_particle_mass = GetField<bool>( sensor, "m_accumulateEnteredParticleMass" );
-      target.use_entered_particle_mass_for_deposited_mass = GetField<bool>( sensor, "m_useEnteredParticleMassForDepositedMass" );
-      target.use_entered_particle_mass_for_mass_in_box = GetField<bool>( sensor, "m_useEnteredParticleMassForMassInBox" );
       target.use_settled_compactor_mass_for_deposited_mass = GetField<bool>( sensor, "m_useSettledCompactorMassForDepositedMass" );
+      target.official_target_mass_source = target.accumulate_entered_particle_mass ?
+                                           "unique_entered_particle_ledger" :
+                                           "retained_mass_fallback";
+      target.unique_entered_particle_ledger_affects_official_mass = target.accumulate_entered_particle_mass;
+      target.use_static_terrain_height_for_retained_mass = GetField<bool>( sensor, "m_useStaticTerrainHeightForRetainedMass" );
+      target.static_terrain_bulk_density_kg_m3 = FormatFloat( GetField<float>( sensor, "m_staticTerrainBulkDensity" ) );
 
       if ( TryInvoke<float>( sensor, "ReadLiveMassInBox", out var liveMassInBox ) ) {
         target.live_mass_in_box_raw_kg = FormatFloat( liveMassInBox );
         target.live_deposited_mass_from_baseline_kg =
           FormatFloat( Mathf.Max( 0.0f, liveMassInBox - GetField<float>( sensor, "m_resetBaselineMassInBox" ) ) );
       }
+      if ( TryInvoke<float>( sensor, "ReadLiveTerrainParticleMassInBox", out var liveTerrainMassInBox ) )
+        target.live_terrain_particle_mass_in_box_raw_kg = FormatFloat( liveTerrainMassInBox );
+      if ( TryInvoke<float>( sensor, "ReadLiveHandledAsParticleMassInBox", out var liveHandledMassInBox ) )
+        target.live_handled_as_particle_mass_in_box_raw_kg = FormatFloat( liveHandledMassInBox );
+
+      if ( TryInvoke<float>( sensor, "ReadStaticTerrainMassFromBaseline", out var staticTerrainMass ) )
+        target.static_terrain_mass_from_baseline_kg = FormatFloat( staticTerrainMass );
 
       if ( TryInvoke<float>( sensor, "ReadBucketMass", out var bucketMass ) )
         target.current_bucket_mass_read_by_target_kg = FormatFloat( bucketMass );
@@ -301,13 +316,30 @@ namespace AGXUnity_Excavator.Scripts.Editor
       return value is T typedValue ? typedValue : default;
     }
 
+    private static int GetCollectionCount( object instance, string fieldName )
+    {
+      if ( instance == null )
+        return 0;
+
+      var field = instance.GetType().GetField( fieldName, BindingFlags.Instance | BindingFlags.NonPublic );
+      var value = field != null ? field.GetValue( instance ) : null;
+      return value is System.Collections.ICollection collection ? collection.Count : 0;
+    }
+
     private static bool TryInvoke<T>( object instance, string methodName, out T value )
     {
       value = default;
       if ( instance == null )
         return false;
 
-      var method = instance.GetType().GetMethod( methodName, BindingFlags.Instance | BindingFlags.NonPublic );
+      MethodInfo method = null;
+      foreach ( var candidateMethod in instance.GetType().GetMethods( BindingFlags.Instance | BindingFlags.NonPublic ) ) {
+        if ( candidateMethod.Name != methodName || candidateMethod.GetParameters().Length != 0 )
+          continue;
+
+        method = candidateMethod;
+        break;
+      }
       if ( method == null )
         return false;
 
@@ -434,20 +466,29 @@ namespace AGXUnity_Excavator.Scripts.Editor
       public string live_mass_in_box_raw_kg;
       public string live_deposited_mass_from_baseline_kg;
       public string entered_particle_mass_kg;
+      public int entered_particle_hash_count;
+      public int active_particle_hash_count;
       public string bucket_unload_near_target_mass_kg;
       public string previous_bucket_mass_kg;
       public string current_bucket_mass_read_by_target_kg;
       public bool is_bucket_near_target;
       public string bucket_unload_target_distance_tolerance_m;
+      public string reset_baseline_live_terrain_mass_in_box_kg;
+      public string reset_baseline_handled_as_particle_mass_in_box_kg;
       public string reset_baseline_mass_in_box_kg;
       public string settled_compactor_mass_raw_kg;
       public string settled_compactor_mass_from_baseline_kg;
       public string reset_baseline_settled_compactor_mass_kg;
       public bool accumulate_bucket_unload_near_target;
       public bool accumulate_entered_particle_mass;
-      public bool use_entered_particle_mass_for_deposited_mass;
-      public bool use_entered_particle_mass_for_mass_in_box;
       public bool use_settled_compactor_mass_for_deposited_mass;
+      public string official_target_mass_source;
+      public bool unique_entered_particle_ledger_affects_official_mass;
+      public bool use_static_terrain_height_for_retained_mass;
+      public string static_terrain_bulk_density_kg_m3;
+      public string static_terrain_mass_from_baseline_kg;
+      public string live_terrain_particle_mass_in_box_raw_kg;
+      public string live_handled_as_particle_mass_in_box_raw_kg;
     }
 
     [Serializable]

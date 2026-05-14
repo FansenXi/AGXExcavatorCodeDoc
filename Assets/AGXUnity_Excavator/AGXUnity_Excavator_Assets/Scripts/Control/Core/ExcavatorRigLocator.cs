@@ -8,7 +8,8 @@ namespace AGXUnity_Excavator.Scripts.Control.Core
     private static readonly string[] DefaultBucketSemanticNames =
     {
       "Bucket",
-      "Shovel"
+      "Shovel",
+      "watou"
     };
 
     public static T ResolveComponent<T>( Component context, T current ) where T : Component
@@ -104,9 +105,11 @@ namespace AGXUnity_Excavator.Scripts.Control.Core
 
       var catExcavator = ResolveActiveComponent<Excavator>( context, null );
       var e85Excavator = ResolveActiveComponent<global::ExcavatorE85>( context, null );
+      var yuLongExcavator = ResolveActiveComponent<ExcavatorYuLong>( context, null );
       var machineComponent = ChooseMachineComponent( context != null ? context.transform : null,
                                                      catExcavator,
-                                                     e85Excavator );
+                                                     e85Excavator,
+                                                     yuLongExcavator );
       return machineComponent != null ? machineComponent.transform : null;
     }
 
@@ -230,17 +233,33 @@ namespace AGXUnity_Excavator.Scripts.Control.Core
 
     private static Component ChooseMachineComponent( Transform contextTransform,
                                                      Excavator catExcavator,
-                                                     global::ExcavatorE85 e85Excavator )
+                                                     global::ExcavatorE85 e85Excavator,
+                                                     ExcavatorYuLong yuLongExcavator )
     {
-      if ( catExcavator == null )
-        return e85Excavator;
+      Component bestComponent = null;
+      var bestScore = float.PositiveInfinity;
 
-      if ( e85Excavator == null )
-        return catExcavator;
+      ConsiderMachineCandidate( contextTransform, catExcavator, ref bestComponent, ref bestScore );
+      ConsiderMachineCandidate( contextTransform, e85Excavator, ref bestComponent, ref bestScore );
+      ConsiderMachineCandidate( contextTransform, yuLongExcavator, ref bestComponent, ref bestScore );
 
-      var catScore = ScoreCandidate( contextTransform, catExcavator.transform );
-      var e85Score = ScoreCandidate( contextTransform, e85Excavator.transform );
-      return e85Score <= catScore ? e85Excavator : catExcavator;
+      return bestComponent;
+    }
+
+    private static void ConsiderMachineCandidate( Transform contextTransform,
+                                                  Component candidate,
+                                                  ref Component bestComponent,
+                                                  ref float bestScore )
+    {
+      if ( candidate == null )
+        return;
+
+      var score = ScoreCandidate( contextTransform, candidate.transform );
+      if ( score > bestScore )
+        return;
+
+      bestComponent = candidate;
+      bestScore = score;
     }
 
     private static T FindBestInScene<T>( Transform contextTransform, T fallback ) where T : Component

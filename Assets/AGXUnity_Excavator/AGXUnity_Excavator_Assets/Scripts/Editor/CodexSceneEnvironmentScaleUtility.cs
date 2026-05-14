@@ -258,11 +258,11 @@ namespace AGXUnity_Excavator.Scripts.Editor
         return ( digAreaBox.HalfExtents.x * 2.0f ) / CodexSceneScaleConfig.BaseAreaSizeX;
       }
 
-      var submergedBox = FindSceneObject( "SubmergedBox" );
-      var submergedAgxBox = submergedBox != null ? submergedBox.GetComponentInChildren<Box>( true ) : null;
-      if ( submergedAgxBox != null && submergedAgxBox.HalfExtents.x > 0.001f ) {
-        result.detected_scale_source = "SubmergedBox.Box.HalfExtents.x";
-        return ( submergedAgxBox.HalfExtents.x * 2.0f ) / CodexSceneScaleConfig.BaseAreaSizeX;
+      var dumpArea = FindSceneObject( "DumpArea" );
+      var dumpAreaAgxBox = dumpArea != null ? dumpArea.GetComponentInChildren<Box>( true ) : null;
+      if ( dumpAreaAgxBox != null && dumpAreaAgxBox.HalfExtents.x > 0.001f ) {
+        result.detected_scale_source = "DumpArea.Box.HalfExtents.x";
+        return ( dumpAreaAgxBox.HalfExtents.x * 2.0f ) / CodexSceneScaleConfig.BaseAreaSizeX;
       }
 
       result.detected_scale_source = "legacy-default";

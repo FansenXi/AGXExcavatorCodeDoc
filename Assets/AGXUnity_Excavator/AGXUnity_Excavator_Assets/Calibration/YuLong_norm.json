@@ -1,0 +1,22 @@
+{
+    "profile_name": "YuLong norm",
+    "machine_name": "remake3",
+    "created_utc": "2026-05-14T04:29:57.3735140Z",
+    "qpos_order": "swing_position_norm,boom_position_norm,stick_position_norm,bucket_position_norm",
+    "swing": {
+        "min": -3.1415927410125734,
+        "max": 3.1415927410125734
+    },
+    "boom": {
+        "min": -0.7871965169906616,
+        "max": 1.0817153453826905
+    },
+    "stick": {
+        "min": -1.4342235326766968,
+        "max": 0.8764674663543701
+    },
+    "bucket": {
+        "min": -1.0521986484527588,
+        "max": 1.0486376285552979
+    }
+}

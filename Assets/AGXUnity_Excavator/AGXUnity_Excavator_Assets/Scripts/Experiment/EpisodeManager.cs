@@ -604,13 +604,13 @@ namespace AGXUnity_Excavator.Scripts.Experiment
 
       var reportLines = new List<string>
       {
-        "Configured min_distance_to_target_m diagnostic",
+        "Configured min_distance_to_target_m footprint diagnostic",
         $"target={currentTarget.TargetName}",
-        $"approximate_min_distance_m={FormatFloat( diagnostic.ApproximateDistanceMeters )}",
+        $"dump_area_footprint_outside_distance_m={FormatFloat( diagnostic.ApproximateDistanceMeters )}",
         $"bucket_proxy_source={diagnostic.BucketBoxSource}",
         $"target_geometry_source={diagnostic.TargetGeometrySource}",
         DescribeMeasurementBox( "bucket_proxy_volume", diagnostic.BucketBox ),
-        DescribeMeasurementBox( "target_distance_geometry", diagnostic.TargetBox ),
+        DescribeMeasurementBox( "target_clearance_footprint_geometry", diagnostic.TargetBox ),
         DescribeClosestSample( diagnostic.ClosestSample )
       };
 

@@ -1,7 +1,7 @@
 # AGXUnity Excavator Task Scene - Current V0 Reference
 
 **Status:** current English source of truth for the Unity/AGX side  
-**Last updated:** 2026-05-13  
+**Last updated:** 2026-05-14
 **Companion translation:** `Docs/scene.zh-CN.md` is a reading-only mirror; if the two files ever diverge, this English file wins.
 
 This document is no longer an implementation plan. It describes the scene and task contract that are currently implemented across the Unity repo and the linked Python testbed workflow.
@@ -9,7 +9,7 @@ This document is no longer an implementation plan. It describes the scene and ta
 Current Repo B project:
 
 - Unity project directory: `/home/pingfan/AGXUnityE85ExcavatorSim`
-- Main machine rig: Bobcat E85 (`Excavator_BobcatE85 Variant` / `Excavator_BobcatE85`)
+- Main machine rig: YuLong (`remake3` scene rig with `ExcavatorYuLong`)
 - The historical asset folder and C# namespace still use `AGXUnity_Excavator`
   for compatibility with existing scene references.
 
@@ -46,14 +46,13 @@ The current task is:
 > `swing / boom / stick / bucket`
 > to execute one or more
 > scoop -> transport -> dump -> retain
-> cycles, and leave enough material stably retained inside the currently active dump target.
+> cycles, and deliver enough material into the currently active dump target.
 
-The active target can currently be:
+The active target is currently:
 
-- `ContainerBox`
-- `TruckBed`
+- `DumpArea`
 
-This task definition is target-centric, not bucket-centric. Bucket mass is still exported and still useful for analysis, but the current mission is defined by retained mass in the selected target.
+This task definition is target-centric, not bucket-centric. Bucket mass is still exported and still useful for analysis, but the current mission is defined by delivered mass credited to the selected target.
 
 ## 3. What Is Implemented
 
@@ -61,12 +60,23 @@ This task definition is target-centric, not bucket-centric. Bucket mass is still
 
 The current main scene provides:
 
-- fixed E85 excavator pose
+- fixed YuLong excavator pose
 - fixed soil pile / dig zone
 - a scene `DigArea` guide rendered as a transparent fill with a colored contour
 - FPV camera for step-ack export
-- a static rigid `ContainerBox` target
-- a `BedTruck` target with runtime target switching
+- a `DumpArea` target backed by `TerrainParticleBoxMassSensor`
+- an enabled `AgxSimStepAckServer` configured to listen on TCP port `5057` in Play Mode
+
+The shared control stack now resolves the active YuLong rig as a first-class
+machine type. `ExcavatorMachineController` binds the YuLong swing / boom /
+stick / bucket semantic constraints, applies the scene-assigned YuLong axis
+directions, and the observation/reset/collision/mass paths use the YuLong
+machine root and `watou` bucket reference. Because the custom model's native
+joint limits are not yet a perfect mechanical bound, the controller also uses
+`YuLong_norm.json` as a calibrated soft-limit profile: when an axis is at or
+outside normalized `[0, 1]`, velocity commands that would push farther outward
+are forced to zero with an immediate stop, while return commands are still
+allowed.
 
 Scene scale:
 
@@ -86,11 +96,16 @@ Scene scale:
   are included without extending a hard-coded object-name list
 - use `Tools/AGX Excavator/Codex/Audit Scene Environment Scale` after a scale
   migration to compare generated object dimensions, AGX `Box.HalfExtents`, and
-  terrain sizes against the `1.5` design values; request-file automation is
-  available through `Temp/CodexSceneScaleAudit.request`
+  terrain sizes; terrain XZ is checked against the measured Dig/Dump footprint
+  inner-board size rather than only against a hard-coded scale constant
 - use `Tools/AGX Excavator/Codex/Repair Audited Scene Environment Dimensions`
   or `Temp/CodexSceneScaleRepair.request` only to correct audited generated
   scene-environment dimension drift; it does not move or resize the excavator
+- use `Tools/AGX Excavator/Codex/Build Measured Dig And Dump Terrains` or
+  `Temp/CodexMeasuredTerrainAreas.request` to rebuild DigTerrain and
+  DumpTerrainReceiver from the current `Dig_Footprint` / `Dump_Footprint` and
+  measured board thickness. The current YuLong scene measures both terrain XZ
+  footprints as `2.4m x 2.9m`, matching the board inner dimensions.
 - use `Tools/AGX Excavator/Codex/Capture Excavator Pose Snapshot` or
   `Temp/CodexExcavatorPoseSnapshot.request` after the excavator has been posed
   in Play Mode to export the current excavator root transform, rigid-body
@@ -106,11 +121,23 @@ Scene scale:
   `Temp/CodexMassTelemetrySnapshot.request` during Play Mode when debugging
   reward/mass telemetry; it exports the current bucket tracker, active target
   router, observation collector values, and target-sensor internal accumulation
-  fields to `Temp/CodexMassTelemetrySnapshot/result.json`
+  fields to `Temp/CodexMassTelemetrySnapshot/result.json`. For DumpArea mass
+  debugging, compare `entered_particle_mass_kg`, `entered_particle_hash_count`,
+  `active_particle_hash_count`, `live_terrain_particle_mass_in_box_raw_kg`,
+  `live_handled_as_particle_mass_in_box_raw_kg`, and
+  `official_target_mass_source`
 
 Runtime target routing is implemented, so the same exported field names continue to refer to the **currently active target**.
 The runtime HUD also exposes DigArea good-start state, DigArea touch state, and
-bucket depth below the DigArea plane for quick operator validation.
+bucket depth below the DigArea plane for quick operator validation. The DigArea
+runtime visual now includes an orange 3x2 Cell Entry grid child under the
+DigArea collide Box. It is aligned from the Box transform and footprint rather
+than the deformable terrain height, so digging the terrain lower does not pull
+the grid down into the pit. The orange grid has its own visibility toggle, so it
+can stay visible even when the broader DigArea fill/contour runtime visual is
+disabled. Terrain auto-align for the DigArea collide Box is performed once when
+the measurement component initializes only when explicitly enabled; it is off in
+the YuLong scene to preserve the calibrated dig-depth plane.
 When `AgxSimStepAckServer` is serving and temporarily disables
 `EpisodeManager.Update()`, the HUD now falls back to the latest
 `ActObservationCollector` task-state sample for live mass, target-distance,
@@ -122,16 +149,18 @@ EpisodeManager-side cached values.
 The current Unity implementation already supports:
 
 - target mass measurement inside the active target measurement volume
-- reset-relative net deposited mass
-- runtime switching between `ContainerBox` and `TruckBed`
+- reset-relative delivered deposited mass
+- a single active `DumpArea` target path
 - aggregation across all active `DeformableTerrainBase` instances
 - inclusion of `HandleAsParticle` dynamic rigid bodies such as `Dynamic Rock`
+- unique entered-particle delivered mass as the official success / QC source;
+  bucket-unload inference and heightmap-density conversion remain diagnostic
+  only
 
-Truck-specific handling is also implemented:
-
-- the truck bed `MovableTerrain` helper object is disabled before AGX initialization so dumped soil stays as dynamic particles
-- existing truck bed support `Box` collisions are re-enabled
-- the truck measurement volume is derived from truck bed support `Box` geometry plus configurable top headroom
+- the dump area can absorb dumped terrain particles through its receiver terrain, so official target mass is credited by the unique entered-particle ledger instead of by a live-particle snapshot
+- existing dump area support `Box` collisions are re-enabled
+- the dump-area measurement volume is derived from dump area support `Box` geometry plus configurable top headroom
+- editor terrain builders locate the active dump mass sensor by `TargetName == "DumpArea"`, so the current scene object may keep its serialized object name (`SubmergedBox`) while still acting as the `DumpArea` target.
 
 ### 3.3 Distance Export
 
@@ -139,23 +168,19 @@ The current V0 contract now exports:
 
 - `min_distance_to_target_m`
 
-This is the approximate minimum distance between:
+This is the horizontal outside-distance between:
 
 - the current bucket target-distance proxy volume
-- the currently active target distance geometry
+- the currently active `DumpArea` clearance footprint
 
 Current behavior:
 
-- it is distance-based, not collision-based
+- it is footprint-distance based, not collision/contact based
 - the current scene defaults to a dedicated, editor-configurable bucket proxy
   volume exposed on `ExcavationMassTracker`
-- the target side now prefers the active target's hard box shapes and only
-  falls back to a target distance volume when those shapes are unavailable
-- for `TruckBed`, this means the distance is measured against truck hard-body
-  box geometry rather than the bed mass-measurement headroom volume
-- for `TruckBed`, helper `*FailureVolume` shapes such as the dump/top failure
-  volumes are excluded from both distance geometry and hard-collision shape
-  filtering
+- the target side uses the active target clearance footprint, not hard-body
+  collision boxes or the dump-area mass-measurement headroom volume
+- `0.0` means the bucket proxy footprint overlaps the `DumpArea` footprint
 - if no dedicated proxy configuration is available, Unity falls back to older
   bucket measurement geometry sources
 - it is exported alongside mass signals in `env_state`
@@ -173,7 +198,7 @@ Current behavior:
 
 - source shapes are the enabled AGX `Collide.Shape` components under the excavator root, covering bucket / arm / chassis
 - target shapes come from the currently active target sensor hard-surface shape set
-- when the active target is `TruckBed`, the hard-surface shape set covers the full `BedTruck` collision body, not only the bed/trunk measurement region
+- when the active target is `DumpArea`, the hard-surface shape set covers the `DumpArea` collision body while clearance geometry uses the dump-area footprint
 - `target_hard_collision_count` is cumulative within the current episode
 - a continuous excavator-vs-target contact session increments `target_hard_collision_count` at most once
 - while the excavator remains in contact with the target, the count does not keep rising every frame
@@ -187,7 +212,7 @@ Current behavior:
 The current reset path already restores:
 
 - excavator pose and arm state
-- truck rigid-body / constraint state
+- dump-area rigid-body / constraint state
 - terrain state
 - target mass counters
 - bucket / target measurement baselines
@@ -195,6 +220,11 @@ The current reset path already restores:
   removes saved `DigArea*Runtime` visual material references before saving the
   scene, so Play Mode-only terrain offsets and transparent overlays do not
   persist into the scene asset
+- `DeformableTerrain` uses a `DontSave` TerrainData clone in Play Mode and
+  normalizes terrain transforms/references around editor scene saves, including
+  reset-triggered terrain height rebuilds, so a Play Mode save cannot persist
+  the AGX `MaximumDepth` runtime offset back into `DigTerrain` or
+  `DumpTerrainReceiver`
 
 The current reset goal is stable baseline reproducibility, not strict seeded determinism.
 
@@ -207,11 +237,18 @@ The current Unity bridge already supports:
 - FPV raw RGB export
 - 4D `qpos`
 - 4D `qvel`
-- 9D `env_state`
+- 16D `env_state`
 
 The step-ack export path already measures DigArea geometry through
 `ActObservationCollector`. It does not depend on `EpisodeManager` staying
-enabled while the server is listening.
+enabled while the server is listening. `DigAreaMeasurement` uses the calibrated
+scene `AGXUnity.RigidBody.DigArea` Box as the measurement footprint and depth
+plane. For the YuLong `watou` bucket, the touch/depth path samples the attached
+`DeformableTerrainShovel` cutting edge, tooth direction, and top edge first, and
+falls back to the older bucket DigArea proxy volume only when shovel geometry is
+not available. Runtime grid rendering is visual-only; terrain auto-align is
+disabled in the YuLong scene so replay labels keep the same dig-depth plane as
+teleop records.
 
 ### 3.7 Dual-Path VR Spectator Presentation
 
@@ -292,24 +329,24 @@ uses `[-pi, pi]` by default.
 
 Current `env_state` order:
 
-`[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n, min_distance_to_dig_area_m, bucket_depth_below_dig_area_plane_m]`
+`[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n, min_distance_to_dig_area_m, bucket_depth_below_dig_area_plane_m, target_horizontal_distance_m, bucket_height_above_target_rim_m, bucket_over_target_footprint_mask, dump_clearance_ok_mask, bucket_dump_area_relative_x_m, bucket_dump_area_relative_z_m, bucket_dump_area_footprint_outside_distance_m]`
 
 Field semantics:
 
 - `mass_in_bucket_kg`: current bucket-contained dynamic material estimate; readings at or below `2.0 kg` are treated as `0.0 kg` to suppress empty-bucket residual noise
 - `excavated_mass_kg`: current excavation progress signal from the bucket-side tracker
-- `mass_in_target_box_kg`: current mass retained in the active dump target
-- `deposited_mass_in_target_box_kg`: reset-relative net retained mass in the active dump target
-- `min_distance_to_target_m`: approximate minimum bucket-proxy-to-active-target distance
+- `mass_in_target_box_kg`: reset-relative delivered terrain mass credited to the active `DumpArea`; each terrain particle is counted once, using its AGX particle mass, when it first enters the DumpArea measurement volume after reset. The ledger deduplicates by global `particle.hash()` and releases disappeared hashes, so one live particle exposed by multiple terrain providers is not double-counted while later scoops can still count reused hashes
+- `deposited_mass_in_target_box_kg`: same unique particle-entry ledger as `mass_in_target_box_kg` in the current YuLong scene; it excludes bucket-unload inference and heightmap-density conversion
+- `min_distance_to_target_m`: bucket proxy footprint outside-distance to the active `DumpArea` clearance footprint
 - `target_hard_collision_count`: cumulative episode count of monitored excavator-vs-active-target hard collisions
 - `target_contact_max_normal_force_n`: per-step maximum monitored excavator-vs-active-target solved normal force in Newtons
-- `min_distance_to_dig_area_m`: approximate minimum distance from the bucket DigArea proxy volume to the scene `DigArea`
-- `bucket_depth_below_dig_area_plane_m`: maximum bucket DigArea proxy depth below the DigArea local center plane; the signal becomes positive when the bucket measurement volume goes below the DigArea plane
+- `min_distance_to_dig_area_m`: approximate minimum distance from the YuLong shovel edge samples, or fallback bucket DigArea proxy volume, to the calibrated `DigArea` Box
+- `bucket_depth_below_dig_area_plane_m`: maximum YuLong shovel edge depth, or fallback bucket DigArea proxy depth, below the calibrated DigArea Box center plane; the signal becomes positive when the shovel samples go below the DigArea plane inside the footprint
 
-The target-distance field now prefers the dedicated bucket target-distance
-proxy volume configured on `ExcavationMassTracker`, and compares it against the
-active target's distance geometry. During step-ack serving, these DigArea and target metrics continue
-to update in both the wire payload and the runtime HUD via
+The target-distance field uses the dedicated bucket target-distance proxy volume
+configured on `ExcavationMassTracker`, and compares its footprint against the
+active `DumpArea` clearance footprint. During step-ack serving, these DigArea
+and target metrics continue to update in both the wire payload and the runtime HUD via
 `ActObservationCollector`; only the local `EpisodeManager`-side good-dig latch
 logic remains paused while that component is disabled.
 
@@ -349,12 +386,13 @@ sub-targets inside that single mission:
    `min_distance_to_dig_area_m`, `bucket_depth_below_dig_area_plane_m`
 2. `approaching_target`
    A loaded bucket moves closer to the currently active target.
-   Signals: `mass_in_bucket_kg`, `min_distance_to_target_m`
+   Signals: `mass_in_bucket_kg`, `target_horizontal_distance_m`,
+   `bucket_dump_area_footprint_outside_distance_m`
 3. `depositing`
-   Retained mass in the active target starts increasing.
+   Delivered mass credited to the active target starts increasing.
    Signals: `mass_in_target_box_kg`, `deposited_mass_in_target_box_kg`
 4. `retained_success`
-   Net retained mass in the active target stays above the configured success
+   Reset-relative delivered mass in the active target stays above the configured success
    threshold long enough to count as task success.
    Signal: `deposited_mass_in_target_box_kg`
 
@@ -364,7 +402,7 @@ Current reward range:
 - `0.0 - 1.0` loading progress
 - `1.0 - 2.0` loaded and moving toward the target
 - `2.0 - 3.0` depositing into the target
-- `4.0` retained success held
+- `4.0` delivered-mass success held
 
 The tracker also emits optional per-step success/fail logs such as
 `good_dig_start`, `load_progress`, `approach_progress`,
@@ -377,7 +415,7 @@ Current testbed penalty behavior:
 
 - if cumulative `target_hard_collision_count` increases for a step, the testbed applies one fixed `hard_collision_penalty = 0.75`
 - this penalty does not change the success rule
-- Unity `STEP_RESP.reward` still mirrors retained target mass only; the collision penalty stays testbed-side
+- Unity `STEP_RESP.reward` still mirrors delivered target mass only; the collision penalty stays testbed-side
 
 ## 6. Operational Flow
 
@@ -387,10 +425,10 @@ The intended episode flow is now:
 2. confirm or set the active dump target
 3. scoop material from the soil pile
    The intended good start is now: bucket DigArea proxy touches the
-   `DigArea` region and digs below the DigArea plane while load increases.
+   calibrated `DigArea` region and digs below the DigArea plane while load increases.
 4. transport the load toward the selected target
 5. dump material into the target
-6. wait for settling / retained-mass confirmation
+6. wait for delivered-mass confirmation
 7. either terminate on success or continue with another scoop cycle
 
 The task does **not** require Unity to export explicit stage IDs. Stage interpretation should be inferred from:
@@ -398,7 +436,9 @@ The task does **not** require Unity to export explicit stage IDs. Stage interpre
 - `mass_in_bucket_kg`
 - `mass_in_target_box_kg`
 - `deposited_mass_in_target_box_kg`
-- `min_distance_to_target_m`
+- explicit dump-area geometry, especially `target_horizontal_distance_m`,
+  `dump_clearance_ok_mask`, and
+  `bucket_dump_area_footprint_outside_distance_m`
 - arm pose and FPV image
 
 ## 7. What Has Been Finished
@@ -410,9 +450,9 @@ The following items that used to be planned are now complete enough to be treate
 - FPV export
 - target mass export
 - reset-relative deposited-mass export
-- truck target integration
-- runtime target switching
-- truck-inclusive reset
+- dump-area target integration
+- dump-area target routing
+- dump-area reset
 - distance export
 - active-target hard-collision summary export
 - testbed-side AGX mission reward

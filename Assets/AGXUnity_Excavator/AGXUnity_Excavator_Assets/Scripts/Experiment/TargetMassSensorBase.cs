@@ -27,6 +27,17 @@ public abstract class TargetMassSensorBase : ScriptComponent
                                     out measurementHalfExtents );
   }
 
+  public virtual bool TryGetTargetClearanceVolume( out Transform measurementFrame,
+                                                   out Vector3 measurementCenterLocal,
+                                                   out Vector3 measurementHalfExtents )
+  {
+    return TryGetTargetDistanceVolume( out measurementFrame,
+                                       out measurementCenterLocal,
+                                       out measurementHalfExtents );
+  }
+
+  public virtual float TargetDumpClearanceHorizontalToleranceMeters => 0.0f;
+
   public abstract void ResetMeasurements();
 }
 
@@ -37,6 +48,9 @@ public class ActiveTargetCollisionMonitor : MonoBehaviour
 
   [SerializeField]
   private global::ExcavatorE85 m_e85Excavator = null;
+
+  [SerializeField]
+  private ExcavatorYuLong m_yuLongExcavator = null;
 
   [SerializeField]
   private Transform m_machineRoot = null;
@@ -106,6 +120,7 @@ public class ActiveTargetCollisionMonitor : MonoBehaviour
   {
     var previousExcavator = m_excavator;
     var previousE85Excavator = m_e85Excavator;
+    var previousYuLongExcavator = m_yuLongExcavator;
     var previousMachineRoot = m_machineRoot;
     m_machineController = ExcavatorRigLocator.ResolveComponent( this, m_machineController );
     if ( !ExcavatorRigLocator.IsSelectable( m_machineRoot ) && m_machineController != null )
@@ -114,16 +129,19 @@ public class ActiveTargetCollisionMonitor : MonoBehaviour
     if ( ExcavatorRigLocator.IsSelectable( m_machineRoot ) ) {
       m_excavator = ExcavatorRigLocator.ResolveActiveComponentInRoot( m_machineRoot, m_excavator );
       m_e85Excavator = ExcavatorRigLocator.ResolveActiveComponentInRoot( m_machineRoot, m_e85Excavator );
+      m_yuLongExcavator = ExcavatorRigLocator.ResolveActiveComponentInRoot( m_machineRoot, m_yuLongExcavator );
     }
     else {
       m_excavator = ExcavatorRigLocator.ResolveActiveComponent( this, m_excavator );
       m_e85Excavator = ExcavatorRigLocator.ResolveActiveComponent( this, m_e85Excavator );
+      m_yuLongExcavator = ExcavatorRigLocator.ResolveActiveComponent( this, m_yuLongExcavator );
     }
     m_targetMassSensor = ExcavatorRigLocator.ResolveComponent( this, m_targetMassSensor );
     m_targetMassSensor?.RefreshTargets();
 
     if ( ( previousExcavator != null && previousExcavator != m_excavator ) ||
          ( previousE85Excavator != null && previousE85Excavator != m_e85Excavator ) ||
+         ( previousYuLongExcavator != null && previousYuLongExcavator != m_yuLongExcavator ) ||
          ( previousMachineRoot != null && previousMachineRoot != m_machineRoot ) ) {
       UnregisterCallbacks();
       ResetMonitoring();
@@ -315,6 +333,9 @@ public class ActiveTargetCollisionMonitor : MonoBehaviour
 
     if ( m_e85Excavator != null )
       return m_e85Excavator.transform;
+
+    if ( m_yuLongExcavator != null )
+      return m_yuLongExcavator.transform;
 
     return m_excavator != null ? m_excavator.transform : null;
   }

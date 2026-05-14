@@ -1,7 +1,7 @@
 # AGXUnity Step-Ack Binary Protocol
 
 **Status:** current implementation truth source for Unity side<br>
-**Last updated:** 2026-05-13
+**Last updated:** 2026-05-14
 **Implementation files:**
 - `AGXUnity_Excavator_Assets/Scripts/SimulationBridge/AgxSimProtocol.cs`
 - `AGXUnity_Excavator_Assets/Scripts/SimulationBridge/AgxSimStepAckServer.cs`
@@ -9,7 +9,7 @@
 - `AGXUnity_Excavator_Assets/Scripts/Control/Sources/ActObservationCollector.cs`
 - `AGXUnity_Excavator_Assets/Scripts/Experiment/SwitchableTargetMassSensor.cs`
 - `AGXUnity_Excavator_Assets/Scripts/Experiment/TargetMassSensorBase.cs`
-- `AGXUnity_Excavator_Assets/Scripts/Experiment/TruckBedMassSensor.cs`
+- `AGXUnity_Excavator_Assets/Scripts/TerrainParticleBoxMassSensor.cs`
 
 This document describes the protocol that is currently implemented in the Unity repo.
 If older draft documents conflict with this file, this file and the code win.
@@ -35,6 +35,10 @@ It is a TCP binary protocol with:
 Current control semantics:
 - action semantics: `actuator_speed_cmd`
 - action order: `[swing_speed_cmd, boom_speed_cmd, stick_speed_cmd, bucket_speed_cmd]`
+- the active YuLong controller applies calibrated `YuLong_norm.json` soft
+  limits before writing target speeds: at/outside normalized `[0, 1]`, commands
+  that move farther out of range are zeroed with an immediate stop, while
+  commands that move back into range are allowed
 - V0 task scope is fixed-position / stationary digging; drive / steer / track
   motion are intentionally excluded from the current step-ack action space
 - current baseline consumes pending step-ack requests on Unity `Update`
@@ -45,10 +49,11 @@ Current observation semantics:
 - qpos order: `[swing_position_norm, boom_position_norm, stick_position_norm, bucket_position_norm]`
 - qvel order: `[swing_speed, boom_speed, stick_speed, bucket_speed]`
 - env_state order:
-  `[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n, min_distance_to_dig_area_m, bucket_depth_below_dig_area_plane_m]`
+  `[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n, min_distance_to_dig_area_m, bucket_depth_below_dig_area_plane_m, target_horizontal_distance_m, bucket_height_above_target_rim_m, bucket_over_target_footprint_mask, dump_clearance_ok_mask, bucket_dump_area_relative_x_m, bucket_dump_area_relative_z_m, bucket_dump_area_footprint_outside_distance_m]`
 
 qpos normalization:
 - `ActObservationCollector` loads actuator raw min/max ranges from a JSON normalization profile instead of relying on script defaults
+- the active YuLong scene uses `Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/Calibration/YuLong_norm.json`
 - the saved Cat365 baseline profile is `Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/Calibration/CAT365_norm.json`
 - the HUD calibration controls can start/stop raw range tracking, reset samples, save the observed range to a named JSON profile, and reload the selected profile
 - swing normalization should normally remain `[-pi, pi]`; saved manual calibration profiles keep that default unless explicitly configured otherwise
@@ -60,22 +65,38 @@ qpos normalization:
 
 `mass_in_target_box_kg` semantics:
 - this field always refers to the **currently active Unity dump target**
-- the current main scene can switch between `ContainerBox` and `TruckBed`
-- field names stay stable for V0 compatibility even when the active target changes
+- the current YuLong scene uses `DumpArea` as the active target
+- it is the reset-relative delivered mass credited to the `DumpArea`
+  measurement footprint: each AGX terrain particle is counted once, using the
+  particle's own mass, when it first enters the DumpArea volume after reset
+- the reset logic primes hashes for particles already inside the volume, so
+  leftover particles at episode start do not count as new delivered mass
+- the ledger deduplicates by global AGX `particle.hash()` and releases hashes
+  for particles that have disappeared before the next scan; this avoids
+  double-counting when multiple terrain providers expose the same live particle,
+  while still allowing later scoops to count if AGX reuses a hash after
+  receiver-terrain absorption
+- this is intentionally not a live retained-particle snapshot; the current
+  receiver terrain can absorb dumped particles immediately, so retained
+  snapshots would drop to zero even though material was delivered
+- field names stay stable within the current step-ack protocol
 
 `deposited_mass_in_target_box_kg` semantics:
-- this field is the net retained mass inside the active target since the latest reset
-- Unity computes it as current measured target mass minus the reset baseline, clamped to zero
+- this field uses the same reset-relative unique particle-entry ledger as
+  `mass_in_target_box_kg` in the current YuLong scene
+- `HandleAsParticle` rigid bodies, when enabled, are added from their
+  reset-relative live mass inside the same measurement volume
+- bucket-unload inference and heightmap-density conversion are not part of the
+  official mass signal; settled/static terrain mass remains only a diagnostic
+  fallback path when the unique-entry ledger is disabled for debugging
 
 `min_distance_to_target_m` semantics:
-- this field is the approximate minimum distance between the current bucket target-distance proxy volume and the currently active Unity target distance geometry
-- the current scene exposes that bucket proxy volume on `ExcavationMassTracker` for direct editor tuning
-- the target side now prefers the active target hard box shapes and only falls back to a target distance volume when those shapes are unavailable
-- for `TruckBed`, this geometry follows truck hard-body box shapes rather than the bed mass-measurement headroom volume
-- for `TruckBed`, helper `*FailureVolume` shapes such as the dump/top failure volumes are excluded from this target-distance / hard-collision geometry set
-- if no dedicated bucket proxy configuration is available, Unity falls back to older bucket measurement geometry sources
-- the current implementation is distance-based and does not require collision/contact export
-- Unity appends this field after the four existing mass fields to preserve V0 mass index compatibility
+- this field is the current bucket proxy footprint outside-distance to the active `DumpArea` clearance footprint
+- it is the scalar footprint-distance counterpart of `bucket_dump_area_footprint_outside_distance_m`; `0.0` means the bucket proxy footprint overlaps the DumpArea footprint
+- the current scene exposes the bucket proxy volume on `ExcavationMassTracker` for direct editor tuning
+- the target side uses the active target clearance footprint, not hard collision boxes or legacy truck-bed geometry
+- the current implementation is footprint-distance based and does not require collision/contact export
+- this field remains at index 4 in the ordered `env_state`
 - `-1.0` means the distance could not be evaluated for the current frame
 
 `target_hard_collision_count` semantics:
@@ -86,23 +107,51 @@ qpos normalization:
 - the current Unity scene default threshold is `hard_collision_normal_force_thresh_n = 5000.0`
 - source shapes are the enabled AGX `Collide.Shape` components under the excavator root, which covers bucket / arm / chassis
 - target shapes come from the currently active target sensor hard-surface shape set
-- when the active target is `TruckBed`, this hard-surface set covers the full `BedTruck` collision body, not only the bed/trunk measurement region
+- in the YuLong scene this hard-surface set represents the active `DumpArea`
 
 `target_contact_max_normal_force_n` semantics:
 - this field is the maximum solved normal-force magnitude observed during the just-completed simulation step across all monitored excavator-vs-active-target contacts
 - `0.0` means no monitored active-target contact was observed for that step
 
 `min_distance_to_dig_area_m` semantics:
-- this field is the approximate minimum distance between the current bucket DigArea proxy volume and the scene `DigArea` thin box
-- the scene `DigArea` object is treated as the single source of truth for the dig start region
-- `0.0` means the bucket DigArea proxy volume is touching or overlapping the DigArea box volume
+- this field is the approximate minimum distance between the current bucket and the `DigArea` thin box
+- in the YuLong scene, Unity samples the `DeformableTerrainShovel` cutting edge, tooth direction, and top edge attached to `watou`; the older bucket DigArea proxy volume remains a fallback when shovel geometry is unavailable
+- `DigAreaMeasurement` treats the calibrated scene `AGXUnity.RigidBody.DigArea` Box as the source of truth for the measurement footprint and plane
+- terrain auto-align is opt-in repair behavior and is disabled in the YuLong scene, because moving the calibrated Box changes depth labels
+- `0.0` means the shovel edge samples, or fallback bucket DigArea proxy volume, are touching or overlapping the DigArea box volume
 - `-1.0` means the distance could not be evaluated for the current frame
 
 `bucket_depth_below_dig_area_plane_m` semantics:
 - this field is the current bucket depth below the DigArea plane
-- Unity computes it as the maximum depth of the bucket DigArea proxy volume below the DigArea center plane
-- in the current level-aligned scene this is equivalent to `max(0, dig_plane_y - bucket_world_min_y)`
-- it only becomes positive when the bucket measurement volume goes below the DigArea plane
+- in the YuLong scene, Unity computes it from the maximum depth of sampled shovel edge points below the calibrated DigArea Box center plane, blended to zero when samples are horizontally outside the footprint
+- if shovel geometry is unavailable, Unity falls back to the older bucket DigArea proxy volume depth
+- it only becomes positive when shovel samples, or the fallback measurement volume, go below the DigArea plane inside the footprint
+
+`target_horizontal_distance_m` semantics:
+- explicit horizontal planar distance between the bucket target-distance proxy footprint and the active dump-area clearance footprint
+- `0.0` means the footprints overlap
+- `-1.0` means the explicit dump-area geometry could not be evaluated
+
+`bucket_height_above_target_rim_m` semantics:
+- bucket proxy bottom height relative to the active dump-area clearance volume top/rim
+- positive values mean the proxy bottom is above the dump-area rim/top
+- negative values mean the proxy bottom is below it
+
+`bucket_over_target_footprint_mask` semantics:
+- float mask, encoded as `0.0` or `1.0`
+- `1.0` means the bucket target-distance proxy footprint overlaps the active dump-area footprint
+
+`dump_clearance_ok_mask` semantics:
+- float mask, encoded as `0.0` or `1.0`
+- `1.0` means the bucket is within the active dump area's horizontal clearance tolerance and `bucket_height_above_target_rim_m >= 0.0`
+
+`bucket_dump_area_relative_x_m` / `bucket_dump_area_relative_z_m` semantics:
+- bucket proxy center in the active dump area's local horizontal frame
+- these signed fields are used when a planner needs a corridor, not just unsigned footprint proximity
+
+`bucket_dump_area_footprint_outside_distance_m` semantics:
+- unsigned horizontal distance from the bucket proxy footprint to the active dump-area footprint
+- `0.0` means the footprint overlaps or is inside the active dump-area footprint
 
 ## 2. Byte Order and Primitive Encoding
 
@@ -243,7 +292,7 @@ After the common response prefix, fields are written in this order:
 Current behavior:
 - `reset_applied = true` when `reset_terrain || reset_pose`
 - when `reset_pose = true` and `reset_terrain = false`, Unity resets pose / counters without forcing a terrain height reset
-- when both flags are true, Unity performs the full scene reset path, including truck rigid bodies and truck bed/drivetrain constraints
+- when both flags are true, Unity performs the full scene reset path, including dump-area rigid bodies and constraints
 - when `reset_terrain = true`, Unity rebuilds the deformable terrain native instance so dynamic soil mass/particles are cleared as part of reset, including particles that were still trapped in the bucket
 - for step-ack serving, a successful reset also re-arms the machine controller engine so subsequent `STEP_REQ` actions take effect immediately
 - Unity reset path prefers `SceneResetService.ResetScene(resetTerrain, resetPose)` and only falls back to `EpisodeManager.ResetEpisode(...)` for full resets
@@ -271,7 +320,15 @@ After the common response prefix, fields are written in this order:
 Current Unity values:
 - `qpos.len = 4`
 - `qvel.len = 4`
-- `env_state.len = 9`
+- `env_state.len = 28`
+- `env_state_order` keeps the original 16 entries unchanged and appends the
+  3x2 DigArea Cell Entry fields:
+  `dig_area_geometry_available`, `dig_area_long_axis`,
+  `dig_area_grid_long_count`, `dig_area_grid_short_count`,
+  `bucket_dig_area_relative_x_m`, `bucket_dig_area_relative_y_m`,
+  `bucket_dig_area_relative_z_m`, `bucket_dig_area_long_norm`,
+  `bucket_dig_area_short_norm`, `bucket_dig_area_long_index`,
+  `bucket_dig_area_short_index`, `bucket_dig_area_cell_id`
 - `reward = deposited_mass_in_target_box_kg`
 - `image_format = "raw_rgb"` when FPV capture succeeds
 - `image_w = 0`, `image_h = 0`, `image_payload = empty` when no FPV frame is available
@@ -282,7 +339,7 @@ Current Unity values:
 Reward note:
 - for the current V0 stationary digging pipeline, `reward` is a Unity-side
   backup success proxy and is not the primary task reward
-- Unity currently writes the reset-relative retained target-mass signal into
+- Unity currently writes the reset-relative delivered target-mass signal into
   this field:
   `reward = deposited_mass_in_target_box_kg`
 - Repo A / the Python testbed currently compute excavation mission reward
@@ -293,8 +350,8 @@ Reward note:
 - current testbed reward sub-targets are:
   - qualified DigArea good start plus meaningful bucket load acquisition
   - approaching the active target while loaded
-  - increasing retained mass inside the active target
-  - holding retained target mass above the configured success threshold
+  - increasing delivered mass credited to the active target
+  - holding delivered target mass above the configured success threshold
 - current testbed reward also applies a fixed per-step hard-collision penalty
   when the cumulative `target_hard_collision_count` increases on that step
 - current default testbed success signal is
@@ -305,8 +362,36 @@ Target note:
 - `env_state[4]` reports the approximate minimum bucket-to-target distance in meters
 - `env_state[5]` reports the cumulative episode hard-collision count for monitored excavator-vs-active-target contacts
 - `env_state[6]` reports the maximum monitored contact normal force in Newtons for the completed step
-- `env_state[7]` reports the approximate minimum bucket-to-DigArea distance in meters
-- `env_state[8]` reports the current maximum bucket DigArea proxy depth below the DigArea center plane in meters
+- `env_state[7]` reports the approximate minimum bucket-to-DigArea distance in meters; YuLong uses shovel edge samples first and falls back to the bucket DigArea proxy volume
+- `env_state[8]` reports the current maximum shovel-edge or fallback bucket DigArea proxy depth below the DigArea center plane in meters
+- `env_state[9]` reports explicit horizontal bucket-to-dump-area clearance-footprint distance in meters
+- `env_state[10]` reports bucket bottom height above the active dump-area rim/top in meters
+- `env_state[11]` reports whether the bucket proxy footprint overlaps the active dump-area footprint
+- `env_state[12]` reports whether active dump-area clearance is currently satisfied
+- `env_state[13]` reports bucket proxy center x in active dump-area local frame
+- `env_state[14]` reports bucket proxy center z in active dump-area local frame
+- `env_state[15]` reports unsigned distance outside the active dump-area footprint
+- `env_state[16]` reports whether the bucket DigArea proxy center is inside the
+  3x2 Cell Entry grid and geometry is available
+- `env_state[17]` reports the DigArea local long axis: `0` for local x, `2` for
+  local z
+- `env_state[18]` and `env_state[19]` report the fixed Cell Entry grid shape:
+  long count `3`, short count `2`
+- `env_state[20..22]` report bucket proxy center x/y/z in DigArea local frame
+- `env_state[23]` and `env_state[24]` report signed normalized long/short
+  coordinates in `[-1, 1]` when inside the DigArea footprint
+- `env_state[25]` and `env_state[26]` report long/short cell indices, or `-1`
+  when out of bounds or unavailable
+- `env_state[27]` reports `cell_id = long_index * 2 + short_index`, or `-1`
+  when out of bounds or unavailable
+- `DigAreaMeasurement` draws an orange runtime child named
+  `DigAreaCellGridRuntime` with two long-axis split lines and one short-axis
+  center line under the DigArea collide Box; the grid refreshes from the Box
+  transform and `HalfExtents` every frame and does not follow deformable terrain
+  height changes after digging. The grid uses its own `m_enableCellGridVisuals`
+  toggle and can remain visible even when the filled DigArea runtime visual and
+  contour are disabled. The grid is visual-only and must not move or resize the
+  calibrated DigArea collide Box used for `bucket_depth_below_dig_area_plane_m`.
 - Unity local CSV logs now include `target_name` for debugging
 - the binary `STEP_RESP` payload does **not** yet carry `target_name`; clients should treat target identity as scene/runtime configuration for now
 
@@ -342,6 +427,7 @@ Compared with older drafts in this repo, the current Unity implementation has th
 - Unity now exports an approximate distance-to-active-target scalar alongside the existing mass metrics.
 - Unity now exports active-target hard-collision summary metrics without changing the meaning of the first five env_state indices.
 - Unity now also exports DigArea good-start geometry metrics while keeping the first seven env_state indices stable.
+- Unity now exports explicit dump-area geometry metrics while keeping the first nine env_state indices stable.
 
 ## 12. Known Limits
 

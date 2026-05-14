@@ -79,7 +79,7 @@
 - 不同 `seed` 下，同一 entry 的扰动发生变化。
 - 连续多次 reset 后，对象始终围绕**原始基准位姿**采样，不发生累计漂移。
 - excavator 的 root/qpos 初始状态保持不变。
-- `ContainerBox`、`TruckBed`、`DigArea` 三类对象都能通过同一管理器配置工作。
+- `DumpArea`、`DigArea` 两类对象都能通过同一管理器配置工作。
 - 带子 `RigidBody` 的对象在随机化后：
   - 不出现 native transform 不同步
   - 不出现明显残余速度/爆振

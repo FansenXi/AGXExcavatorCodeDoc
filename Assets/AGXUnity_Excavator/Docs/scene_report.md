@@ -1,6 +1,6 @@
 # AGXUnity Excavator Scene Report - 2026-03-25
 
-**Base document:** `Docs/scene.md`  
+**Base document:** `Docs/scene.md`
 **Purpose:** summarize today's implementation progress, record the current reward and penalty settings, and answer the latest task-design questions.
 
 This report is a teammate-facing progress note. If this file conflicts with the main task specification, `Docs/scene.md` wins.
@@ -18,13 +18,13 @@ V0 task loop:
 - the Unity HUD now shows the DigArea good-start latch and live DigArea geometry checks
 - target-distance export is now stabilized around a configurable bucket proxy
   volume plus target-side hard box geometry filtering
-- for hard-collision monitoring, it now covers the full `BedTruck`  
+- for hard-collision monitoring, it now covers the full `DumpArea`
 hard body
-- collision counting is now designed as event-based :  
-one continuous contact session counts at most once, and the count can grow  
+- collision counting is now designed as event-based :
+one continuous contact session counts at most once, and the count can grow
 again only after the excavator leaves the target and touches it again
 - Repo A continues to compute the main mission reward locally from `env_state`
-while Unity keeps mirroring retained target mass into `STEP_RESP.reward` as a
+while Unity keeps mirroring delivered target mass into `STEP_RESP.reward` as a
 backup scalar
 
 ## 2. What Was Completed Today
@@ -33,17 +33,17 @@ backup scalar
 
 The current Unity `env_state` contract is now:
 
-`[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n, min_distance_to_dig_area_m, bucket_depth_below_dig_area_plane_m]`
+`[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n, min_distance_to_dig_area_m, bucket_depth_below_dig_area_plane_m, target_horizontal_distance_m, bucket_height_above_target_rim_m, bucket_over_target_footprint_mask, dump_clearance_ok_mask, bucket_dump_area_relative_x_m, bucket_dump_area_relative_z_m, bucket_dump_area_footprint_outside_distance_m]`
 
 Current meanings:
 
-- `mass_in_target_box_kg` always refers to the currently active target
-- `deposited_mass_in_target_box_kg` is reset-relative net retained target mass
+- `mass_in_target_box_kg` is reset-relative delivered mass credited to the active `DumpArea`; terrain particles are counted once, using their AGX particle mass, when they first enter the DumpArea measurement volume after reset. The ledger deduplicates by global `particle.hash()` and releases disappeared hashes so one live particle exposed by multiple terrain providers is not double-counted while later scoops can still count reused hashes
+- `deposited_mass_in_target_box_kg` uses the same unique particle-entry ledger in the current E85 scene, excluding bucket-unload inference and heightmap-density conversion
 - `min_distance_to_target_m` now uses a dedicated editor-configurable bucket
   target-distance proxy volume against the active target distance geometry
 - target-side distance geometry now prefers hard `Box` shapes and only falls
   back to a target distance volume when those shapes are unavailable
-- `TruckBed` now excludes helper `*FailureVolume` shapes such as the dump/top
+- `DumpArea` now excludes helper `*FailureVolume` shapes such as the dump/top
   failure volumes from the target distance / hard-collision geometry set
 - `target_hard_collision_count` is the cumulative hard-collision event count within the current episode
 - `target_contact_max_normal_force_n` is the current-step maximum monitored normal force
@@ -56,8 +56,7 @@ The hard-collision path was extended in two important ways.
 
 First, target coverage is broader:
 
-- `ContainerBox` monitors its own hard body
-- `BedTruck` now monitors the full `BedTruck` hard body
+- `DumpArea` now monitors the full `DumpArea` hard body
 
 Second, counting semantics were fixed:
 
@@ -120,7 +119,7 @@ target-distance path, logging the bucket proxy volume, the current target
 distance geometry, and the sampled overlap point that causes
 `min_distance_to_target_m` to become `0`
 - those diagnostics now also report the active `bucket_proxy_source` and
-  `target_geometry_source`, so TruckBed shape-filter issues can be identified
+  `target_geometry_source`, so DumpArea shape-filter issues can be identified
   directly from the Console
 
 ## 3. Current Reward And Penalty Settings
@@ -134,7 +133,7 @@ Current default success rule:
 - hold window: `25` control steps
 - episode limit: `1000` steps
 
-This means the task is currently evaluated by **retained mass in the active
+This means the task is currently evaluated by **delivered mass in the active
 target**, not by bucket mass and not by Unity wire `reward`.
 
 ## 3.2 Reward Range
@@ -267,8 +266,8 @@ Right now, the task mainly rewards:
 
 - getting material into the bucket
 - moving toward the target
-- depositing retained mass into the target
-- holding retained mass above the success threshold
+- depositing delivered mass into the target
+- holding delivered mass above the success threshold
 
 What it does **not** yet explicitly reward is:
 
@@ -289,7 +288,7 @@ The most practical ways to add efficiency later are:
 1. Add a small per-step time penalty
 2. Add an early-finish bonus once success is reached
 3. Add cycle-time metrics for `dig -> rotate -> dump -> return`
-4. Evaluate throughput, for example retained target mass per unit time
+4. Evaluate throughput, for example delivered target mass per unit time
 
 Current recommendation for discussion:
 
@@ -315,10 +314,10 @@ The most useful questions to settle next are:
 
 1. Should hard collision remain a soft penalty (`0.75`) or become a hard safety rule?
 2. Should efficiency enter the reward through time penalty, early-finish bonus, or both?
-3. Should we start reporting cycle-time / throughput metrics alongside retained-mass success?
+3. Should we start reporting cycle-time / throughput metrics alongside delivered-mass success?
 
 For now, the current working rule remains:
 
-- task success is still defined by retained target mass
+- task success is still defined by delivered target mass
 - collision already affects reward
 - efficiency has not yet been explicitly priced into reward, but it should be discussed next

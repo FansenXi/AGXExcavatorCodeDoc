@@ -170,6 +170,9 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
     private global::ExcavatorE85 m_e85Excavator = null;
 
     [SerializeField]
+    private ExcavatorYuLong m_yuLongExcavator = null;
+
+    [SerializeField]
     private Transform m_machineRoot = null;
 
     [FormerlySerializedAs( "m_massVolumeCounter" )]
@@ -467,6 +470,19 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
         m_targetMassSensor.TryMeasureBucketDistance( bucketReference, out var minDistanceToTargetMeters ) ?
           minDistanceToTargetMeters :
           -1.0f;
+      if ( m_targetMassSensor != null &&
+           m_targetMassSensor.TryMeasureBucketTargetGeometry( bucketReference,
+                                                              out var targetGeometryMetrics ) &&
+           targetGeometryMetrics.IsValid ) {
+        observation.task_state.target_horizontal_distance_m = targetGeometryMetrics.TargetHorizontalDistanceMeters;
+        observation.task_state.bucket_height_above_target_rim_m = targetGeometryMetrics.BucketHeightAboveTargetRimMeters;
+        observation.task_state.bucket_over_target_footprint_mask = targetGeometryMetrics.BucketOverTargetFootprintMask;
+        observation.task_state.dump_clearance_ok_mask = targetGeometryMetrics.DumpClearanceOkMask;
+        observation.task_state.bucket_dump_area_relative_x_m = targetGeometryMetrics.BucketDumpAreaRelativeXMeters;
+        observation.task_state.bucket_dump_area_relative_z_m = targetGeometryMetrics.BucketDumpAreaRelativeZMeters;
+        observation.task_state.bucket_dump_area_footprint_outside_distance_m =
+          targetGeometryMetrics.BucketDumpAreaFootprintOutsideDistanceMeters;
+      }
       observation.task_state.target_hard_collision_count =
         m_activeTargetCollisionMonitor != null ?
           m_activeTargetCollisionMonitor.TargetHardCollisionCount :
@@ -481,6 +497,26 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
                                                                 out var bucketDepthBelowDigAreaPlaneMeters ) ) {
         observation.task_state.min_distance_to_dig_area_m = minDistanceToDigAreaMeters;
         observation.task_state.bucket_depth_below_dig_area_plane_m = bucketDepthBelowDigAreaPlaneMeters;
+      }
+      if ( m_digAreaMeasurement != null &&
+           m_digAreaMeasurement.TryMeasureBucketCellMetrics( bucketReference,
+                                                             out var cellMetrics ) ) {
+        observation.task_state.dig_area_geometry_available =
+          cellMetrics.GeometryAvailable ? 1.0f : 0.0f;
+        observation.task_state.dig_area_long_axis = cellMetrics.LongAxis;
+        observation.task_state.dig_area_grid_long_count = cellMetrics.GridLongCount;
+        observation.task_state.dig_area_grid_short_count = cellMetrics.GridShortCount;
+        observation.task_state.bucket_dig_area_relative_x_m =
+          cellMetrics.BucketDigAreaLocalMeters.x;
+        observation.task_state.bucket_dig_area_relative_y_m =
+          cellMetrics.BucketDigAreaLocalMeters.y;
+        observation.task_state.bucket_dig_area_relative_z_m =
+          cellMetrics.BucketDigAreaLocalMeters.z;
+        observation.task_state.bucket_dig_area_long_norm = cellMetrics.LongNorm;
+        observation.task_state.bucket_dig_area_short_norm = cellMetrics.ShortNorm;
+        observation.task_state.bucket_dig_area_long_index = cellMetrics.LongIndex;
+        observation.task_state.bucket_dig_area_short_index = cellMetrics.ShortIndex;
+        observation.task_state.bucket_dig_area_cell_id = cellMetrics.CellId;
       }
 
       m_lastCollectedObservation = observation;
@@ -528,10 +564,12 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       if ( ExcavatorRigLocator.IsSelectable( m_machineRoot ) ) {
         m_excavator = ExcavatorRigLocator.ResolveActiveComponentInRoot( m_machineRoot, m_excavator );
         m_e85Excavator = ExcavatorRigLocator.ResolveActiveComponentInRoot( m_machineRoot, m_e85Excavator );
+        m_yuLongExcavator = ExcavatorRigLocator.ResolveActiveComponentInRoot( m_machineRoot, m_yuLongExcavator );
       }
       else {
         m_excavator = ExcavatorRigLocator.ResolveActiveComponent( this, m_excavator );
         m_e85Excavator = ExcavatorRigLocator.ResolveActiveComponent( this, m_e85Excavator );
+        m_yuLongExcavator = ExcavatorRigLocator.ResolveActiveComponent( this, m_yuLongExcavator );
       }
       m_massTracker = ExcavatorRigLocator.ResolveComponent( this, m_massTracker );
       m_targetMassSensor = ExcavatorRigLocator.ResolveComponent( this, m_targetMassSensor );
@@ -562,6 +600,9 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       if ( m_e85Excavator != null )
         return m_e85Excavator.transform;
 
+      if ( m_yuLongExcavator != null )
+        return m_yuLongExcavator.transform;
+
       if ( m_excavator != null )
         return m_excavator.transform;
 
@@ -576,6 +617,9 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       if ( m_e85Excavator != null )
         return m_e85Excavator.CabinHinge;
 
+      if ( m_yuLongExcavator != null )
+        return m_yuLongExcavator.SwingHinge;
+
       return m_excavator != null ? m_excavator.SwingHinge : null;
     }
 
@@ -589,6 +633,9 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       if ( m_e85Excavator != null )
         return m_e85Excavator.ArmPrismatic;
 
+      if ( m_yuLongExcavator != null )
+        return m_yuLongExcavator.BoomConstraint;
+
       return m_excavator != null && m_excavator.BoomPrismatics.Length > 0 ? m_excavator.BoomPrismatics[ 0 ] : null;
     }
 
@@ -600,6 +647,9 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       if ( m_e85Excavator != null )
         return m_e85Excavator.StickPrismatic;
 
+      if ( m_yuLongExcavator != null )
+        return m_yuLongExcavator.StickConstraint;
+
       return m_excavator != null ? m_excavator.StickPrismatic : null;
     }
 
@@ -610,6 +660,9 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
 
       if ( m_e85Excavator != null )
         return m_e85Excavator.BucketPrismatic;
+
+      if ( m_yuLongExcavator != null )
+        return m_yuLongExcavator.BucketConstraint;
 
       return m_excavator != null ? m_excavator.BucketPrismatic : null;
     }

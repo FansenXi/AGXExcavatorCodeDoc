@@ -22,10 +22,6 @@ namespace AGXUnity_Excavator.Scripts.Editor
     private const string GravelTerrainLayerPath = "Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/materials/Gravel_03-terrainlayer.terrainlayer";
 
     private const float EnvironmentScale = CodexSceneScaleConfig.DefaultEnvironmentScale;
-    private const float BoardThickness = CodexSceneScaleConfig.BoardThickness;
-    private const float AreaSizeX = CodexSceneScaleConfig.AreaSizeX;
-    private const float AreaSizeZ = CodexSceneScaleConfig.AreaSizeZ;
-    private const float AreaHeight = CodexSceneScaleConfig.AreaHeight;
     private const float DigSoilHeight = CodexSceneScaleConfig.DigSoilHeight;
     private const float TerrainVerticalScale = CodexSceneScaleConfig.TerrainVerticalScale;
     private const float TerrainMaximumDepth = CodexSceneScaleConfig.TerrainMaximumDepth;
@@ -108,7 +104,7 @@ namespace AGXUnity_Excavator.Scripts.Editor
         EnsureOutputDirectoryExists();
         result.screenshots = new ScreenshotSet();
 
-        result.message = $"Built measured terrain areas from {source}: DigTerrain is filled to {DigSoilHeight:0.###}m inside the {CodexSceneScaleConfig.FormatScale( EnvironmentScale )}x dig box; DumpTerrainReceiver is flat/empty at 0m.";
+        result.message = $"Built measured terrain areas from {source}: DigTerrain and DumpTerrainReceiver now match the measured inner board footprints; DigTerrain is filled to {DigSoilHeight:0.###}m and DumpTerrainReceiver is flat/empty at 0m.";
         WriteResult( true, result.message, result );
       }
       catch ( Exception exception ) {
@@ -166,13 +162,12 @@ namespace AGXUnity_Excavator.Scripts.Editor
     private static DeformableTerrain ConfigureDigTerrain( Terrain terrain, TerrainAreasResult result )
     {
       terrain.gameObject.name = "DigTerrain";
-      var innerMin = new Vector2( DigMin.x + BoardThickness, DigMin.y + BoardThickness );
-      var innerSize = new Vector2( AreaSizeX - 2.0f * BoardThickness, AreaSizeZ - 2.0f * BoardThickness );
-      var terrainData = CreateOrUpdateTerrainData( "CodexDigTerrain.asset", innerSize, DigSoilHeight );
+      var terrainSpec = CodexAreaFootprintUtility.ResolveTerrainSpec( "Dig", DigMin, result.warnings );
+      var terrainData = CreateOrUpdateTerrainData( "CodexDigTerrain.asset", terrainSpec.InnerSizeXZ, DigSoilHeight );
 
       ConfigureUnityTerrain( terrain,
                              terrainData,
-                             new Vector3( innerMin.x, 0.0f, innerMin.y ),
+                             terrainSpec.TerrainWorldMin,
                              drawHeightmap: true );
 
       var deformableTerrain = terrain.GetComponent<DeformableTerrain>();
@@ -187,6 +182,7 @@ namespace AGXUnity_Excavator.Scripts.Editor
       result.dig_world_min = FormatVector( terrain.transform.position );
       result.dig_world_size = FormatVector( terrainData.size );
       result.dig_soil_top_height_m = DigSoilHeight.ToString( "0.###", CultureInfo.InvariantCulture );
+      AddAreaSpecDiagnostics( "Dig", terrainSpec, result );
       AddTerrainScaleDiagnostics( "DigTerrain", terrainData, result );
 
       return deformableTerrain;
@@ -204,13 +200,12 @@ namespace AGXUnity_Excavator.Scripts.Editor
       if ( deformableTerrain == null )
         deformableTerrain = terrainObject.AddComponent<DeformableTerrain>();
 
-      var innerMin = new Vector2( DumpMin.x + BoardThickness, DumpMin.y + BoardThickness );
-      var innerSize = new Vector2( AreaSizeX - 2.0f * BoardThickness, AreaSizeZ - 2.0f * BoardThickness );
-      var terrainData = CreateOrUpdateTerrainData( "CodexDumpTerrainReceiver.asset", innerSize, 0.0f );
+      var terrainSpec = CodexAreaFootprintUtility.ResolveTerrainSpec( "Dump", DumpMin, result.warnings );
+      var terrainData = CreateOrUpdateTerrainData( "CodexDumpTerrainReceiver.asset", terrainSpec.InnerSizeXZ, 0.0f );
 
       ConfigureUnityTerrain( terrain,
                              terrainData,
-                             new Vector3( innerMin.x, 0.0f, innerMin.y ),
+                             terrainSpec.TerrainWorldMin,
                              drawHeightmap: true );
       if ( collider != null )
         collider.enabled = true;
@@ -223,6 +218,7 @@ namespace AGXUnity_Excavator.Scripts.Editor
       result.dump_world_min = FormatVector( terrainObject.transform.position );
       result.dump_world_size = FormatVector( terrainData.size );
       result.dump_initial_height_m = "0";
+      AddAreaSpecDiagnostics( "Dump", terrainSpec, result );
       AddTerrainScaleDiagnostics( "DumpTerrainReceiver", terrainData, result );
 
       return deformableTerrain;
@@ -411,28 +407,42 @@ namespace AGXUnity_Excavator.Scripts.Editor
 
     private static void UpdateDumpSensor( DeformableTerrain digTerrain, TerrainAreasResult result )
     {
-      var submergedBox = FindSceneObject( "SubmergedBox" );
-      if ( submergedBox == null ) {
-        result.warnings.Add( "SubmergedBox sensor was not found; dump receiver terrain was still created." );
+      var dumpArea = CodexAreaFootprintUtility.FindMassSensorObjectByTargetName( "DumpArea" ) ??
+                     FindSceneObject( "DumpArea" ) ??
+                     FindSceneObject( "SubmergedBox" );
+      if ( dumpArea == null ) {
+        result.warnings.Add( "DumpArea sensor was not found; dump receiver terrain was still created." );
         return;
       }
 
-      submergedBox.SetActive( true );
-      submergedBox.transform.position = new Vector3( DumpMin.x + AreaSizeX * 0.5f, AreaHeight * 0.5f, DumpMin.y + AreaSizeZ * 0.5f );
-      submergedBox.transform.rotation = Quaternion.identity;
+      var dumpSpec = CodexAreaFootprintUtility.ResolveTerrainSpec( "Dump", DumpMin, result.warnings );
+      dumpArea.SetActive( true );
+      var box = dumpArea.GetComponent<Box>();
+      var halfExtentsY = box != null && box.HalfExtents.y > 0.0f ?
+                           box.HalfExtents.y :
+                           dumpSpec.FullAreaHalfExtents.y;
+      var positionY = dumpArea.transform.position.y;
+      if ( dumpSpec.FromFootprint && Mathf.Approximately( positionY, 0.0f ) )
+        positionY = dumpSpec.FootprintBottomY + halfExtentsY;
 
-      var box = submergedBox.GetComponent<Box>();
+      dumpArea.transform.position = new Vector3( dumpSpec.FootprintCenter.x, positionY, dumpSpec.FootprintCenter.z );
+      dumpArea.transform.rotation = Quaternion.identity;
+
       if ( box != null )
-        box.HalfExtents = new Vector3( AreaSizeX * 0.5f, AreaHeight * 0.5f, AreaSizeZ * 0.5f );
+        box.HalfExtents = new Vector3( dumpSpec.FootprintSizeXZ.x * 0.5f,
+                                       halfExtentsY,
+                                       dumpSpec.FootprintSizeXZ.y * 0.5f );
 
-      var sensor = submergedBox.GetComponent<global::TerrainParticleBoxMassSensor>();
+      var sensor = dumpArea.GetComponent<global::TerrainParticleBoxMassSensor>();
       if ( sensor != null ) {
         sensor.m_terrain = digTerrain;
         EditorUtility.SetDirty( sensor );
       }
 
-      SetBoxVisualRenderers( submergedBox, false );
-      EditorUtility.SetDirty( submergedBox );
+      SetBoxVisualRenderers( dumpArea, false );
+      if ( box != null )
+        EditorUtility.SetDirty( box );
+      EditorUtility.SetDirty( dumpArea );
       result.updated_dump_sensor = true;
     }
 
@@ -615,6 +625,22 @@ namespace AGXUnity_Excavator.Scripts.Editor
     private static string FormatVector( Vector3 vector )
     {
       return $"({vector.x:0.###}, {vector.y:0.###}, {vector.z:0.###})";
+    }
+
+    private static string FormatVector( Vector2 vector )
+    {
+      return $"({vector.x:0.###}, {vector.y:0.###})";
+    }
+
+    private static void AddAreaSpecDiagnostics( string areaName,
+                                                CodexAreaFootprintUtility.TerrainSpec terrainSpec,
+                                                TerrainAreasResult result )
+    {
+      if ( result == null )
+        return;
+
+      result.terrain_cell_metrics.Add(
+        $"{areaName}: footprint_xz={FormatVector( terrainSpec.FootprintSizeXZ )}, board_thickness_m={terrainSpec.BoardThickness.ToString( "0.###", CultureInfo.InvariantCulture )}, inner_board_xz={FormatVector( terrainSpec.InnerSizeXZ )}, terrain_world_min={FormatVector( terrainSpec.TerrainWorldMin )}" );
     }
 
     private static void AddTerrainScaleDiagnostics( string terrainName, TerrainData terrainData, TerrainAreasResult result )

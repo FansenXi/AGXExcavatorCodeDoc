@@ -26,7 +26,7 @@ public class SwitchableTargetMassSensor : MonoBehaviour
   private KeyCode m_nextTargetKey = KeyCode.F9;
 
   [SerializeField]
-  private string[] m_preferredDefaultTargetNames = { "ContainerBox", "Dump", "DumpBox", "DumpArea" };
+  private string[] m_preferredDefaultTargetNames = { "DumpArea" };
 
   private TargetMassSensorBase[] m_runtimeTargets = Array.Empty<TargetMassSensorBase>();
   private int m_currentTargetIndex = 0;
@@ -140,6 +140,15 @@ public class SwitchableTargetMassSensor : MonoBehaviour
   {
     RefreshTargets();
     return BucketTargetDistanceMeasurementUtility.TryMeasureDistance( bucketReference, CurrentTarget, out minDistanceMeters );
+  }
+
+  public bool TryMeasureBucketTargetGeometry( Transform bucketReference,
+                                              out TargetGeometryMetrics metrics )
+  {
+    RefreshTargets();
+    return BucketTargetDistanceMeasurementUtility.TryMeasureTargetGeometry( bucketReference,
+                                                                           CurrentTarget,
+                                                                           out metrics );
   }
 
   private TargetMassSensorBase[] BuildRuntimeTargetList()

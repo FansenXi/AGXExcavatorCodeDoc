@@ -22,6 +22,11 @@ namespace AGXUnity_Excavator.Scripts.Editor
     private const string RepairOutputDirectory = "Temp/CodexSceneScaleRepair";
     private const float Tolerance = 0.015f;
 
+    private static readonly Vector2 DumpMin = new Vector2( CodexSceneScaleConfig.BaseDumpMinX * CodexSceneScaleConfig.DefaultEnvironmentScale,
+                                                           CodexSceneScaleConfig.BaseDumpMinZ * CodexSceneScaleConfig.DefaultEnvironmentScale );
+    private static readonly Vector2 DigMin = new Vector2( CodexSceneScaleConfig.BaseDigMinX * CodexSceneScaleConfig.DefaultEnvironmentScale,
+                                                          CodexSceneScaleConfig.BaseDigMinZ * CodexSceneScaleConfig.DefaultEnvironmentScale );
+
     private static double s_nextPollTime;
     private static bool s_isRunning;
 
@@ -102,7 +107,7 @@ namespace AGXUnity_Excavator.Scripts.Editor
                                                         CodexSceneScaleConfig.AreaSizeZ ) ),
         expected_board_thickness = FormatFloat( CodexSceneScaleConfig.BoardThickness ),
         expected_dig_soil_height = FormatFloat( CodexSceneScaleConfig.DigSoilHeight ),
-        expected_terrain_size = FormatVector( ExpectedTerrainSize() )
+        expected_terrain_size = FormatVector( ExpectedTerrainSizeFallback() )
       };
 
       try {
@@ -114,6 +119,11 @@ namespace AGXUnity_Excavator.Scripts.Editor
         }
 
         result.scene_path = scene.path;
+        var digTerrainSpec = CodexAreaFootprintUtility.ResolveTerrainSpec( "Dig", DigMin );
+        var dumpTerrainSpec = CodexAreaFootprintUtility.ResolveTerrainSpec( "Dump", DumpMin );
+        result.expected_terrain_size =
+          $"Dig={FormatVector( digTerrainSpec.TerrainSize )}, Dump={FormatVector( dumpTerrainSpec.TerrainSize )}";
+
         AddInferredScaleChecks( result );
         AddFactoryChecks( result );
         AddAreaChecks( "Dig", result );
@@ -123,13 +133,11 @@ namespace AGXUnity_Excavator.Scripts.Editor
                                      0.025f * CodexSceneScaleConfig.DefaultEnvironmentScale,
                                      CodexSceneScaleConfig.AreaSizeZ * 0.5f ),
                         result );
-        AddAgxBoxCheck( "SubmergedBox",
-                        new Vector3( CodexSceneScaleConfig.AreaSizeX * 0.5f,
-                                     CodexSceneScaleConfig.AreaHeight * 0.5f,
-                                     CodexSceneScaleConfig.AreaSizeZ * 0.5f ),
+        AddAgxBoxCheck( ResolveDumpSensorObjectName(),
+                        dumpTerrainSpec.FullAreaHalfExtents,
                         result );
-        AddTerrainCheck( "DigTerrain", ExpectedTerrainSize(), CodexSceneScaleConfig.TerrainMaximumDepth, result );
-        AddTerrainCheck( "DumpTerrainReceiver", ExpectedTerrainSize(), CodexSceneScaleConfig.TerrainMaximumDepth, result );
+        AddTerrainCheck( "DigTerrain", digTerrainSpec.TerrainSize, CodexSceneScaleConfig.TerrainMaximumDepth, result );
+        AddTerrainCheck( "DumpTerrainReceiver", dumpTerrainSpec.TerrainSize, CodexSceneScaleConfig.TerrainMaximumDepth, result );
 
         result.success = result.failures.Count == 0;
         result.message = result.success ?
@@ -188,18 +196,18 @@ namespace AGXUnity_Excavator.Scripts.Editor
         AddFactoryRepairs( result );
         AddAreaRepairs( "Dig", result );
         AddAreaRepairs( "Dump", result );
+        var digTerrainSpec = CodexAreaFootprintUtility.ResolveTerrainSpec( "Dig", DigMin );
+        var dumpTerrainSpec = CodexAreaFootprintUtility.ResolveTerrainSpec( "Dump", DumpMin );
         RepairAgxBox( "AGXUnity.RigidBody.DigArea",
                       new Vector3( CodexSceneScaleConfig.AreaSizeX * 0.5f,
                                    0.025f * CodexSceneScaleConfig.DefaultEnvironmentScale,
                                    CodexSceneScaleConfig.AreaSizeZ * 0.5f ),
                       result );
-        RepairAgxBox( "SubmergedBox",
-                      new Vector3( CodexSceneScaleConfig.AreaSizeX * 0.5f,
-                                   CodexSceneScaleConfig.AreaHeight * 0.5f,
-                                   CodexSceneScaleConfig.AreaSizeZ * 0.5f ),
+        RepairAgxBox( ResolveDumpSensorObjectName(),
+                      dumpTerrainSpec.FullAreaHalfExtents,
                       result );
-        RepairTerrain( "DigTerrain", ExpectedTerrainSize(), CodexSceneScaleConfig.TerrainMaximumDepth, result );
-        RepairTerrain( "DumpTerrainReceiver", ExpectedTerrainSize(), CodexSceneScaleConfig.TerrainMaximumDepth, result );
+        RepairTerrain( "DigTerrain", digTerrainSpec.TerrainSize, CodexSceneScaleConfig.TerrainMaximumDepth, result );
+        RepairTerrain( "DumpTerrainReceiver", dumpTerrainSpec.TerrainSize, CodexSceneScaleConfig.TerrainMaximumDepth, result );
 
         EditorSceneManager.MarkSceneDirty( scene );
         AssetDatabase.SaveAssets();
@@ -221,11 +229,25 @@ namespace AGXUnity_Excavator.Scripts.Editor
       }
     }
 
-    private static Vector3 ExpectedTerrainSize()
+    private static Vector3 ExpectedTerrainSizeFallback()
     {
       return new Vector3( CodexSceneScaleConfig.AreaSizeX - 2.0f * CodexSceneScaleConfig.BoardThickness,
                           CodexSceneScaleConfig.TerrainVerticalScale,
                           CodexSceneScaleConfig.AreaSizeZ - 2.0f * CodexSceneScaleConfig.BoardThickness );
+    }
+
+    private static string ResolveDumpSensorObjectName()
+    {
+      var dumpSensorObject = CodexAreaFootprintUtility.FindMassSensorObjectByTargetName( "DumpArea" );
+      return dumpSensorObject != null ? dumpSensorObject.name : "DumpArea";
+    }
+
+    private static CodexAreaFootprintUtility.TerrainSpec ResolveAreaSpec( string areaName )
+    {
+      return CodexAreaFootprintUtility.ResolveTerrainSpec( areaName,
+                                                           string.Equals( areaName, "Dump", StringComparison.Ordinal ) ?
+                                                             DumpMin :
+                                                             DigMin );
     }
 
     private static void AddInferredScaleChecks( SceneScaleAuditResult result )
@@ -246,12 +268,12 @@ namespace AGXUnity_Excavator.Scripts.Editor
           result.failures.Add( $"DigArea inferred scale {FormatFloat( scale )} != {FormatFloat( CodexSceneScaleConfig.DefaultEnvironmentScale )}" );
       }
 
-      var submergedBox = FindFirstAgxBox( "SubmergedBox" );
-      if ( submergedBox != null ) {
-        var scale = ( submergedBox.HalfExtents.x * 2.0f ) / CodexSceneScaleConfig.BaseAreaSizeX;
-        result.inferred_scale_from_submerged_box = FormatFloat( scale );
+      var dumpArea = FindFirstAgxBox( ResolveDumpSensorObjectName() );
+      if ( dumpArea != null ) {
+        var scale = ( dumpArea.HalfExtents.x * 2.0f ) / CodexSceneScaleConfig.BaseAreaSizeX;
+        result.inferred_scale_from_dump_area = FormatFloat( scale );
         if ( !Approximately( scale, CodexSceneScaleConfig.DefaultEnvironmentScale ) )
-          result.failures.Add( $"SubmergedBox inferred scale {FormatFloat( scale )} != {FormatFloat( CodexSceneScaleConfig.DefaultEnvironmentScale )}" );
+          result.failures.Add( $"DumpArea inferred scale {FormatFloat( scale )} != {FormatFloat( CodexSceneScaleConfig.DefaultEnvironmentScale )}" );
       }
     }
 
@@ -315,11 +337,12 @@ namespace AGXUnity_Excavator.Scripts.Editor
 
     private static void AddAreaChecks( string areaName, SceneScaleAuditResult result )
     {
-      var boardThickness = CodexSceneScaleConfig.BoardThickness;
-      var areaSizeX = CodexSceneScaleConfig.AreaSizeX;
-      var areaSizeZ = CodexSceneScaleConfig.AreaSizeZ;
-      var areaHeight = CodexSceneScaleConfig.AreaHeight;
-      var footprintHeight = 0.03f * CodexSceneScaleConfig.DefaultEnvironmentScale;
+      var areaSpec = ResolveAreaSpec( areaName );
+      var boardThickness = areaSpec.BoardThickness;
+      var areaSizeX = areaSpec.FootprintSizeXZ.x;
+      var areaSizeZ = areaSpec.FootprintSizeXZ.y;
+      var areaHeight = areaSpec.AreaHeight;
+      var footprintHeight = areaSpec.FootprintHeight;
 
       AddDimensionCheck( areaName + "_XMin_Board", new Vector3( boardThickness, areaHeight, areaSizeZ ), result );
       AddDimensionCheck( areaName + "_XMax_Board", new Vector3( boardThickness, areaHeight, areaSizeZ ), result );
@@ -330,11 +353,12 @@ namespace AGXUnity_Excavator.Scripts.Editor
 
     private static void AddAreaRepairs( string areaName, SceneScaleRepairResult result )
     {
-      var boardThickness = CodexSceneScaleConfig.BoardThickness;
-      var areaSizeX = CodexSceneScaleConfig.AreaSizeX;
-      var areaSizeZ = CodexSceneScaleConfig.AreaSizeZ;
-      var areaHeight = CodexSceneScaleConfig.AreaHeight;
-      var footprintHeight = 0.03f * CodexSceneScaleConfig.DefaultEnvironmentScale;
+      var areaSpec = ResolveAreaSpec( areaName );
+      var boardThickness = areaSpec.BoardThickness;
+      var areaSizeX = areaSpec.FootprintSizeXZ.x;
+      var areaSizeZ = areaSpec.FootprintSizeXZ.y;
+      var areaHeight = areaSpec.AreaHeight;
+      var footprintHeight = areaSpec.FootprintHeight;
 
       RepairDimension( areaName + "_XMin_Board", new Vector3( boardThickness, areaHeight, areaSizeZ ), result );
       RepairDimension( areaName + "_XMax_Board", new Vector3( boardThickness, areaHeight, areaSizeZ ), result );
@@ -642,7 +666,7 @@ namespace AGXUnity_Excavator.Scripts.Editor
       public string expected_environment_scale;
       public string inferred_scale_from_factory_floor;
       public string inferred_scale_from_dig_area;
-      public string inferred_scale_from_submerged_box;
+      public string inferred_scale_from_dump_area;
       public string expected_room_size;
       public string expected_area_size;
       public string expected_board_thickness;

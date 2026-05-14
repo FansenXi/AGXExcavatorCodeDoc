@@ -1,10 +1,30 @@
+using AGXUnity;
 using AGXUnity.Collide;
+using AGXUnity.Model;
 using UnityEngine;
 using UnityEngine.Rendering;
 
 public class DigAreaMeasurement : MonoBehaviour
 {
   private const string DefaultDigAreaRootName = "AGXUnity.RigidBody.DigArea";
+  private const int CellGridLongCount = 3;
+  private const int CellGridShortCount = 2;
+  private const int LongAxisX = 0;
+  private const int LongAxisZ = 2;
+
+  public struct CellMetrics
+  {
+    public bool GeometryAvailable;
+    public int LongAxis;
+    public int GridLongCount;
+    public int GridShortCount;
+    public Vector3 BucketDigAreaLocalMeters;
+    public float LongNorm;
+    public float ShortNorm;
+    public int LongIndex;
+    public int ShortIndex;
+    public int CellId;
+  }
 
   [SerializeField]
   private Transform m_digAreaRoot = null;
@@ -14,6 +34,20 @@ public class DigAreaMeasurement : MonoBehaviour
 
   [SerializeField]
   private string m_digAreaRootName = DefaultDigAreaRootName;
+
+  [SerializeField]
+  private bool m_autoAlignToDigTerrain = false;
+
+  [SerializeField]
+  private string m_digTerrainName = "DigTerrain";
+
+  [SerializeField]
+  [Min( 0.0f )]
+  private float m_digAreaPlaneYOffset = 0.0f;
+
+  [SerializeField]
+  [Min( 0.001f )]
+  private float m_digAreaHalfHeight = 0.0375f;
 
   [SerializeField]
   private bool m_enableRuntimeVisuals = false;
@@ -39,6 +73,20 @@ public class DigAreaMeasurement : MonoBehaviour
   private float m_contourHeightOffset = 0.015f;
 
   [SerializeField]
+  private bool m_enableCellGridVisuals = true;
+
+  [SerializeField]
+  private Color m_cellGridColor = new Color( 1.0f, 0.55f, 0.0f, 0.95f );
+
+  [SerializeField]
+  [Min( 0.001f )]
+  private float m_cellGridWidth = 0.035f;
+
+  [SerializeField]
+  [Min( 0.0f )]
+  private float m_cellGridHeightOffset = 0.025f;
+
+  [SerializeField]
   [Min( 0.0f )]
   private float m_depthHorizontalBlendDistance = 0.25f;
 
@@ -48,10 +96,13 @@ public class DigAreaMeasurement : MonoBehaviour
 
   private Material m_runtimeFillMaterial = null;
   private Material m_runtimeContourMaterial = null;
+  private Material m_runtimeCellGridMaterial = null;
+  private LineRenderer[] m_cellGridRenderers = new LineRenderer[ 0 ];
   private MeshRenderer m_cachedFillRenderer = null;
   private Material m_originalFillMaterial = null;
   private bool m_originalFillRendererEnabled = false;
   private bool m_hasOriginalFillRendererState = false;
+  private bool m_hasAutoAlignedDigArea = false;
 
   private void OnEnable()
   {
@@ -63,6 +114,7 @@ public class DigAreaMeasurement : MonoBehaviour
   {
     ResolveReferences();
     RefreshContourGeometry();
+    RefreshCellGridGeometry();
   }
 
   private void OnDestroy()
@@ -106,11 +158,16 @@ public class DigAreaMeasurement : MonoBehaviour
     if ( m_digAreaRoot == null ) {
       m_digAreaBox = null;
       m_fillRenderer = null;
+      m_contourRenderer = null;
+      m_cellGridRenderers = new LineRenderer[ 0 ];
+      m_hasAutoAlignedDigArea = false;
       return;
     }
 
     if ( m_digAreaBox == null || !m_digAreaBox.transform.IsChildOf( m_digAreaRoot ) )
       m_digAreaBox = ResolveDigAreaBox( m_digAreaRoot );
+
+    AlignToDigTerrainOnceIfAvailable();
 
     if ( m_fillRenderer == null || !m_fillRenderer.transform.IsChildOf( m_digAreaRoot ) )
       m_fillRenderer = ResolveFillRenderer( m_digAreaRoot );
@@ -118,6 +175,17 @@ public class DigAreaMeasurement : MonoBehaviour
 
     if ( m_contourRenderer == null || !m_contourRenderer.transform.IsChildOf( m_digAreaRoot ) )
       m_contourRenderer = ResolveContourRenderer( m_digAreaRoot );
+
+    var cellGridParent = m_digAreaBox != null ? m_digAreaBox.transform : m_digAreaRoot;
+    var legacyCellGridRoot = m_digAreaRoot.Find( "DigAreaCellGridRuntime" );
+    if ( legacyCellGridRoot != null && legacyCellGridRoot.parent != cellGridParent )
+      legacyCellGridRoot.SetParent( cellGridParent, false );
+    if ( legacyCellGridRoot != null )
+      legacyCellGridRoot.gameObject.SetActive( true );
+    if ( m_cellGridRenderers == null ||
+         m_cellGridRenderers.Length != 3 ||
+         !CellGridRenderersBelongTo( m_cellGridRenderers, cellGridParent ) )
+      m_cellGridRenderers = ResolveCellGridRenderers( cellGridParent );
 
     ApplyVisuals();
   }
@@ -133,9 +201,6 @@ public class DigAreaMeasurement : MonoBehaviour
     if ( bucketReference == null || m_digAreaBox == null )
       return false;
 
-    if ( !BucketTargetDistanceMeasurementUtility.TryGetDigAreaMeasurementBox( bucketReference, out var bucketBox ) )
-      return false;
-
     var digAreaBox = new OrientedMeasurementBox
     {
       Frame = m_digAreaBox.transform,
@@ -145,8 +210,89 @@ public class DigAreaMeasurement : MonoBehaviour
     if ( !digAreaBox.IsValid )
       return false;
 
-    minDistanceMeters = BucketTargetDistanceMeasurementUtility.MeasureApproximateDistance( bucketBox, digAreaBox );
-    bucketDepthBelowPlaneMeters = MeasureEffectiveBucketDepthBelowPlane( bucketBox );
+    var hasBoxMetrics = BucketTargetDistanceMeasurementUtility.TryGetDigAreaMeasurementBox( bucketReference, out var bucketBox );
+    if ( hasBoxMetrics ) {
+      minDistanceMeters = BucketTargetDistanceMeasurementUtility.MeasureApproximateDistance( bucketBox, digAreaBox );
+      bucketDepthBelowPlaneMeters = MeasureEffectiveBucketDepthBelowPlane( bucketBox );
+    }
+
+    if ( TryMeasureShovelDigAreaMetrics( bucketReference,
+                                         digAreaBox,
+                                         out var shovelDistanceMeters,
+                                         out var shovelDepthBelowPlaneMeters ) ) {
+      minDistanceMeters = minDistanceMeters >= 0.0f ?
+                          Mathf.Min( minDistanceMeters, shovelDistanceMeters ) :
+                          shovelDistanceMeters;
+      bucketDepthBelowPlaneMeters = Mathf.Max( bucketDepthBelowPlaneMeters,
+                                               shovelDepthBelowPlaneMeters );
+      return true;
+    }
+
+    return hasBoxMetrics && minDistanceMeters >= 0.0f;
+  }
+
+  public bool TryMeasureBucketCellMetrics( Transform bucketReference, out CellMetrics metrics )
+  {
+    metrics = new CellMetrics
+    {
+      GeometryAvailable = false,
+      LongAxis = LongAxisZ,
+      GridLongCount = CellGridLongCount,
+      GridShortCount = CellGridShortCount,
+      BucketDigAreaLocalMeters = Vector3.zero,
+      LongNorm = 0.0f,
+      ShortNorm = 0.0f,
+      LongIndex = -1,
+      ShortIndex = -1,
+      CellId = -1
+    };
+
+    ResolveReferences();
+    if ( bucketReference == null || m_digAreaBox == null )
+      return false;
+
+    if ( !BucketTargetDistanceMeasurementUtility.TryGetDigAreaMeasurementBox( bucketReference, out var bucketBox ) )
+      return false;
+    if ( !bucketBox.IsValid )
+      return false;
+
+    var halfExtents = m_digAreaBox.HalfExtents;
+    if ( halfExtents.x <= 0.0f || halfExtents.z <= 0.0f )
+      return false;
+
+    var bucketReferenceWorld = TryGetShovelReferencePointWorld( bucketReference, out var shovelReferenceWorld ) ?
+                               shovelReferenceWorld :
+                               bucketBox.Frame.TransformPoint( bucketBox.CenterLocal );
+    var local = m_digAreaBox.transform.InverseTransformPoint( bucketReferenceWorld );
+    var longAxis = halfExtents.x >= halfExtents.z ? LongAxisX : LongAxisZ;
+    var longHalf = longAxis == LongAxisX ? halfExtents.x : halfExtents.z;
+    var shortHalf = longAxis == LongAxisX ? halfExtents.z : halfExtents.x;
+    var longValue = longAxis == LongAxisX ? local.x : local.z;
+    var shortValue = longAxis == LongAxisX ? local.z : local.x;
+    var longNorm = longValue / longHalf;
+    var shortNorm = shortValue / shortHalf;
+    var inBounds =
+      longNorm >= -1.0f &&
+      longNorm <= 1.0f &&
+      shortNorm >= -1.0f &&
+      shortNorm <= 1.0f;
+    var longIndex = inBounds ? CellIndexFromNorm( longNorm, CellGridLongCount ) : -1;
+    var shortIndex = inBounds ? CellIndexFromNorm( shortNorm, CellGridShortCount ) : -1;
+    var cellId = inBounds ? longIndex * CellGridShortCount + shortIndex : -1;
+
+    metrics = new CellMetrics
+    {
+      GeometryAvailable = inBounds,
+      LongAxis = longAxis,
+      GridLongCount = CellGridLongCount,
+      GridShortCount = CellGridShortCount,
+      BucketDigAreaLocalMeters = local,
+      LongNorm = longNorm,
+      ShortNorm = shortNorm,
+      LongIndex = longIndex,
+      ShortIndex = shortIndex,
+      CellId = cellId
+    };
     return true;
   }
 
@@ -172,6 +318,131 @@ public class DigAreaMeasurement : MonoBehaviour
            Mathf.Max( 0.0f, -minBucketDigAreaLocalY );
   }
 
+  private bool TryMeasureShovelDigAreaMetrics( Transform bucketReference,
+                                               OrientedMeasurementBox digAreaBox,
+                                               out float minDistanceMeters,
+                                               out float bucketDepthBelowPlaneMeters )
+  {
+    minDistanceMeters = -1.0f;
+    bucketDepthBelowPlaneMeters = 0.0f;
+
+    var shovel = ResolveShovel( bucketReference );
+    if ( shovel == null || digAreaBox.Frame == null )
+      return false;
+
+    var hasSample = false;
+    SampleShovelLine( shovel.CuttingEdge, digAreaBox, ref hasSample, ref minDistanceMeters, ref bucketDepthBelowPlaneMeters );
+    SampleShovelLine( shovel.ToothDirection, digAreaBox, ref hasSample, ref minDistanceMeters, ref bucketDepthBelowPlaneMeters );
+    SampleShovelLine( shovel.TopEdge, digAreaBox, ref hasSample, ref minDistanceMeters, ref bucketDepthBelowPlaneMeters );
+    return hasSample && minDistanceMeters >= 0.0f;
+  }
+
+  private void SampleShovelLine( Line line,
+                                 OrientedMeasurementBox digAreaBox,
+                                 ref bool hasSample,
+                                 ref float minDistanceMeters,
+                                 ref float bucketDepthBelowPlaneMeters )
+  {
+    if ( line == null || !line.Valid )
+      return;
+
+    var sampleCount = Mathf.Max( 2, m_depthSamplingResolution );
+    for ( var sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++ ) {
+      var t = sampleCount <= 1 ? 0.0f : sampleIndex / (float)( sampleCount - 1 );
+      var sampleWorld = Vector3.Lerp( line.Start.Position, line.End.Position, t );
+      MeasureShovelPoint( sampleWorld,
+                          digAreaBox,
+                          ref hasSample,
+                          ref minDistanceMeters,
+                          ref bucketDepthBelowPlaneMeters );
+    }
+  }
+
+  private void MeasureShovelPoint( Vector3 sampleWorld,
+                                   OrientedMeasurementBox digAreaBox,
+                                   ref bool hasSample,
+                                   ref float minDistanceMeters,
+                                   ref float bucketDepthBelowPlaneMeters )
+  {
+    if ( digAreaBox.Frame == null )
+      return;
+
+    var local = digAreaBox.Frame.InverseTransformPoint( sampleWorld ) - digAreaBox.CenterLocal;
+    var outsideX = Mathf.Max( Mathf.Abs( local.x ) - digAreaBox.HalfExtents.x, 0.0f );
+    var outsideZ = Mathf.Max( Mathf.Abs( local.z ) - digAreaBox.HalfExtents.z, 0.0f );
+    var outsideHorizontal = Mathf.Sqrt( outsideX * outsideX + outsideZ * outsideZ );
+    var verticalGapAbovePlane = Mathf.Max( local.y - digAreaBox.HalfExtents.y, 0.0f );
+    var distanceMeters = Mathf.Sqrt(
+      outsideHorizontal * outsideHorizontal +
+      verticalGapAbovePlane * verticalGapAbovePlane );
+
+    if ( !hasSample || distanceMeters < minDistanceMeters )
+      minDistanceMeters = distanceMeters;
+
+    var horizontalWeight = 1.0f;
+    if ( m_depthHorizontalBlendDistance <= 0.0f )
+      horizontalWeight = outsideHorizontal <= 0.0f ? 1.0f : 0.0f;
+    else
+      horizontalWeight = 1.0f - Mathf.Clamp01( outsideHorizontal / m_depthHorizontalBlendDistance );
+
+    var depthMeters = Mathf.Max( 0.0f, -local.y ) * horizontalWeight;
+    bucketDepthBelowPlaneMeters = Mathf.Max( bucketDepthBelowPlaneMeters, depthMeters );
+    hasSample = true;
+  }
+
+  private bool TryGetShovelReferencePointWorld( Transform bucketReference, out Vector3 referenceWorld )
+  {
+    referenceWorld = Vector3.zero;
+    var shovel = ResolveShovel( bucketReference );
+    if ( shovel == null || m_digAreaBox == null )
+      return false;
+
+    var hasPoint = false;
+    var bestLocalY = float.PositiveInfinity;
+    TrySelectLowestShovelLinePoint( shovel.CuttingEdge, ref hasPoint, ref bestLocalY, ref referenceWorld );
+    TrySelectLowestShovelLinePoint( shovel.ToothDirection, ref hasPoint, ref bestLocalY, ref referenceWorld );
+    TrySelectLowestShovelLinePoint( shovel.TopEdge, ref hasPoint, ref bestLocalY, ref referenceWorld );
+    return hasPoint;
+  }
+
+  private void TrySelectLowestShovelLinePoint( Line line,
+                                               ref bool hasPoint,
+                                               ref float bestLocalY,
+                                               ref Vector3 referenceWorld )
+  {
+    if ( line == null || !line.Valid || m_digAreaBox == null )
+      return;
+
+    var sampleCount = Mathf.Max( 2, m_depthSamplingResolution );
+    for ( var sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++ ) {
+      var t = sampleCount <= 1 ? 0.0f : sampleIndex / (float)( sampleCount - 1 );
+      var sampleWorld = Vector3.Lerp( line.Start.Position, line.End.Position, t );
+      var sampleLocal = m_digAreaBox.transform.InverseTransformPoint( sampleWorld );
+      if ( hasPoint && sampleLocal.y >= bestLocalY )
+        continue;
+
+      hasPoint = true;
+      bestLocalY = sampleLocal.y;
+      referenceWorld = sampleWorld;
+    }
+  }
+
+  private static DeformableTerrainShovel ResolveShovel( Transform bucketReference )
+  {
+    if ( bucketReference == null )
+      return null;
+
+    var shovel = bucketReference.GetComponent<DeformableTerrainShovel>();
+    if ( shovel != null )
+      return shovel;
+
+    shovel = bucketReference.GetComponentInChildren<DeformableTerrainShovel>( true );
+    if ( shovel != null )
+      return shovel;
+
+    return bucketReference.GetComponentInParent<DeformableTerrainShovel>( true );
+  }
+
   private static Transform FindDigAreaRoot( string digAreaRootName )
   {
     if ( string.IsNullOrWhiteSpace( digAreaRootName ) )
@@ -186,6 +457,85 @@ public class DigAreaMeasurement : MonoBehaviour
     foreach ( var candidate in allTransforms ) {
       if ( candidate != null && candidate.name == digAreaRootName )
         return candidate;
+    }
+
+    return null;
+  }
+
+  private void AlignToDigTerrainOnceIfAvailable()
+  {
+    if ( m_hasAutoAlignedDigArea || !m_autoAlignToDigTerrain || m_digAreaRoot == null || m_digAreaBox == null )
+      return;
+
+    if ( HasCalibratedSceneBox() ) {
+      m_hasAutoAlignedDigArea = true;
+      return;
+    }
+
+    var terrain = FindDigTerrain( m_digTerrainName );
+    if ( terrain == null || terrain.terrainData == null )
+      return;
+
+    var terrainSize = terrain.terrainData.size;
+    if ( terrainSize.x <= 0.0f || terrainSize.z <= 0.0f )
+      return;
+
+    var centerHeight = terrain.terrainData.GetInterpolatedHeight( 0.5f, 0.5f ) +
+                       m_digAreaPlaneYOffset;
+    if ( m_digAreaRoot.parent != terrain.transform )
+      m_digAreaRoot.SetParent( terrain.transform, false );
+
+    m_digAreaRoot.localPosition = new Vector3(
+      0.5f * terrainSize.x,
+      centerHeight,
+      0.5f * terrainSize.z );
+    m_digAreaRoot.localRotation = Quaternion.identity;
+    m_digAreaRoot.localScale = Vector3.one;
+
+    var boxTransform = m_digAreaBox.transform;
+    if ( boxTransform.parent != m_digAreaRoot )
+      boxTransform.SetParent( m_digAreaRoot, false );
+
+    boxTransform.localPosition = Vector3.zero;
+    boxTransform.localRotation = Quaternion.identity;
+    boxTransform.localScale = Vector3.one;
+
+    m_digAreaBox.HalfExtents = new Vector3(
+      0.5f * terrainSize.x,
+      Mathf.Max( 0.001f, m_digAreaHalfHeight ),
+      0.5f * terrainSize.z );
+    m_hasAutoAlignedDigArea = true;
+  }
+
+  private bool HasCalibratedSceneBox()
+  {
+    if ( m_digAreaRoot == null || m_digAreaBox == null )
+      return false;
+
+    var rootTransform = m_digAreaRoot;
+    var boxTransform = m_digAreaBox.transform;
+    return rootTransform.localPosition.sqrMagnitude > 1.0e-6f ||
+           Quaternion.Angle( rootTransform.localRotation, Quaternion.identity ) > 0.001f ||
+           ( rootTransform.localScale - Vector3.one ).sqrMagnitude > 1.0e-6f ||
+           boxTransform.localPosition.sqrMagnitude > 1.0e-6f ||
+           Quaternion.Angle( boxTransform.localRotation, Quaternion.identity ) > 0.001f ||
+           ( boxTransform.localScale - Vector3.one ).sqrMagnitude > 1.0e-6f;
+  }
+
+  private static Terrain FindDigTerrain( string digTerrainName )
+  {
+    if ( string.IsNullOrWhiteSpace( digTerrainName ) )
+      return null;
+
+    var allTerrains = Object.FindObjectsByType<Terrain>(
+      FindObjectsInactive.Include,
+      FindObjectsSortMode.None );
+    if ( allTerrains == null )
+      return null;
+
+    foreach ( var terrain in allTerrains ) {
+      if ( terrain != null && terrain.name == digTerrainName )
+        return terrain;
     }
 
     return null;
@@ -226,12 +576,21 @@ public class DigAreaMeasurement : MonoBehaviour
       SetRendererEnabled( m_fillRenderer, false );
       if ( m_contourRenderer != null )
         m_contourRenderer.enabled = false;
+      if ( m_enableCellGridVisuals ) {
+        ApplyCellGridVisual();
+        RefreshCellGridGeometry();
+      }
+      else {
+        SetCellGridRenderersEnabled( false );
+      }
       return;
     }
 
     ApplyFillVisual();
     ApplyContourVisual();
+    ApplyCellGridVisual();
     RefreshContourGeometry();
+    RefreshCellGridGeometry();
   }
 
   private void ApplyFillVisual()
@@ -324,10 +683,99 @@ public class DigAreaMeasurement : MonoBehaviour
     m_contourRenderer.SetPosition( 3, DigAreaPlaneCornerWorld(  halfExtents.x, -halfExtents.z ) );
   }
 
+  private void ApplyCellGridVisual()
+  {
+    if ( !m_enableCellGridVisuals || m_cellGridRenderers == null || m_cellGridRenderers.Length == 0 ) {
+      SetCellGridRenderersEnabled( false );
+      return;
+    }
+
+    if ( m_runtimeCellGridMaterial == null ) {
+      var gridShader = FindFirstAvailableShader(
+        "Sprites/Default",
+        "Legacy Shaders/Particles/Alpha Blended Premultiply",
+        "Unlit/Color" );
+      if ( gridShader == null ) {
+        SetCellGridRenderersEnabled( false );
+        return;
+      }
+
+      m_runtimeCellGridMaterial = new Material( gridShader )
+      {
+        name = "DigAreaCellGridRuntimeMaterial",
+        hideFlags = HideFlags.DontSave
+      };
+      if ( m_runtimeCellGridMaterial.HasProperty( "_Color" ) )
+        m_runtimeCellGridMaterial.color = m_cellGridColor;
+      m_runtimeCellGridMaterial.renderQueue = 3110;
+    }
+
+    foreach ( var renderer in m_cellGridRenderers ) {
+      if ( renderer == null )
+        continue;
+
+      renderer.sharedMaterial = m_runtimeCellGridMaterial;
+      renderer.loop = false;
+      renderer.useWorldSpace = true;
+      renderer.positionCount = 2;
+      renderer.startWidth = m_cellGridWidth;
+      renderer.endWidth = m_cellGridWidth;
+      renderer.startColor = m_cellGridColor;
+      renderer.endColor = m_cellGridColor;
+      renderer.shadowCastingMode = ShadowCastingMode.Off;
+      renderer.receiveShadows = false;
+      renderer.textureMode = LineTextureMode.Stretch;
+      renderer.numCornerVertices = 1;
+      renderer.numCapVertices = 1;
+      renderer.sortingOrder = 11;
+      renderer.enabled = true;
+    }
+  }
+
+  private void RefreshCellGridGeometry()
+  {
+    if ( m_digAreaBox == null || m_cellGridRenderers == null || m_cellGridRenderers.Length < 3 )
+      return;
+
+    if ( !m_enableCellGridVisuals )
+      return;
+
+    var halfExtents = m_digAreaBox.HalfExtents;
+    if ( halfExtents.x <= 0.0f || halfExtents.z <= 0.0f )
+      return;
+
+    var longAxis = halfExtents.x >= halfExtents.z ? LongAxisX : LongAxisZ;
+    var halfLong = longAxis == LongAxisX ? halfExtents.x : halfExtents.z;
+    var halfShort = longAxis == LongAxisX ? halfExtents.z : halfExtents.x;
+
+    SetGridLine(
+      0,
+      DigAreaPlaneGridPointWorld( longAxis, -halfLong / 3.0f, -halfShort ),
+      DigAreaPlaneGridPointWorld( longAxis, -halfLong / 3.0f,  halfShort ) );
+    SetGridLine(
+      1,
+      DigAreaPlaneGridPointWorld( longAxis,  halfLong / 3.0f, -halfShort ),
+      DigAreaPlaneGridPointWorld( longAxis,  halfLong / 3.0f,  halfShort ) );
+    SetGridLine(
+      2,
+      DigAreaPlaneGridPointWorld( longAxis, -halfLong, 0.0f ),
+      DigAreaPlaneGridPointWorld( longAxis,  halfLong, 0.0f ) );
+  }
+
   private Vector3 DigAreaPlaneCornerWorld( float localX, float localZ )
   {
     var worldPoint = m_digAreaBox.transform.TransformPoint( new Vector3( localX, 0.0f, localZ ) );
     worldPoint += Vector3.up * m_contourHeightOffset;
+    return worldPoint;
+  }
+
+  private Vector3 DigAreaPlaneGridPointWorld( int longAxis, float longValue, float shortValue )
+  {
+    var localPoint = longAxis == LongAxisX ?
+                     new Vector3( longValue, 0.0f, shortValue ) :
+                     new Vector3( shortValue, 0.0f, longValue );
+    var worldPoint = m_digAreaBox.transform.TransformPoint( localPoint );
+    worldPoint += Vector3.up * m_cellGridHeightOffset;
     return worldPoint;
   }
 
@@ -404,6 +852,86 @@ public class DigAreaMeasurement : MonoBehaviour
     return contourObject.AddComponent<LineRenderer>();
   }
 
+  private static LineRenderer[] ResolveCellGridRenderers( Transform cellGridParent )
+  {
+    if ( cellGridParent == null )
+      return new LineRenderer[ 0 ];
+
+    var gridRoot = cellGridParent.Find( "DigAreaCellGridRuntime" );
+    if ( gridRoot == null ) {
+      var gridObject = new GameObject( "DigAreaCellGridRuntime" );
+      gridObject.transform.SetParent( cellGridParent, false );
+      gridRoot = gridObject.transform;
+    }
+    gridRoot.gameObject.SetActive( true );
+
+    var renderers = new LineRenderer[ 3 ];
+    for ( var index = 0; index < renderers.Length; ++index ) {
+      var childName = $"Line{index}";
+      var child = gridRoot.Find( childName );
+      if ( child == null ) {
+        var lineObject = new GameObject( childName );
+        lineObject.transform.SetParent( gridRoot, false );
+        child = lineObject.transform;
+      }
+      child.gameObject.SetActive( true );
+
+      var lineRenderer = child.GetComponent<LineRenderer>();
+      if ( lineRenderer == null )
+        lineRenderer = child.gameObject.AddComponent<LineRenderer>();
+      renderers[ index ] = lineRenderer;
+    }
+
+    return renderers;
+  }
+
+  private static bool CellGridRenderersBelongTo( LineRenderer[] renderers, Transform cellGridParent )
+  {
+    if ( renderers == null || cellGridParent == null )
+      return false;
+
+    foreach ( var renderer in renderers ) {
+      if ( renderer == null || !renderer.transform.IsChildOf( cellGridParent ) )
+        return false;
+    }
+
+    return true;
+  }
+
+  private void SetCellGridRenderersEnabled( bool enabled )
+  {
+    if ( m_cellGridRenderers == null )
+      return;
+
+    foreach ( var renderer in m_cellGridRenderers ) {
+      if ( renderer != null )
+        renderer.enabled = enabled;
+    }
+  }
+
+  private void SetGridLine( int index, Vector3 start, Vector3 end )
+  {
+    if ( m_cellGridRenderers == null || index < 0 || index >= m_cellGridRenderers.Length )
+      return;
+
+    var renderer = m_cellGridRenderers[ index ];
+    if ( renderer == null )
+      return;
+
+    renderer.positionCount = 2;
+    renderer.SetPosition( 0, start );
+    renderer.SetPosition( 1, end );
+  }
+
+  private static int CellIndexFromNorm( float norm, int count )
+  {
+    if ( count <= 0 || norm < -1.0f || norm > 1.0f )
+      return -1;
+
+    var index = Mathf.FloorToInt( ( norm + 1.0f ) * 0.5f * count );
+    return Mathf.Clamp( index, 0, count - 1 );
+  }
+
   private static Shader FindFirstAvailableShader( params string[] shaderNames )
   {
     if ( shaderNames == null || shaderNames.Length == 0 )
@@ -439,6 +967,7 @@ public class DigAreaMeasurement : MonoBehaviour
   {
     DestroyRuntimeMaterial( ref m_runtimeFillMaterial );
     DestroyRuntimeMaterial( ref m_runtimeContourMaterial );
+    DestroyRuntimeMaterial( ref m_runtimeCellGridMaterial );
   }
 
   private static void DestroyRuntimeMaterial( ref Material material )

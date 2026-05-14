@@ -67,6 +67,9 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     private global::ExcavatorE85 m_e85Excavator = null;
 
     [SerializeField]
+    private ExcavatorYuLong m_yuLongExcavator = null;
+
+    [SerializeField]
     private Transform m_machineRoot = null;
 
     [SerializeField]
@@ -544,6 +547,20 @@ namespace AGXUnity_Excavator.Scripts.Experiment
         }
       }
 
+      if ( m_yuLongExcavator != null ) {
+        if ( m_yuLongExcavator.SwingHinge != null )
+          constraints.Add( m_yuLongExcavator.SwingHinge );
+
+        if ( m_yuLongExcavator.BoomConstraint != null )
+          constraints.Add( m_yuLongExcavator.BoomConstraint );
+
+        if ( m_yuLongExcavator.StickConstraint != null )
+          constraints.Add( m_yuLongExcavator.StickConstraint );
+
+        if ( m_yuLongExcavator.BucketConstraint != null )
+          constraints.Add( m_yuLongExcavator.BucketConstraint );
+      }
+
       return constraints;
     }
 
@@ -588,6 +605,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       m_machineController = ExcavatorRigLocator.ResolveComponent( this, m_machineController );
       var previousExcavator = m_excavator;
       var previousE85Excavator = m_e85Excavator;
+      var previousYuLongExcavator = m_yuLongExcavator;
       var previousMachineRoot = m_machineRoot;
       if ( !ExcavatorRigLocator.IsSelectable( m_machineRoot ) && m_machineController != null )
         m_machineRoot = m_machineController.MachineRoot;
@@ -595,14 +613,18 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       if ( ExcavatorRigLocator.IsSelectable( m_machineRoot ) ) {
         m_excavator = ExcavatorRigLocator.ResolveActiveComponentInRoot( m_machineRoot, m_excavator );
         m_e85Excavator = ExcavatorRigLocator.ResolveActiveComponentInRoot( m_machineRoot, m_e85Excavator );
+        m_yuLongExcavator = ExcavatorRigLocator.ResolveActiveComponentInRoot( m_machineRoot, m_yuLongExcavator );
       }
       else {
         m_excavator = ExcavatorRigLocator.ResolveActiveComponent( this, m_excavator );
         m_e85Excavator = ExcavatorRigLocator.ResolveActiveComponent( this, m_e85Excavator );
+        m_yuLongExcavator = ExcavatorRigLocator.ResolveActiveComponent( this, m_yuLongExcavator );
       }
       if ( previousExcavator != null && previousExcavator != m_excavator )
         ClearResetSnapshot();
       if ( previousE85Excavator != null && previousE85Excavator != m_e85Excavator )
+        ClearResetSnapshot();
+      if ( previousYuLongExcavator != null && previousYuLongExcavator != m_yuLongExcavator )
         ClearResetSnapshot();
       if ( previousMachineRoot != null && previousMachineRoot != m_machineRoot )
         ClearResetSnapshot();
@@ -638,6 +660,9 @@ namespace AGXUnity_Excavator.Scripts.Experiment
 
       if ( m_e85Excavator != null )
         return m_e85Excavator.transform;
+
+      if ( m_yuLongExcavator != null )
+        return m_yuLongExcavator.transform;
 
       return m_excavator != null ? m_excavator.transform : null;
     }

@@ -420,7 +420,7 @@ namespace AGXUnity_Excavator.Scripts.Editor
       if ( compactor == null )
         compactor = dumpTerrain.gameObject.AddComponent<global::DumpParticleStaticTerrainCompactor>();
 
-      var measurementFrame = FindSceneObject( "SubmergedBox" )?.transform ?? dumpTerrain.transform;
+      var measurementFrame = FindSceneObject( "DumpArea" )?.transform ?? dumpTerrain.transform;
       var halfExtents = new Vector3( CodexSceneScaleConfig.AreaSizeX * 0.5f,
                                      CodexSceneScaleConfig.AreaHeight * 0.5f,
                                      CodexSceneScaleConfig.AreaSizeZ * 0.5f );

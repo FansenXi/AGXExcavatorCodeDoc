@@ -274,7 +274,26 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
         "target_hard_collision_count",
         "target_contact_max_normal_force_n",
         "min_distance_to_dig_area_m",
-        "bucket_depth_below_dig_area_plane_m"
+        "bucket_depth_below_dig_area_plane_m",
+        "target_horizontal_distance_m",
+        "bucket_height_above_target_rim_m",
+        "bucket_over_target_footprint_mask",
+        "dump_clearance_ok_mask",
+        "bucket_dump_area_relative_x_m",
+        "bucket_dump_area_relative_z_m",
+        "bucket_dump_area_footprint_outside_distance_m",
+        "dig_area_geometry_available",
+        "dig_area_long_axis",
+        "dig_area_grid_long_count",
+        "dig_area_grid_short_count",
+        "bucket_dig_area_relative_x_m",
+        "bucket_dig_area_relative_y_m",
+        "bucket_dig_area_relative_z_m",
+        "bucket_dig_area_long_norm",
+        "bucket_dig_area_short_norm",
+        "bucket_dig_area_long_index",
+        "bucket_dig_area_short_index",
+        "bucket_dig_area_cell_id"
       };
       payload.cameras = CreateCameraDescriptors();
       payload.camera_names = Array.ConvertAll( payload.cameras, camera => camera.name );
@@ -376,7 +395,26 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
         observation.task_state != null ? observation.task_state.target_hard_collision_count : 0.0f,
         observation.task_state != null ? observation.task_state.target_contact_max_normal_force_n : 0.0f,
         observation.task_state != null ? observation.task_state.min_distance_to_dig_area_m : -1.0f,
-        observation.task_state != null ? observation.task_state.bucket_depth_below_dig_area_plane_m : 0.0f
+        observation.task_state != null ? observation.task_state.bucket_depth_below_dig_area_plane_m : 0.0f,
+        observation.task_state != null ? observation.task_state.target_horizontal_distance_m : -1.0f,
+        observation.task_state != null ? observation.task_state.bucket_height_above_target_rim_m : 0.0f,
+        observation.task_state != null ? observation.task_state.bucket_over_target_footprint_mask : 0.0f,
+        observation.task_state != null ? observation.task_state.dump_clearance_ok_mask : 0.0f,
+        observation.task_state != null ? observation.task_state.bucket_dump_area_relative_x_m : 0.0f,
+        observation.task_state != null ? observation.task_state.bucket_dump_area_relative_z_m : 0.0f,
+        observation.task_state != null ? observation.task_state.bucket_dump_area_footprint_outside_distance_m : -1.0f,
+        observation.task_state != null ? observation.task_state.dig_area_geometry_available : 0.0f,
+        observation.task_state != null ? observation.task_state.dig_area_long_axis : -1.0f,
+        observation.task_state != null ? observation.task_state.dig_area_grid_long_count : 3.0f,
+        observation.task_state != null ? observation.task_state.dig_area_grid_short_count : 2.0f,
+        observation.task_state != null ? observation.task_state.bucket_dig_area_relative_x_m : 0.0f,
+        observation.task_state != null ? observation.task_state.bucket_dig_area_relative_y_m : 0.0f,
+        observation.task_state != null ? observation.task_state.bucket_dig_area_relative_z_m : 0.0f,
+        observation.task_state != null ? observation.task_state.bucket_dig_area_long_norm : 0.0f,
+        observation.task_state != null ? observation.task_state.bucket_dig_area_short_norm : 0.0f,
+        observation.task_state != null ? observation.task_state.bucket_dig_area_long_index : -1.0f,
+        observation.task_state != null ? observation.task_state.bucket_dig_area_short_index : -1.0f,
+        observation.task_state != null ? observation.task_state.bucket_dig_area_cell_id : -1.0f
       };
       payload.reward = observation.task_state != null ? observation.task_state.deposited_mass_in_target_box_kg : 0.0f;
       payload.sim_time_ns = observation != null ? (long)Math.Round( observation.sim_time_sec * 1000000000.0 ) : -1;

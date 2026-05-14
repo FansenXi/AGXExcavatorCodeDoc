@@ -125,7 +125,7 @@ namespace AGXUnity_Excavator.Scripts.Editor
           UnityEngine.Object.DestroyImmediate( collider );
       }
 
-      var reference = FindSceneObject( "DigAreaContour" ) ?? FindSceneObject( "SubmergedBox" );
+      var reference = FindSceneObject( "DigAreaContour" ) ?? FindSceneObject( "DumpArea" );
       var basePosition = reference != null ? reference.transform.position : Vector3.zero;
       marker.transform.position = basePosition + new Vector3( 0.0f, 1.25f, 0.0f );
       marker.transform.rotation = Quaternion.identity;

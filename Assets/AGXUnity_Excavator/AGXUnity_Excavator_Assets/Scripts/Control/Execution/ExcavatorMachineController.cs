@@ -1,7 +1,10 @@
+using System;
+using System.IO;
 using AGXUnity;
 using AGXUnity.Utils;
 using AGXUnity_Excavator.Scripts;
 using AGXUnity_Excavator.Scripts.Control.Core;
+using AGXUnity_Excavator.Scripts.Control.Sources;
 using UnityEngine;
 
 namespace AGXUnity_Excavator.Scripts.Control.Execution
@@ -10,16 +13,24 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
   {
     None,
     Cat365,
-    BobcatE85
+    BobcatE85,
+    YuLong
   }
 
   public class ExcavatorMachineController : ScriptComponent
   {
+    private const string YuLongDefaultNormalizationSoftLimitProfilePath =
+      "Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/Calibration/YuLong_norm.json";
+    private const float SoftLimitCommandThreshold = 1.0e-4f;
+
     [SerializeField]
     private Excavator m_excavator = null;
 
     [SerializeField]
     private global::ExcavatorE85 m_e85Excavator = null;
+
+    [SerializeField]
+    private ExcavatorYuLong m_yuLongExcavator = null;
 
     [SerializeField]
     private Transform m_machineRoot = null;
@@ -73,7 +84,41 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
     private float m_e85BucketDirection = 1.0f;
 
     [SerializeField]
+    private float m_yuLongSwingDirection = 1.0f;
+
+    [SerializeField]
+    private float m_yuLongBoomDirection = -1.0f;
+
+    [SerializeField]
+    private float m_yuLongStickDirection = 1.0f;
+
+    [SerializeField]
+    private float m_yuLongBucketDirection = 1.0f;
+
+    [Header( "Normalization Soft Limits" )]
+    [SerializeField]
+    private bool m_enableNormalizationSoftLimits = true;
+
+    [SerializeField]
+    private bool m_normalizationSoftLimitsYuLongOnly = true;
+
+    [SerializeField]
+    private string m_normalizationSoftLimitProfilePath = YuLongDefaultNormalizationSoftLimitProfilePath;
+
+    [SerializeField]
+    [Min( 0.0f )]
+    private float m_normalizationSoftLimitTolerance = 0.0f;
+
+    [SerializeField]
+    private bool m_lockAtNormalizationSoftLimit = true;
+
+    [SerializeField]
     private bool m_startWithEngineRunning = true;
+
+    private readonly ActuatorNormalizationRange m_softLimitSwingRange = new ActuatorNormalizationRange();
+    private readonly ActuatorNormalizationRange m_softLimitBoomRange = new ActuatorNormalizationRange();
+    private readonly ActuatorNormalizationRange m_softLimitStickRange = new ActuatorNormalizationRange();
+    private readonly ActuatorNormalizationRange m_softLimitBucketRange = new ActuatorNormalizationRange();
 
     private Component m_machineComponent = null;
     private ExcavatorMachineRigKind m_machineKind = ExcavatorMachineRigKind.None;
@@ -96,6 +141,9 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
     private agx.RigidBody.MotionControl m_e85ParkingBrakeOriginalMotionControl = agx.RigidBody.MotionControl.DYNAMICS;
     private bool m_pendingHydraulicSwingActuatorRetry = false;
     private bool m_hydraulicSwingFallbackWarningLogged = false;
+    private bool m_normalizationSoftLimitProfileLoaded = false;
+    private bool m_normalizationSoftLimitLoadAttempted = false;
+    private bool m_normalizationSoftLimitLoadWarningLogged = false;
 
     public ExcavatorActuationCommand LastActuationCommand { get; private set; }
     public bool IsEngineRunning { get; private set; } = true;
@@ -114,6 +162,15 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
       {
         ResolveReferences();
         return m_e85Excavator;
+      }
+    }
+
+    public ExcavatorYuLong YuLongExcavator
+    {
+      get
+      {
+        ResolveReferences();
+        return m_yuLongExcavator;
       }
     }
 
@@ -220,6 +277,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
     {
       ResolveReferences();
       EnsureAxisActuators();
+      EnsureNormalizationSoftLimitProfileLoaded();
       IsEngineRunning = m_startWithEngineRunning;
 
       if ( !IsEngineRunning )
@@ -421,35 +479,205 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
 
     private void SetSwing( float value, bool immediateStop )
     {
-      m_swingActuator?.Apply( ApplyE85AxisDirection( value, m_e85SwingDirection ), immediateStop );
+      ApplyLimitedAxisCommand( m_swingActuator,
+                               m_swingConstraint,
+                               m_softLimitSwingRange,
+                               ApplyMachineAxisDirection( value, m_e85SwingDirection, m_yuLongSwingDirection ),
+                               immediateStop );
     }
 
     private void SetBoom( float value, bool immediateStop )
     {
-      m_boomActuator?.Apply( ApplyE85AxisDirection( value, m_e85BoomDirection ), immediateStop );
+      ApplyLimitedAxisCommand( m_boomActuator,
+                               GetReferenceConstraint( m_boomConstraints ),
+                               m_softLimitBoomRange,
+                               ApplyMachineAxisDirection( value, m_e85BoomDirection, m_yuLongBoomDirection ),
+                               immediateStop );
     }
 
     private void SetStick( float value, bool immediateStop )
     {
-      m_stickActuator?.Apply( ApplyE85AxisDirection( value, m_e85StickDirection ), immediateStop );
+      ApplyLimitedAxisCommand( m_stickActuator,
+                               m_stickConstraint,
+                               m_softLimitStickRange,
+                               ApplyMachineAxisDirection( value, m_e85StickDirection, m_yuLongStickDirection ),
+                               immediateStop );
     }
 
     private void SetBucket( float value, bool immediateStop )
     {
-      m_bucketActuator?.Apply( ApplyE85AxisDirection( value, m_e85BucketDirection ), immediateStop );
+      ApplyLimitedAxisCommand( m_bucketActuator,
+                               m_bucketConstraint,
+                               m_softLimitBucketRange,
+                               ApplyMachineAxisDirection( value, m_e85BucketDirection, m_yuLongBucketDirection ),
+                               immediateStop );
     }
 
-    private float ApplyE85AxisDirection( float value, float e85Direction )
+    private void ApplyLimitedAxisCommand( IExcavatorAxisActuator actuator,
+                                          Constraint constraint,
+                                          ActuatorNormalizationRange range,
+                                          float command,
+                                          bool immediateStop )
     {
-      if ( m_machineKind != ExcavatorMachineRigKind.BobcatE85 )
-        return value;
+      if ( actuator == null )
+        return;
 
-      return value * NormalizeAxisDirection( e85Direction );
+      var softLimitStop = ShouldStopAtNormalizationSoftLimit( constraint, range, command );
+      actuator.Apply( softLimitStop ? 0.0f : command,
+                      immediateStop || ( softLimitStop && m_lockAtNormalizationSoftLimit ) );
+    }
+
+    private bool ShouldStopAtNormalizationSoftLimit( Constraint constraint,
+                                                    ActuatorNormalizationRange range,
+                                                    float command )
+    {
+      if ( !ShouldUseNormalizationSoftLimits() ||
+           constraint == null ||
+           range == null ||
+           !EnsureNormalizationSoftLimitProfileLoaded() )
+        return false;
+
+      var span = range.Max - range.Min;
+      if ( Mathf.Abs( span ) < 1.0e-5f )
+        return false;
+
+      var normalizedPosition = ( constraint.GetCurrentAngle() - range.Min ) / span;
+      var normalizedCommandDirection = command * Mathf.Sign( span );
+      var tolerance = Mathf.Max( 0.0f, m_normalizationSoftLimitTolerance );
+
+      if ( normalizedPosition <= 0.0f - tolerance &&
+           normalizedCommandDirection <= SoftLimitCommandThreshold )
+        return true;
+
+      if ( normalizedPosition >= 1.0f + tolerance &&
+           normalizedCommandDirection >= -SoftLimitCommandThreshold )
+        return true;
+
+      return false;
+    }
+
+    private bool ShouldUseNormalizationSoftLimits()
+    {
+      if ( !m_enableNormalizationSoftLimits )
+        return false;
+
+      return !m_normalizationSoftLimitsYuLongOnly ||
+             m_machineKind == ExcavatorMachineRigKind.YuLong;
+    }
+
+    private float ApplyMachineAxisDirection( float value, float e85Direction, float yuLongDirection )
+    {
+      if ( m_machineKind == ExcavatorMachineRigKind.BobcatE85 )
+        return value * NormalizeAxisDirection( e85Direction );
+
+      if ( m_machineKind == ExcavatorMachineRigKind.YuLong )
+        return value * NormalizeAxisDirection( yuLongDirection );
+
+      return value;
     }
 
     private static float NormalizeAxisDirection( float direction )
     {
       return Mathf.Approximately( direction, 0.0f ) ? 1.0f : Mathf.Sign( direction );
+    }
+
+    private bool EnsureNormalizationSoftLimitProfileLoaded()
+    {
+      if ( !m_enableNormalizationSoftLimits )
+        return false;
+
+      if ( m_normalizationSoftLimitProfileLoaded )
+        return true;
+
+      if ( m_normalizationSoftLimitLoadAttempted )
+        return false;
+
+      m_normalizationSoftLimitLoadAttempted = true;
+      var profilePath = string.IsNullOrWhiteSpace( m_normalizationSoftLimitProfilePath ) ?
+                        YuLongDefaultNormalizationSoftLimitProfilePath :
+                        m_normalizationSoftLimitProfilePath;
+      var absolutePath = ResolveProjectPath( profilePath );
+      if ( string.IsNullOrWhiteSpace( absolutePath ) || !File.Exists( absolutePath ) ) {
+        LogNormalizationSoftLimitWarning( $"Normalization soft-limit profile not found: {profilePath}" );
+        return false;
+      }
+
+      try {
+        var profile = JsonUtility.FromJson<ActuatorNormalizationProfile>( File.ReadAllText( absolutePath ) );
+        if ( profile == null ) {
+          LogNormalizationSoftLimitWarning( $"Normalization soft-limit profile could not be parsed: {profilePath}" );
+          return false;
+        }
+
+        ApplyNormalizationSoftLimitProfile( profile );
+        m_normalizationSoftLimitProfileLoaded = true;
+        return true;
+      }
+      catch ( System.Exception exception ) {
+        LogNormalizationSoftLimitWarning( $"Normalization soft-limit profile load failed: {exception.Message}" );
+        return false;
+      }
+    }
+
+    private void ApplyNormalizationSoftLimitProfile( ActuatorNormalizationProfile profile )
+    {
+      ApplyNormalizationSoftLimitAxisProfile( m_softLimitSwingRange, profile.swing );
+      ApplyNormalizationSoftLimitAxisProfile( m_softLimitBoomRange, profile.boom );
+      ApplyNormalizationSoftLimitAxisProfile( m_softLimitStickRange, profile.stick );
+      ApplyNormalizationSoftLimitAxisProfile( m_softLimitBucketRange, profile.bucket );
+    }
+
+    private static void ApplyNormalizationSoftLimitAxisProfile( ActuatorNormalizationRange range,
+                                                               ActuatorNormalizationAxisProfile profile )
+    {
+      if ( range == null || profile == null || Mathf.Abs( profile.max - profile.min ) < 1.0e-5f )
+        return;
+
+      range.Set( profile.min, profile.max );
+    }
+
+    private void LogNormalizationSoftLimitWarning( string message )
+    {
+      if ( m_normalizationSoftLimitLoadWarningLogged )
+        return;
+
+      Debug.LogWarning( message, this );
+      m_normalizationSoftLimitLoadWarningLogged = true;
+    }
+
+    private static string ResolveProjectPath( string path )
+    {
+      if ( string.IsNullOrWhiteSpace( path ) )
+        return string.Empty;
+
+      var normalized = path.Trim().Replace( '\\', '/' );
+      if ( Path.IsPathRooted( normalized ) )
+        return normalized;
+
+      if ( normalized.Equals( "Assets", StringComparison.OrdinalIgnoreCase ) )
+        return Application.dataPath;
+
+      if ( normalized.StartsWith( "Assets/", StringComparison.OrdinalIgnoreCase ) ) {
+        var relativeToAssets = normalized.Substring( "Assets/".Length );
+        return Path.Combine( Application.dataPath,
+                             relativeToAssets.Replace( '/', Path.DirectorySeparatorChar ) );
+      }
+
+      return Path.Combine( Application.dataPath,
+                           normalized.Replace( '/', Path.DirectorySeparatorChar ) );
+    }
+
+    private static Constraint GetReferenceConstraint( Constraint[] constraints )
+    {
+      if ( constraints == null )
+        return null;
+
+      foreach ( var constraint in constraints ) {
+        if ( constraint != null )
+          return constraint;
+      }
+
+      return null;
     }
 
     private bool EnsureAxisActuators()
@@ -469,20 +697,23 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
 
       ResolveRigConstraints();
       m_axisActuatorRig = m_machineComponent;
+      var armAccelerationLimit = m_machineKind == ExcavatorMachineRigKind.YuLong ?
+                                 m_limits.MaxRotationalAcceleration :
+                                 m_limits.MaxLinearAcceleration;
       m_swingActuator = CreateSwingActuator();
       m_boomActuator = m_boomConstraints != null && m_boomConstraints.Length > 0 ?
                        new TargetSpeedConstraintAxisActuator( m_boomConstraints,
-                                                              m_limits.MaxLinearAcceleration,
+                                                              armAccelerationLimit,
                                                               GetSimulationDeltaTime ) :
                        null;
       m_stickActuator = m_stickConstraint != null ?
                         new TargetSpeedConstraintAxisActuator( m_stickConstraint,
-                                                               m_limits.MaxLinearAcceleration,
+                                                               armAccelerationLimit,
                                                                GetSimulationDeltaTime ) :
                         null;
       m_bucketActuator = m_bucketConstraint != null ?
                          new TargetSpeedConstraintAxisActuator( m_bucketConstraint,
-                                                                m_limits.MaxLinearAcceleration,
+                                                                armAccelerationLimit,
                                                                 GetSimulationDeltaTime ) :
                          null;
       m_leftTrackActuator = m_leftTrackConstraint != null ?
@@ -571,6 +802,17 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
         return;
       }
 
+      if ( m_machineKind == ExcavatorMachineRigKind.YuLong && m_yuLongExcavator != null ) {
+        m_yuLongExcavator.ResolveReferences();
+        m_swingConstraint = m_yuLongExcavator.SwingHinge;
+        m_boomConstraints = m_yuLongExcavator.BoomConstraint != null ?
+                            new[] { m_yuLongExcavator.BoomConstraint } :
+                            new Constraint[0];
+        m_stickConstraint = m_yuLongExcavator.StickConstraint;
+        m_bucketConstraint = m_yuLongExcavator.BucketConstraint;
+        return;
+      }
+
       if ( m_excavator == null )
         return;
 
@@ -603,9 +845,12 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
 
       var assignedCatExcavatorIsActive = ExcavatorRigLocator.IsSelectable( m_excavator );
       var assignedE85ExcavatorIsActive = ExcavatorRigLocator.IsSelectable( m_e85Excavator );
+      var assignedYuLongExcavatorIsActive = ExcavatorRigLocator.IsSelectable( m_yuLongExcavator );
 
       if ( !ExcavatorRigLocator.IsSelectable( m_machineRoot ) ) {
-        if ( assignedE85ExcavatorIsActive )
+        if ( assignedYuLongExcavatorIsActive )
+          m_machineRoot = m_yuLongExcavator.transform;
+        else if ( assignedE85ExcavatorIsActive )
           m_machineRoot = m_e85Excavator.transform;
         else if ( assignedCatExcavatorIsActive )
           m_machineRoot = m_excavator.transform;
@@ -614,15 +859,22 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
       if ( ExcavatorRigLocator.IsSelectable( m_machineRoot ) ) {
         m_excavator = ExcavatorRigLocator.ResolveActiveComponentInRoot( m_machineRoot, m_excavator );
         m_e85Excavator = ExcavatorRigLocator.ResolveActiveComponentInRoot( m_machineRoot, m_e85Excavator );
+        m_yuLongExcavator = ExcavatorRigLocator.ResolveActiveComponentInRoot( m_machineRoot, m_yuLongExcavator );
       }
       else {
         m_excavator = ExcavatorRigLocator.ResolveActiveComponent( this, m_excavator );
         m_e85Excavator = ExcavatorRigLocator.ResolveActiveComponent( this, m_e85Excavator );
+        m_yuLongExcavator = ExcavatorRigLocator.ResolveActiveComponent( this, m_yuLongExcavator );
       }
 
       m_hydraulicSystem = ExcavatorRigLocator.ResolveComponent( this, m_hydraulicSystem );
 
-      if ( assignedE85ExcavatorIsActive || ( !assignedCatExcavatorIsActive && m_e85Excavator != null ) ) {
+      if ( assignedYuLongExcavatorIsActive ||
+           ( !assignedCatExcavatorIsActive && !assignedE85ExcavatorIsActive && m_yuLongExcavator != null ) ) {
+        m_machineComponent = m_yuLongExcavator;
+        m_machineKind = ExcavatorMachineRigKind.YuLong;
+      }
+      else if ( assignedE85ExcavatorIsActive || ( !assignedCatExcavatorIsActive && m_e85Excavator != null ) ) {
         m_machineComponent = m_e85Excavator;
         m_machineKind = ExcavatorMachineRigKind.BobcatE85;
       }
@@ -633,6 +885,10 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
       else if ( m_e85Excavator != null ) {
         m_machineComponent = m_e85Excavator;
         m_machineKind = ExcavatorMachineRigKind.BobcatE85;
+      }
+      else if ( m_yuLongExcavator != null ) {
+        m_machineComponent = m_yuLongExcavator;
+        m_machineKind = ExcavatorMachineRigKind.YuLong;
       }
       else {
         m_machineComponent = null;
