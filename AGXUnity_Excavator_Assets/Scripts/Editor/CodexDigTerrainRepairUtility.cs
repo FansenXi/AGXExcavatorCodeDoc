@@ -20,7 +20,7 @@ namespace AGXUnity_Excavator.Scripts.Editor
     private const string DigTerrainAssetPath = TerrainAssetDirectory + "/CodexDigTerrain.asset";
     private const string GravelTerrainLayerPath = "Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/materials/Gravel_03-terrainlayer.terrainlayer";
 
-    private const float EnvironmentScale = 1.25f;
+    private const float EnvironmentScale = 1.0f;
     private const float BoardThickness = 0.05f * EnvironmentScale;
     private const float AreaSizeX = 2.5f * EnvironmentScale;
     private const float AreaSizeZ = 3.0f * EnvironmentScale;

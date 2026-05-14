@@ -45,9 +45,9 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
       if ( referenceConstraint == null )
         return;
 
-      if ( immediateStop && Mathf.Abs( command ) < ZeroSpeedThreshold ) {
+      if ( Mathf.Abs( command ) < ZeroSpeedThreshold ) {
         foreach ( var constraint in m_constraints )
-          SetSpeed( constraint, 0.0f, true );
+          SetSpeed( constraint, 0.0f, immediateStop );
 
         return;
       }
@@ -106,9 +106,10 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
         return;
       }
 
-      speedController.LockAtZeroSpeed = false;
+      var isZeroSpeed = Mathf.Abs( speed ) < ZeroSpeedThreshold;
+      speedController.LockAtZeroSpeed = isZeroSpeed;
       speedController.Enable = true;
-      speedController.Speed = Mathf.Abs( speed ) < ZeroSpeedThreshold ? 0.0f : speed;
+      speedController.Speed = isZeroSpeed ? 0.0f : speed;
       if ( lockController != null )
         lockController.Enable = false;
     }

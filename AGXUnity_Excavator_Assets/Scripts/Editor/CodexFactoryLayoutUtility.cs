@@ -23,7 +23,7 @@ namespace AGXUnity_Excavator.Scripts.Editor
     private const string FontDirectory = "Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/Fonts";
     private const string PingfanSourceFontPath = FontDirectory + "/NotoSansSC-VF.ttf";
 
-    private const float EnvironmentScale = 1.25f;
+    private const float EnvironmentScale = 1.0f;
     private const float RoomSizeX = 7.0f * EnvironmentScale;
     private const float RoomSizeZ = 7.0f * EnvironmentScale;
     private const float RoomHeight = 3.5f * EnvironmentScale;
@@ -98,8 +98,8 @@ namespace AGXUnity_Excavator.Scripts.Editor
         materials.WallDarkBlue = GetOrCreateMaterial( "CodexFactory_WallDarkBlue.mat", new Color( 0.05f, 0.17f, 0.42f, 1.0f ), false );
         materials.Ceiling = GetOrCreateMaterial( "CodexFactory_Ceiling.mat", new Color( 0.78f, 0.82f, 0.82f, 1.0f ), false );
         materials.Window = GetOrCreateMaterial( "CodexFactory_Window.mat", new Color( 0.86f, 0.96f, 1.0f, 0.18f ), true );
-        materials.DigBoard = GetOrCreateMaterial( "CodexFactory_DigBoard.mat", new Color( 0.88f, 0.48f, 0.21f, 1.0f ), false );
-        materials.DumpBoard = GetOrCreateMaterial( "CodexFactory_DumpBoard.mat", new Color( 0.18f, 0.56f, 0.76f, 1.0f ), false );
+        materials.DigBoard = GetOrCreateMaterial( "CodexFactory_DigBoard.mat", Color.white, false );
+        materials.DumpBoard = GetOrCreateMaterial( "CodexFactory_DumpBoard.mat", Color.white, false );
         materials.DigFill = GetOrCreateMaterial( "CodexFactory_DigFill.mat", new Color( 0.95f, 0.63f, 0.24f, 0.24f ), true );
         materials.DumpFill = GetOrCreateMaterial( "CodexFactory_DumpFill.mat", new Color( 0.18f, 0.72f, 0.62f, 0.20f ), true );
         materials.Marker = GetOrCreateMaterial( "CodexFactory_Marker.mat", new Color( 0.96f, 0.13f, 0.2f, 1.0f ), false );
@@ -135,8 +135,9 @@ namespace AGXUnity_Excavator.Scripts.Editor
         EnsureOutputDirectoryExists();
         result.screenshots = new ScreenshotSet();
 
-        result.message = $"Built measured factory layout from {source}. Room=8.75m x 8.75m x 4.375m; " +
-                         "dump min=(0.875,0.25), dig min=(5.0,4.5), excavator centerline z=6.375 and boom-base target x=4.0.";
+        result.message = $"Built measured factory layout from {source}. Room={RoomSizeX:0.###}m x {RoomSizeZ:0.###}m x {RoomHeight:0.###}m; " +
+                         $"dump min=({DumpMin.x:0.###},{DumpMin.y:0.###}), dig min=({DigMin.x:0.###},{DigMin.y:0.###}), " +
+                         $"excavator centerline z={ExcavatorCenterlineZ:0.###} and boom-base target x={ExcavatorBoomBaseX:0.###}.";
         WriteResult( true, result.message, result );
       }
       catch ( Exception exception ) {
@@ -186,7 +187,7 @@ namespace AGXUnity_Excavator.Scripts.Editor
       var backupDirectory = GetProjectRelativeAbsolutePath( "CodexSceneBackups" );
       Directory.CreateDirectory( backupDirectory );
       var backupPath = Path.Combine( backupDirectory,
-                                     "AGXUnity_Excavator_before_environment_1p25_" +
+                                     "AGXUnity_Excavator_before_environment_1p5_" +
                                      DateTime.Now.ToString( "yyyyMMdd_HHmmss", CultureInfo.InvariantCulture ) +
                                      ".unity" );
       File.Copy( sceneAbsolutePath, backupPath, overwrite: false );
@@ -471,7 +472,8 @@ namespace AGXUnity_Excavator.Scripts.Editor
       var leftWindowEnd = leftWindowStart + leftWindowWidth;
       var centerWallStart = leftWindowEnd;
       var centerWallEnd = centerWallStart + groupGapWidth;
-      var rightWindowAStart = centerWallEnd;
+      var rightWindowStart = centerWallEnd;
+      var rightWindowAStart = rightWindowStart;
       var rightWindowAEnd = rightWindowAStart + rightWindowWidth;
       var rightDividerStart = rightWindowAEnd;
       var rightDividerEnd = rightDividerStart + rightWindowDividerWidth;
@@ -494,10 +496,8 @@ namespace AGXUnity_Excavator.Scripts.Editor
       var windowThickness = 0.012f * EnvironmentScale;
       CreateXMaxWallSegmentFromLeft( parent, "FactoryWindow_XMax_Left", wallX, windowY, windowHeight,
                                      leftWindowStart, leftWindowEnd, windowThickness, materials.Window );
-      CreateXMaxWallSegmentFromLeft( parent, "FactoryWindow_XMax_RightA", wallX, windowY, windowHeight,
-                                     rightWindowAStart, rightWindowAEnd, windowThickness, materials.Window );
-      CreateXMaxWallSegmentFromLeft( parent, "FactoryWindow_XMax_RightB", wallX, windowY, windowHeight,
-                                     rightWindowBStart, rightWindowBEnd, windowThickness, materials.Window );
+      CreateXMaxWallSegmentFromLeft( parent, "FactoryWindow_XMax_Right", wallX, windowY, windowHeight,
+                                     rightWindowStart, rightWindowBEnd, windowThickness, materials.Window );
     }
 
     private static void CreateXMaxWallSegmentFromLeft( Transform parent,
@@ -657,7 +657,7 @@ namespace AGXUnity_Excavator.Scripts.Editor
       result.excavator_bounds_center = finalBounds.HasValue ? FormatVector( finalBounds.Value.center ) : "unknown";
       result.excavator_bounds_size = finalBounds.HasValue ? FormatVector( finalBounds.Value.size ) : "unknown";
 
-      result.warnings.Add( "Excavator transform, size and internal AGX geometry were preserved; the 1.25x environment was built around the current machine pose." );
+      result.warnings.Add( $"Excavator transform, size and internal AGX geometry were preserved; the {EnvironmentScale:0.###}x environment was built around the current machine pose." );
     }
 
     private static void RestoreExcavatorVisualChildren( GameObject excavatorRoot, FactoryLayoutResult result )
@@ -803,26 +803,26 @@ namespace AGXUnity_Excavator.Scripts.Editor
     {
       CreateCamera( parent,
                     "CodexFactoryTopCamera",
-                    new Vector3( 3.5f, 8.2f, 3.5f ),
-                    new Vector3( 3.5f, 0.0f, 3.5f ),
-                    4.15f,
+                    new Vector3( RoomSizeX * 0.5f, 6.56f * EnvironmentScale, RoomSizeZ * 0.5f ),
+                    new Vector3( RoomSizeX * 0.5f, 0.0f, RoomSizeZ * 0.5f ),
+                    3.32f * EnvironmentScale,
                     true );
       CreateCamera( parent,
                     "CodexFactoryOverviewCamera",
-                    new Vector3( 8.6f, 4.6f, -2.7f ),
-                    new Vector3( 3.35f, 0.9f, 3.75f ),
+                    new Vector3( 6.88f * EnvironmentScale, 3.68f * EnvironmentScale, -2.16f * EnvironmentScale ),
+                    new Vector3( 2.68f * EnvironmentScale, 0.72f * EnvironmentScale, 3.0f * EnvironmentScale ),
                     52.0f,
                     false );
       CreateCamera( parent,
                     "CodexFactoryDigDumpCamera",
-                    new Vector3( 3.65f, 3.1f, 8.75f ),
-                    new Vector3( 3.65f, 0.55f, 3.55f ),
+                    new Vector3( 2.92f * EnvironmentScale, 2.48f * EnvironmentScale, RoomSizeZ ),
+                    new Vector3( 2.92f * EnvironmentScale, 0.44f * EnvironmentScale, 2.84f * EnvironmentScale ),
                     45.0f,
                     false );
       CreateCamera( parent,
                     "CodexFactoryExcavatorAlignmentCamera",
-                    new Vector3( 1.7f, 2.0f, 2.15f ),
-                    new Vector3( 3.75f, 0.62f, 5.1f ),
+                    new Vector3( 1.36f * EnvironmentScale, 1.6f * EnvironmentScale, 1.72f * EnvironmentScale ),
+                    new Vector3( 3.0f * EnvironmentScale, 0.496f * EnvironmentScale, ExcavatorCenterlineZ ),
                     38.0f,
                     false );
     }

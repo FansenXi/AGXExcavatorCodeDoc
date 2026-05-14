@@ -10,7 +10,8 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
   {
     None,
     Cat365,
-    BobcatE85
+    BobcatE85,
+    YuLong
   }
 
   public class ExcavatorMachineController : ScriptComponent
@@ -20,6 +21,9 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
 
     [SerializeField]
     private global::ExcavatorE85 m_e85Excavator = null;
+
+    [SerializeField]
+    private ExcavatorYuLong m_yuLongExcavator = null;
 
     [SerializeField]
     private Transform m_machineRoot = null;
@@ -73,6 +77,18 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
     private float m_e85BucketDirection = 1.0f;
 
     [SerializeField]
+    private float m_yuLongSwingDirection = 1.0f;
+
+    [SerializeField]
+    private float m_yuLongBoomDirection = 1.0f;
+
+    [SerializeField]
+    private float m_yuLongStickDirection = 1.0f;
+
+    [SerializeField]
+    private float m_yuLongBucketDirection = 1.0f;
+
+    [SerializeField]
     private bool m_startWithEngineRunning = true;
 
     private Component m_machineComponent = null;
@@ -114,6 +130,15 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
       {
         ResolveReferences();
         return m_e85Excavator;
+      }
+    }
+
+    public ExcavatorYuLong YuLongExcavator
+    {
+      get
+      {
+        ResolveReferences();
+        return m_yuLongExcavator;
       }
     }
 
@@ -297,6 +322,11 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
 
     private void ApplyDriveTrain( float drive, float steer )
     {
+      if ( m_machineKind == ExcavatorMachineRigKind.YuLong ) {
+        SetE85ParkingBrake( false );
+        return;
+      }
+
       var leftTrack = ApplyTrackDeadZone( Mathf.Clamp( drive - steer, -1.0f, 1.0f ) );
       var rightTrack = ApplyTrackDeadZone( Mathf.Clamp( drive + steer, -1.0f, 1.0f ) );
 
@@ -421,30 +451,33 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
 
     private void SetSwing( float value, bool immediateStop )
     {
-      m_swingActuator?.Apply( ApplyE85AxisDirection( value, m_e85SwingDirection ), immediateStop );
+      m_swingActuator?.Apply( ApplyMachineAxisDirection( value, m_e85SwingDirection, m_yuLongSwingDirection ), immediateStop );
     }
 
     private void SetBoom( float value, bool immediateStop )
     {
-      m_boomActuator?.Apply( ApplyE85AxisDirection( value, m_e85BoomDirection ), immediateStop );
+      m_boomActuator?.Apply( ApplyMachineAxisDirection( value, m_e85BoomDirection, m_yuLongBoomDirection ), immediateStop );
     }
 
     private void SetStick( float value, bool immediateStop )
     {
-      m_stickActuator?.Apply( ApplyE85AxisDirection( value, m_e85StickDirection ), immediateStop );
+      m_stickActuator?.Apply( ApplyMachineAxisDirection( value, m_e85StickDirection, m_yuLongStickDirection ), immediateStop );
     }
 
     private void SetBucket( float value, bool immediateStop )
     {
-      m_bucketActuator?.Apply( ApplyE85AxisDirection( value, m_e85BucketDirection ), immediateStop );
+      m_bucketActuator?.Apply( ApplyMachineAxisDirection( value, m_e85BucketDirection, m_yuLongBucketDirection ), immediateStop );
     }
 
-    private float ApplyE85AxisDirection( float value, float e85Direction )
+    private float ApplyMachineAxisDirection( float value, float e85Direction, float yuLongDirection )
     {
-      if ( m_machineKind != ExcavatorMachineRigKind.BobcatE85 )
-        return value;
+      if ( m_machineKind == ExcavatorMachineRigKind.BobcatE85 )
+        return value * NormalizeAxisDirection( e85Direction );
 
-      return value * NormalizeAxisDirection( e85Direction );
+      if ( m_machineKind == ExcavatorMachineRigKind.YuLong )
+        return value * NormalizeAxisDirection( yuLongDirection );
+
+      return value;
     }
 
     private static float NormalizeAxisDirection( float direction )
@@ -470,19 +503,22 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
       ResolveRigConstraints();
       m_axisActuatorRig = m_machineComponent;
       m_swingActuator = CreateSwingActuator();
+      var workgroupAcceleration = m_machineKind == ExcavatorMachineRigKind.YuLong ?
+                                  m_limits.MaxRotationalAcceleration :
+                                  m_limits.MaxLinearAcceleration;
       m_boomActuator = m_boomConstraints != null && m_boomConstraints.Length > 0 ?
                        new TargetSpeedConstraintAxisActuator( m_boomConstraints,
-                                                              m_limits.MaxLinearAcceleration,
+                                                              workgroupAcceleration,
                                                               GetSimulationDeltaTime ) :
                        null;
       m_stickActuator = m_stickConstraint != null ?
                         new TargetSpeedConstraintAxisActuator( m_stickConstraint,
-                                                               m_limits.MaxLinearAcceleration,
+                                                               workgroupAcceleration,
                                                                GetSimulationDeltaTime ) :
                         null;
       m_bucketActuator = m_bucketConstraint != null ?
                          new TargetSpeedConstraintAxisActuator( m_bucketConstraint,
-                                                                m_limits.MaxLinearAcceleration,
+                                                                workgroupAcceleration,
                                                                 GetSimulationDeltaTime ) :
                          null;
       m_leftTrackActuator = m_leftTrackConstraint != null ?
@@ -571,6 +607,17 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
         return;
       }
 
+      if ( m_machineKind == ExcavatorMachineRigKind.YuLong && m_yuLongExcavator != null ) {
+        m_yuLongExcavator.ResolveReferences();
+        m_swingConstraint = m_yuLongExcavator.SwingHinge;
+        m_boomConstraints = m_yuLongExcavator.BoomConstraint != null ?
+                            new[] { m_yuLongExcavator.BoomConstraint } :
+                            new Constraint[0];
+        m_stickConstraint = m_yuLongExcavator.StickConstraint;
+        m_bucketConstraint = m_yuLongExcavator.BucketConstraint;
+        return;
+      }
+
       if ( m_excavator == null )
         return;
 
@@ -603,9 +650,12 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
 
       var assignedCatExcavatorIsActive = ExcavatorRigLocator.IsSelectable( m_excavator );
       var assignedE85ExcavatorIsActive = ExcavatorRigLocator.IsSelectable( m_e85Excavator );
+      var assignedYuLongExcavatorIsActive = ExcavatorRigLocator.IsSelectable( m_yuLongExcavator );
 
       if ( !ExcavatorRigLocator.IsSelectable( m_machineRoot ) ) {
-        if ( assignedE85ExcavatorIsActive )
+        if ( assignedYuLongExcavatorIsActive )
+          m_machineRoot = m_yuLongExcavator.transform;
+        else if ( assignedE85ExcavatorIsActive )
           m_machineRoot = m_e85Excavator.transform;
         else if ( assignedCatExcavatorIsActive )
           m_machineRoot = m_excavator.transform;
@@ -614,15 +664,26 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
       if ( ExcavatorRigLocator.IsSelectable( m_machineRoot ) ) {
         m_excavator = ExcavatorRigLocator.ResolveActiveComponentInRoot( m_machineRoot, m_excavator );
         m_e85Excavator = ExcavatorRigLocator.ResolveActiveComponentInRoot( m_machineRoot, m_e85Excavator );
+        m_yuLongExcavator = ExcavatorRigLocator.ResolveActiveComponentInRoot( m_machineRoot, m_yuLongExcavator );
       }
       else {
         m_excavator = ExcavatorRigLocator.ResolveActiveComponent( this, m_excavator );
         m_e85Excavator = ExcavatorRigLocator.ResolveActiveComponent( this, m_e85Excavator );
+        m_yuLongExcavator = ExcavatorRigLocator.ResolveActiveComponent( this, m_yuLongExcavator );
       }
 
       m_hydraulicSystem = ExcavatorRigLocator.ResolveComponent( this, m_hydraulicSystem );
 
-      if ( assignedE85ExcavatorIsActive || ( !assignedCatExcavatorIsActive && m_e85Excavator != null ) ) {
+      assignedCatExcavatorIsActive = ExcavatorRigLocator.IsSelectable( m_excavator );
+      assignedE85ExcavatorIsActive = ExcavatorRigLocator.IsSelectable( m_e85Excavator );
+      assignedYuLongExcavatorIsActive = ExcavatorRigLocator.IsSelectable( m_yuLongExcavator );
+
+      if ( assignedYuLongExcavatorIsActive ||
+           ( !assignedCatExcavatorIsActive && !assignedE85ExcavatorIsActive && m_yuLongExcavator != null ) ) {
+        m_machineComponent = m_yuLongExcavator;
+        m_machineKind = ExcavatorMachineRigKind.YuLong;
+      }
+      else if ( assignedE85ExcavatorIsActive || ( !assignedCatExcavatorIsActive && m_e85Excavator != null ) ) {
         m_machineComponent = m_e85Excavator;
         m_machineKind = ExcavatorMachineRigKind.BobcatE85;
       }
@@ -633,6 +694,10 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
       else if ( m_e85Excavator != null ) {
         m_machineComponent = m_e85Excavator;
         m_machineKind = ExcavatorMachineRigKind.BobcatE85;
+      }
+      else if ( m_yuLongExcavator != null ) {
+        m_machineComponent = m_yuLongExcavator;
+        m_machineKind = ExcavatorMachineRigKind.YuLong;
       }
       else {
         m_machineComponent = null;
@@ -648,7 +713,9 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
       var semanticRoot = ExcavatorRigLocator.IsSelectable( m_machineRoot ) ?
                          m_machineRoot :
                          m_machineComponent != null ? m_machineComponent.transform : null;
-      if ( semanticRoot != null )
+      if ( m_machineKind == ExcavatorMachineRigKind.YuLong && m_yuLongExcavator != null )
+        m_bucketReference = m_yuLongExcavator.BucketReference;
+      else if ( semanticRoot != null )
         m_bucketReference = ExcavatorRigLocator.ResolveBucketReference( semanticRoot, m_bucketReference );
       else if ( !ExcavatorRigLocator.IsSelectable( m_bucketReference ) )
         m_bucketReference = null;

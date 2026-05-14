@@ -100,4 +100,4 @@ ResetEpisode()
 
 2、搭建新的场景，跟厂房一样，颜色，灯光，厂房与挖掘机的比例以及其它物品的比例，都要符合显示，总之就是越真实越好，还得配置一下这些物体的Rigidbody组件来达到好的物理效果，以及尽量去unity商店找合适的材质和贴图，然后升级一下管线（记得备份），处理一下光照，还可以加后处理让场景看起来更真实。
 
-
+https://www.algoryx.se/documentation/complete/agx/tags/latest/doc/html/namespaceagx.html

@@ -21,7 +21,7 @@ namespace AGXUnity_Excavator.Scripts.Editor
     private const string TerrainAssetDirectory = "Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/Terrains";
     private const string GravelTerrainLayerPath = "Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/materials/Gravel_03-terrainlayer.terrainlayer";
 
-    private const float EnvironmentScale = 1.25f;
+    private const float EnvironmentScale = 1.0f;
     private const float BoardThickness = 0.05f * EnvironmentScale;
     private const float AreaSizeX = 2.5f * EnvironmentScale;
     private const float AreaSizeZ = 3.0f * EnvironmentScale;
@@ -108,7 +108,7 @@ namespace AGXUnity_Excavator.Scripts.Editor
         EnsureOutputDirectoryExists();
         result.screenshots = new ScreenshotSet();
 
-        result.message = $"Built measured terrain areas from {source}: DigTerrain is filled to 0.75m inside the 1.25x dig box; DumpTerrainReceiver is flat/empty at 0m.";
+        result.message = $"Built measured terrain areas from {source}: DigTerrain is filled to {DigSoilHeight:0.###}m inside the {EnvironmentScale:0.###}x dig box; DumpTerrainReceiver is flat/empty at 0m.";
         WriteResult( true, result.message, result );
       }
       catch ( Exception exception ) {

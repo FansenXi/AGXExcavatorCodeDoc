@@ -19,6 +19,16 @@ public class SettledFloorParticleCleaner : MonoBehaviour
     [SerializeField]
     private Vector3 m_halfExtents;
 
+    public BoxVolume( Transform frame, Vector3 centerLocal, Vector3 halfExtents )
+    {
+      m_frame = frame;
+      m_centerLocal = centerLocal;
+      m_halfExtents = halfExtents;
+    }
+
+    public Transform Frame => m_frame;
+    public Vector3 HalfExtents => m_halfExtents;
+
     public bool IsValid => m_frame != null &&
                            m_halfExtents.x > 0.0f &&
                            m_halfExtents.y > 0.0f &&
@@ -70,6 +80,16 @@ public class SettledFloorParticleCleaner : MonoBehaviour
   private readonly HashSet<uint> m_seenParticleHashes = new HashSet<uint>();
   private readonly List<uint> m_hashesToRemove = new List<uint>();
 
+  private void Awake()
+  {
+    ResolveDefaultEnvironmentVolumes();
+  }
+
+  private void OnValidate()
+  {
+    ResolveDefaultEnvironmentVolumes();
+  }
+
   private void Reset()
   {
     m_sourceTerrains = FindObjectsOfType<DeformableTerrainBase>();
@@ -78,6 +98,7 @@ public class SettledFloorParticleCleaner : MonoBehaviour
     m_settleSpeedThreshold = 0.35f;
     m_deleteDelay = 10.0f;
     m_updateInterval = 1.0f;
+    ResolveDefaultEnvironmentVolumes();
   }
 
   private void OnDisable()
@@ -103,6 +124,7 @@ public class SettledFloorParticleCleaner : MonoBehaviour
     LastDeletedParticleCount = 0;
     LastDeletedMass = 0.0f;
     m_seenParticleHashes.Clear();
+    ResolveDefaultEnvironmentVolumes();
 
     if ( !HasValidCleanupVolume() )
       return;
@@ -233,6 +255,62 @@ public class SettledFloorParticleCleaner : MonoBehaviour
       return;
 
     m_candidateTerrains.Add( terrain );
+  }
+
+  private void ResolveDefaultEnvironmentVolumes()
+  {
+    if ( !HasValidCleanupVolume() ) {
+      var factoryFloor = GameObject.Find( "FactoryFloor" )?.transform;
+      if ( factoryFloor != null ) {
+        var halfExtents = new Vector3( Mathf.Abs( factoryFloor.lossyScale.x ) * 0.5f,
+                                       0.35f,
+                                       Mathf.Abs( factoryFloor.lossyScale.z ) * 0.5f );
+        m_cleanupVolumes = new[] {
+          new BoxVolume( factoryFloor, new Vector3( 0.0f, 0.35f, 0.0f ), halfExtents )
+        };
+      }
+    }
+
+    var repairedExclusions = new List<BoxVolume>();
+    if ( m_excludedVolumes != null ) {
+      for ( var index = 0; index < m_excludedVolumes.Length; ++index ) {
+        var volume = m_excludedVolumes[ index ];
+        if ( !volume.IsValid )
+          continue;
+
+        var frameName = volume.Frame != null ? volume.Frame.name : string.Empty;
+        if ( frameName == "SubmergedBox" || frameName == "Dig_Footprint" )
+          continue;
+
+        repairedExclusions.Add( volume );
+      }
+    }
+
+    AddNamedExclusionVolume( repairedExclusions, "SubmergedBox", Vector3.zero, new Vector3( 1.25f, 0.35f, 1.5f ) );
+    AddNamedExclusionVolume( repairedExclusions, "Dig_Footprint", new Vector3( 0.0f, 0.35f, 0.0f ), new Vector3( 1.25f, 0.5f, 1.5f ) );
+    m_excludedVolumes = repairedExclusions.ToArray();
+  }
+
+  private static void AddNamedExclusionVolume( List<BoxVolume> volumes,
+                                               string frameName,
+                                               Vector3 centerLocal,
+                                               Vector3 fallbackHalfExtents )
+  {
+    if ( volumes == null )
+      return;
+
+    var frame = GameObject.Find( frameName )?.transform;
+    if ( frame == null )
+      return;
+
+    var halfExtents = fallbackHalfExtents;
+    if ( frameName == "Dig_Footprint" ) {
+      halfExtents = new Vector3( Mathf.Max( fallbackHalfExtents.x, Mathf.Abs( frame.lossyScale.x ) * 0.5f ),
+                                 fallbackHalfExtents.y,
+                                 Mathf.Max( fallbackHalfExtents.z, Mathf.Abs( frame.lossyScale.z ) * 0.5f ) );
+    }
+
+    volumes.Add( new BoxVolume( frame, centerLocal, halfExtents ) );
   }
 
   private void RemoveMissingTrackedParticles()

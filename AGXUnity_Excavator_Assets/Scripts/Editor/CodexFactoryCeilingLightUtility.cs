@@ -18,12 +18,10 @@ namespace AGXUnity_Excavator.Scripts.Editor
     private const string LayoutRootName = "CodexFactoryLayout";
     private const string MaterialDirectory = "Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/Materials/CodexFactory";
 
-    private const string RootName = "FactoryCeilingTubeLight_01";
-    private const string FixtureName = "FactoryCeilingTubeLight_01_Fixture";
-    private const string TubeName = "FactoryCeilingTubeLight_01_Tube";
-    private const string LightNamePrefix = "FactoryCeilingTubeLight_01_PointLight";
     private const string AreaLightName = "FactoryCeilingTubeLight_01_RectAreaLight";
     private const string FillLightName = "FactoryCeilingTubeLight_01_DownFill";
+    private const string TubeLightRootPrefix = "FactoryCeilingTubeLight_";
+    private const int TubeLightCount = 3;
 
     private static double s_nextPollTime;
     private static bool s_isRunning;
@@ -87,13 +85,7 @@ namespace AGXUnity_Excavator.Scripts.Editor
           return;
         }
 
-        RemoveObjectsNamed( RootName );
-        RemoveObjectsNamed( FixtureName );
-        RemoveObjectsNamed( TubeName );
-        RemoveObjectsNamed( LightNamePrefix );
-        RemoveObjectsNamed( LightNamePrefix + "_Left" );
-        RemoveObjectsNamed( LightNamePrefix + "_Center" );
-        RemoveObjectsNamed( LightNamePrefix + "_Right" );
+        RemoveObjectsWithPrefix( TubeLightRootPrefix );
         RemoveObjectsNamed( AreaLightName );
         RemoveObjectsNamed( FillLightName );
 
@@ -117,58 +109,68 @@ namespace AGXUnity_Excavator.Scripts.Editor
         var baseY = Mathf.Max( xMinBeam.transform.localPosition.y + Mathf.Abs( xMinBeam.transform.localScale.y ) * 0.5f,
                                xMaxBeam.transform.localPosition.y + Mathf.Abs( xMaxBeam.transform.localScale.y ) * 0.5f );
         var peakY = ResolveRoofPeakY( baseY );
-        var xCenter = ( xMin + xMax ) * 0.5f;
-        var roofT = Mathf.Approximately( xMax, xMin ) ? 0.5f : Mathf.InverseLerp( xMin, xMax, xCenter );
-        var roofYAtCenter = Mathf.Lerp( baseY, peakY, roofT );
         var roofThickness = ResolveRoofThickness();
-        var lampY = roofYAtCenter - roofThickness * 0.5f - 0.18f;
 
         var lampLength = Mathf.Clamp( depth * 0.55f, 2.5f, 4.25f );
         const float tubeDiameter = 0.10f;
+        var lightRange = Mathf.Clamp( lampLength * 1.9f, 6.0f, 9.5f );
+        const float lightIntensity = 4.0f;
+        var rootPaths = string.Empty;
+        var tubePaths = string.Empty;
+        var fixturePaths = string.Empty;
+        var lightPaths = string.Empty;
+        var positions = string.Empty;
 
-        var root = new GameObject( RootName );
-        root.transform.SetParent( layoutRoot.transform, false );
-        root.transform.localPosition = new Vector3( xCenter, lampY, zCenter );
-        root.transform.localRotation = Quaternion.identity;
-        root.transform.localScale = Vector3.one;
+        for ( var index = 0; index < TubeLightCount; ++index ) {
+          var normalized = ( index + 1.0f ) / ( TubeLightCount + 1.0f );
+          var x = Mathf.Lerp( xMin, xMax, normalized );
+          var roofY = Mathf.Lerp( baseY, peakY, normalized );
+          var lampY = roofY - roofThickness * 0.5f - 0.18f;
+          var suffix = ( index + 1 ).ToString( "00", CultureInfo.InvariantCulture );
+          var root = new GameObject( TubeLightRootPrefix + suffix );
+          root.transform.SetParent( layoutRoot.transform, false );
+          root.transform.localPosition = new Vector3( x, lampY, zCenter );
+          root.transform.localRotation = Quaternion.identity;
+          root.transform.localScale = Vector3.one;
 
-        var fixture = GameObject.CreatePrimitive( PrimitiveType.Cube );
-        fixture.name = FixtureName;
-        fixture.transform.SetParent( root.transform, false );
-        fixture.transform.localPosition = new Vector3( 0.0f, 0.075f, 0.0f );
-        fixture.transform.localRotation = Quaternion.identity;
-        fixture.transform.localScale = new Vector3( 0.24f, 0.045f, lampLength + 0.25f );
-        ApplyMaterialAndRemoveCollider( fixture, fixtureMaterial );
+          var fixture = GameObject.CreatePrimitive( PrimitiveType.Cube );
+          fixture.name = $"{TubeLightRootPrefix}{suffix}_Fixture";
+          fixture.transform.SetParent( root.transform, false );
+          fixture.transform.localPosition = new Vector3( 0.0f, 0.075f, 0.0f );
+          fixture.transform.localRotation = Quaternion.identity;
+          fixture.transform.localScale = new Vector3( 0.24f, 0.045f, lampLength + 0.25f );
+          ApplyMaterialAndRemoveCollider( fixture, fixtureMaterial );
 
-        var tube = GameObject.CreatePrimitive( PrimitiveType.Cylinder );
-        tube.name = TubeName;
-        tube.transform.SetParent( root.transform, false );
-        tube.transform.localPosition = Vector3.zero;
-        tube.transform.localRotation = Quaternion.Euler( 90.0f, 0.0f, 0.0f );
-        tube.transform.localScale = new Vector3( tubeDiameter, lampLength * 0.5f, tubeDiameter );
-        ApplyMaterialAndRemoveCollider( tube, tubeMaterial );
+          var tube = GameObject.CreatePrimitive( PrimitiveType.Cylinder );
+          tube.name = $"{TubeLightRootPrefix}{suffix}_Tube";
+          tube.transform.SetParent( root.transform, false );
+          tube.transform.localPosition = Vector3.zero;
+          tube.transform.localRotation = Quaternion.Euler( 90.0f, 0.0f, 0.0f );
+          tube.transform.localScale = new Vector3( tubeDiameter, lampLength * 0.5f, tubeDiameter );
+          ApplyMaterialAndRemoveCollider( tube, tubeMaterial );
 
-        var lightRange = Mathf.Clamp( lampLength * 1.55f, 5.4f, 7.0f );
-        const float lightIntensity = 1.45f;
-        var lightZOffset = lampLength * 0.33f;
-        var leftLight = CreateTubeLightPoint( root.transform, LightNamePrefix + "_Left", -lightZOffset, lightIntensity, lightRange );
-        var centerLight = CreateTubeLightPoint( root.transform, LightNamePrefix + "_Center", 0.0f, lightIntensity, lightRange );
-        var rightLight = CreateTubeLightPoint( root.transform, LightNamePrefix + "_Right", lightZOffset, lightIntensity, lightRange );
+          var light = CreateTubeLightPoint( root.transform, $"{TubeLightRootPrefix}{suffix}_PointLight", lightIntensity, lightRange );
+          AppendResultPath( ref rootPaths, GetHierarchyPath( root ) );
+          AppendResultPath( ref tubePaths, GetHierarchyPath( tube ) );
+          AppendResultPath( ref fixturePaths, GetHierarchyPath( fixture ) );
+          AppendResultPath( ref lightPaths, GetHierarchyPath( light ) );
+          AppendResultPath( ref positions, FormatVector( root.transform.localPosition ) );
+        }
 
         EditorSceneManager.MarkSceneDirty( scene );
         AssetDatabase.SaveAssets();
         EditorSceneManager.SaveScene( scene );
 
-        result.root = GetHierarchyPath( root );
-        result.tube = GetHierarchyPath( tube );
-        result.fixture = GetHierarchyPath( fixture );
-        result.light = GetHierarchyPath( leftLight ) + "; " + GetHierarchyPath( centerLight ) + "; " + GetHierarchyPath( rightLight );
-        result.light_count = 3;
-        result.position = FormatVector( root.transform.localPosition );
+        result.root = rootPaths;
+        result.tube = tubePaths;
+        result.fixture = fixturePaths;
+        result.light = lightPaths;
+        result.light_count = TubeLightCount;
+        result.position = positions;
         result.tube_length = lampLength.ToString( "0.###", CultureInfo.InvariantCulture );
         result.light_range = lightRange.ToString( "0.###", CultureInfo.InvariantCulture );
         result.light_intensity = lightIntensity.ToString( "0.###", CultureInfo.InvariantCulture );
-        result.message = $"Applied one ceiling tube light from {source}. Tube length={lampLength:0.###}m, using 3 distributed point lights at intensity={lightIntensity:0.###}.";
+        result.message = $"Applied {TubeLightCount} bright ceiling tube lights from {source}. Tube length={lampLength:0.###}m, each with one point light at intensity={lightIntensity:0.###}.";
         WriteResult( true, result.message, result );
       }
       catch ( Exception exception ) {
@@ -199,11 +201,11 @@ namespace AGXUnity_Excavator.Scripts.Editor
       return Mathf.Max( Mathf.Abs( slab.transform.localScale.y ), 0.05f );
     }
 
-    private static GameObject CreateTubeLightPoint( Transform parent, string name, float zOffset, float intensity, float range )
+    private static GameObject CreateTubeLightPoint( Transform parent, string name, float intensity, float range )
     {
       var lightObject = new GameObject( name );
       lightObject.transform.SetParent( parent, false );
-      lightObject.transform.localPosition = new Vector3( 0.0f, -0.25f, zOffset );
+      lightObject.transform.localPosition = new Vector3( 0.0f, -0.25f, 0.0f );
       lightObject.transform.localRotation = Quaternion.identity;
       lightObject.transform.localScale = Vector3.one;
 
@@ -216,6 +218,14 @@ namespace AGXUnity_Excavator.Scripts.Editor
       light.shadowStrength = 0.25f;
       light.renderMode = LightRenderMode.ForcePixel;
       return lightObject;
+    }
+
+    private static void AppendResultPath( ref string output, string value )
+    {
+      if ( string.IsNullOrEmpty( output ) )
+        output = value;
+      else
+        output += "; " + value;
     }
 
     private static void ApplyMaterialAndRemoveCollider( GameObject gameObject, Material material )
@@ -349,6 +359,18 @@ namespace AGXUnity_Excavator.Scripts.Editor
         if ( transform == null || !transform.gameObject.scene.IsValid() )
           continue;
         if ( transform.name == objectName )
+          UnityEngine.Object.DestroyImmediate( transform.gameObject );
+      }
+    }
+
+    private static void RemoveObjectsWithPrefix( string objectNamePrefix )
+    {
+      var transforms = Resources.FindObjectsOfTypeAll<Transform>();
+      for ( var index = transforms.Length - 1; index >= 0; --index ) {
+        var transform = transforms[ index ];
+        if ( transform == null || !transform.gameObject.scene.IsValid() )
+          continue;
+        if ( transform.name.StartsWith( objectNamePrefix, StringComparison.Ordinal ) )
           UnityEngine.Object.DestroyImmediate( transform.gameObject );
       }
     }

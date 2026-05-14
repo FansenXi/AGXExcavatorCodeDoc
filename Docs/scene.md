@@ -231,6 +231,14 @@ The current exported observation is:
 - `qvel`
 - `env_state`
 
+`qpos` normalization is profile-backed. `ActObservationCollector` loads
+actuator raw min/max ranges from a JSON profile, with the legacy Cat365
+baseline saved as
+`Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/Calibration/CAT365_norm.json`.
+During Play Mode, the HUD actuator calibration controls can track observed raw
+min/max values and save a named profile JSON for the current machine. Swing
+uses `[-pi, pi]` by default.
+
 Current `env_state` order:
 
 `[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n, min_distance_to_dig_area_m, bucket_depth_below_dig_area_plane_m]`
@@ -245,13 +253,11 @@ Field semantics:
 - `target_hard_collision_count`: cumulative episode count of monitored excavator-vs-active-target hard collisions
 - `target_contact_max_normal_force_n`: per-step maximum monitored excavator-vs-active-target solved normal force in Newtons
 - `min_distance_to_dig_area_m`: approximate minimum distance from the bucket DigArea proxy volume to the scene `DigArea`
-- `bucket_depth_below_dig_area_plane_m`: proximity-weighted effective depth of sampled bucket DigArea proxy points below the DigArea local center plane; the signal stays near zero when the bucket is laterally outside the DigArea footprint and rises smoothly as the bucket enters the dig region
+- `bucket_depth_below_dig_area_plane_m`: maximum bucket DigArea proxy depth below the DigArea local center plane; the signal becomes positive when the bucket measurement volume goes below the DigArea plane
 
 The target-distance field now prefers the dedicated bucket target-distance
 proxy volume configured on `ExcavationMassTracker`, and compares it against the
-active target's distance geometry. The DigArea fields now also use that same
-tighter proxy preference chain instead of the larger bucket-mass measurement
-volume. During step-ack serving, these DigArea and target metrics continue
+active target's distance geometry. During step-ack serving, these DigArea and target metrics continue
 to update in both the wire payload and the runtime HUD via
 `ActObservationCollector`; only the local `EpisodeManager`-side good-dig latch
 logic remains paused while that component is disabled.

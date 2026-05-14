@@ -22,6 +22,7 @@ namespace AGXUnity_Excavator.Scripts.Editor
     private const string SlopedSlabName = "FactoryRoof_SlopedSlab";
     private const string SideZMinName = "FactoryRoofSide_ZMin";
     private const string SideZMaxName = "FactoryRoofSide_ZMax";
+    private const float EnvironmentScale = 1.0f;
 
     private static double s_nextPollTime;
     private static bool s_isRunning;
@@ -91,8 +92,8 @@ namespace AGXUnity_Excavator.Scripts.Editor
         RemoveObjectsNamed( SideZMaxName );
 
         var material = GetOrCreateMaterial( "CodexFactory_RoofGreyBlack.mat", new Color( 0.12f, 0.12f, 0.12f, 1.0f ), false );
-        const float roofExtensionHeight = 1.0f * 1.25f;
-        const float roofThickness = 0.10f * 1.25f;
+        const float roofExtensionHeight = 1.0f * EnvironmentScale;
+        const float roofThickness = 0.10f * EnvironmentScale;
 
         var xMin = xMinBeam.transform.localPosition.x;
         var xMax = xMaxBeam.transform.localPosition.x;

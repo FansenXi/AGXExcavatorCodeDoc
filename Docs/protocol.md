@@ -42,6 +42,12 @@ Current observation semantics:
 - env_state order:
   `[mass_in_bucket_kg, excavated_mass_kg, mass_in_target_box_kg, deposited_mass_in_target_box_kg, min_distance_to_target_m, target_hard_collision_count, target_contact_max_normal_force_n, min_distance_to_dig_area_m, bucket_depth_below_dig_area_plane_m]`
 
+qpos normalization:
+- `ActObservationCollector` loads actuator raw min/max ranges from a JSON normalization profile instead of relying on script defaults
+- the saved Cat365 baseline profile is `Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/Calibration/CAT365_norm.json`
+- the HUD calibration controls can start/stop raw range tracking, reset samples, save the observed range to a named JSON profile, and reload the selected profile
+- swing normalization should normally remain `[-pi, pi]`; saved manual calibration profiles keep that default unless explicitly configured otherwise
+
 `mass_in_target_box_kg` semantics:
 - this field always refers to the **currently active Unity dump target**
 - the current main scene can switch between `ContainerBox` and `TruckBed`
@@ -83,12 +89,10 @@ Current observation semantics:
 - `-1.0` means the distance could not be evaluated for the current frame
 
 `bucket_depth_below_dig_area_plane_m` semantics:
-- this field is a proximity-weighted effective depth below the DigArea center plane
-- Unity samples the current bucket DigArea proxy volume in DigArea-local coordinates
-- each sample contributes `max(0, -local_y)` depth below the DigArea local center plane
-- that raw sample depth is multiplied by a smooth weight derived from the sample's signed XZ distance to the DigArea footprint
-- the reported value is the maximum weighted sample depth across the sampled bucket volume
-- this keeps the signal near zero when the bucket is laterally far from the DigArea footprint and lets it rise smoothly as the bucket approaches and enters the dig region
+- this field is the current bucket depth below the DigArea plane
+- Unity computes it as the maximum depth of the bucket DigArea proxy volume below the DigArea center plane
+- in the current level-aligned scene this is equivalent to `max(0, dig_plane_y - bucket_world_min_y)`
+- it only becomes positive when the bucket measurement volume goes below the DigArea plane
 
 ## 2. Byte Order and Primitive Encoding
 
@@ -292,7 +296,7 @@ Target note:
 - `env_state[5]` reports the cumulative episode hard-collision count for monitored excavator-vs-active-target contacts
 - `env_state[6]` reports the maximum monitored contact normal force in Newtons for the completed step
 - `env_state[7]` reports the approximate minimum bucket-to-DigArea distance in meters
-- `env_state[8]` reports the current proximity-weighted effective bucket depth below the DigArea center plane in meters
+- `env_state[8]` reports the current maximum bucket DigArea proxy depth below the DigArea center plane in meters
 - Unity local CSV logs now include `target_name` for debugging
 - the binary `STEP_RESP` payload does **not** yet carry `target_name`; clients should treat target identity as scene/runtime configuration for now
 

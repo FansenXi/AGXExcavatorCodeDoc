@@ -19,7 +19,7 @@ public class DumpParticleStaticTerrainCompactor : MonoBehaviour
   private Vector3 m_measurementCenterLocal = Vector3.zero;
 
   [SerializeField]
-  private Vector3 m_halfExtents = new Vector3( 1.25f, 0.5f, 1.5f );
+  private Vector3 m_halfExtents = new Vector3( 1.25f, 0.35f, 1.5f );
 
   [SerializeField]
   private float m_settleSpeedThreshold = 0.35f;

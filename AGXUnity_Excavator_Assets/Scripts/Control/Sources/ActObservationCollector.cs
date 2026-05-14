@@ -170,6 +170,9 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
     private global::ExcavatorE85 m_e85Excavator = null;
 
     [SerializeField]
+    private ExcavatorYuLong m_yuLongExcavator = null;
+
+    [SerializeField]
     private Transform m_machineRoot = null;
 
     [FormerlySerializedAs( "m_massVolumeCounter" )]
@@ -528,10 +531,12 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       if ( ExcavatorRigLocator.IsSelectable( m_machineRoot ) ) {
         m_excavator = ExcavatorRigLocator.ResolveActiveComponentInRoot( m_machineRoot, m_excavator );
         m_e85Excavator = ExcavatorRigLocator.ResolveActiveComponentInRoot( m_machineRoot, m_e85Excavator );
+        m_yuLongExcavator = ExcavatorRigLocator.ResolveActiveComponentInRoot( m_machineRoot, m_yuLongExcavator );
       }
       else {
         m_excavator = ExcavatorRigLocator.ResolveActiveComponent( this, m_excavator );
         m_e85Excavator = ExcavatorRigLocator.ResolveActiveComponent( this, m_e85Excavator );
+        m_yuLongExcavator = ExcavatorRigLocator.ResolveActiveComponent( this, m_yuLongExcavator );
       }
       m_massTracker = ExcavatorRigLocator.ResolveComponent( this, m_massTracker );
       m_targetMassSensor = ExcavatorRigLocator.ResolveComponent( this, m_targetMassSensor );
@@ -562,6 +567,9 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       if ( m_e85Excavator != null )
         return m_e85Excavator.transform;
 
+      if ( m_yuLongExcavator != null )
+        return m_yuLongExcavator.transform;
+
       if ( m_excavator != null )
         return m_excavator.transform;
 
@@ -576,6 +584,9 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       if ( m_e85Excavator != null )
         return m_e85Excavator.CabinHinge;
 
+      if ( m_yuLongExcavator != null )
+        return m_yuLongExcavator.SwingHinge;
+
       return m_excavator != null ? m_excavator.SwingHinge : null;
     }
 
@@ -589,6 +600,9 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       if ( m_e85Excavator != null )
         return m_e85Excavator.ArmPrismatic;
 
+      if ( m_yuLongExcavator != null )
+        return m_yuLongExcavator.BoomConstraint;
+
       return m_excavator != null && m_excavator.BoomPrismatics.Length > 0 ? m_excavator.BoomPrismatics[ 0 ] : null;
     }
 
@@ -600,6 +614,9 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       if ( m_e85Excavator != null )
         return m_e85Excavator.StickPrismatic;
 
+      if ( m_yuLongExcavator != null )
+        return m_yuLongExcavator.StickConstraint;
+
       return m_excavator != null ? m_excavator.StickPrismatic : null;
     }
 
@@ -610,6 +627,9 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
 
       if ( m_e85Excavator != null )
         return m_e85Excavator.BucketPrismatic;
+
+      if ( m_yuLongExcavator != null )
+        return m_yuLongExcavator.BucketConstraint;
 
       return m_excavator != null ? m_excavator.BucketPrismatic : null;
     }

@@ -26,7 +26,7 @@ public class SwitchableTargetMassSensor : MonoBehaviour
   private KeyCode m_nextTargetKey = KeyCode.F9;
 
   [SerializeField]
-  private string[] m_preferredDefaultTargetNames = { "ContainerBox", "Dump", "DumpBox", "DumpArea" };
+  private string[] m_preferredDefaultTargetNames = { "DumpArea", "Dump", "DumpBox", "ContainerBox" };
 
   private TargetMassSensorBase[] m_runtimeTargets = Array.Empty<TargetMassSensorBase>();
   private int m_currentTargetIndex = 0;
