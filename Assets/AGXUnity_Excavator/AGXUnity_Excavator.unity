@@ -1,93 +1,5 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!114 &-9006284505217563047
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 7119a14bd67d1a84b9caafde286f8582, type: 3}
-  m_Name: FrictionModel_ContactMaterial_Excavator_BodyMaterial_Excavator_BucketMaterial
-  m_EditorClassIdentifier: 
-  m_serializationVersion: 1
-  m_solveType: 3
-  m_type: 0
-  m_normalForceMagnitude: 100
-  m_scaleNormalForceWithDepth: 0
---- !u!114 &-4785354430592669293
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fa76d302d537f3643a58c6cab77fb092, type: 3}
-  m_Name: ContactMaterial_Unknown Material_Excavator_BucketMaterial
-  m_EditorClassIdentifier: 
-  m_serializationVersion: 1
-  m_material1: {fileID: 2210400866059690810}
-  m_material2: {fileID: -4340208378660225075, guid: 5066e6f3f0a446f4a8191a57209d7886, type: 2}
-  m_frictionModel: {fileID: -3076649962116188187}
-  m_youngsModulus: 2e+11
-  m_surfaceViscosity: {x: 0.00000001, y: 0.00000001}
-  m_frictionCoefficients: {x: 0.15, y: 0.15}
-  m_restitution: 0.2
-  m_damping: 0.075
-  m_adhesiveForce: 0
-  m_adhesiveOverlap: 0
-  m_useContactArea: 1
-  m_contactReductionMode: 1
-  m_contactReductionLevel: 2
-  m_wireFrictionCoefficients: {x: 0.41667, y: 0.41667}
---- !u!114 &-3076649962116188187
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 7119a14bd67d1a84b9caafde286f8582, type: 3}
-  m_Name: FrictionModel_ContactMaterial_Unknown Material_Excavator_BucketMaterial
-  m_EditorClassIdentifier: 
-  m_serializationVersion: 1
-  m_solveType: 3
-  m_type: 0
-  m_normalForceMagnitude: 100
-  m_scaleNormalForceWithDepth: 0
---- !u!114 &-2394617653753771142
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fa76d302d537f3643a58c6cab77fb092, type: 3}
-  m_Name: ContactMaterial_Excavator_BucketMaterial_Excavator_RollerMaterial
-  m_EditorClassIdentifier: 
-  m_serializationVersion: 1
-  m_material1: {fileID: 2210400866059690810}
-  m_material2: {fileID: -7914915307866311568, guid: 5066e6f3f0a446f4a8191a57209d7886, type: 2}
-  m_frictionModel: {fileID: 2248592869447976631}
-  m_youngsModulus: 2e+11
-  m_surfaceViscosity: {x: 0.00000001, y: 0.00000001}
-  m_frictionCoefficients: {x: 0.15, y: 0.15}
-  m_restitution: 0.2
-  m_damping: 0.075
-  m_adhesiveForce: 0
-  m_adhesiveOverlap: 0
-  m_useContactArea: 1
-  m_contactReductionMode: 1
-  m_contactReductionLevel: 2
-  m_wireFrictionCoefficients: {x: 0.41667, y: 0.41667}
 --- !u!29 &1
 OcclusionCullingSettings:
   m_ObjectHideFlags: 0
@@ -210,51 +122,6 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
---- !u!1 &4991191
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 4991193}
-  - component: {fileID: 4991192}
-  m_Layer: 0
-  m_Name: AGXUnity.RuntimeObjects
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &4991192
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4991191}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5b6a9e4af77e3804aae97d5030ab5f9c, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  m_serializationVersion: 1
---- !u!4 &4991193
-Transform:
-  m_ObjectHideFlags: 8
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4991191}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &189766937
 GameObject:
   m_ObjectHideFlags: 0
@@ -888,15 +755,15 @@ MonoBehaviour:
     m_isOriented: 0
     m_referenceObject: {fileID: 0}
     m_primaryDirection: 0
-  - ContactMaterial: {fileID: -2394617653753771142}
+  - ContactMaterial: {fileID: 0}
     m_isOriented: 0
     m_referenceObject: {fileID: 0}
     m_primaryDirection: 0
-  - ContactMaterial: {fileID: -4785354430592669293}
+  - ContactMaterial: {fileID: 0}
     m_isOriented: 0
     m_referenceObject: {fileID: 0}
     m_primaryDirection: 0
-  - ContactMaterial: {fileID: 3134743987640456451}
+  - ContactMaterial: {fileID: 0}
     m_isOriented: 0
     m_referenceObject: {fileID: 0}
     m_primaryDirection: 0
@@ -908,7 +775,7 @@ MonoBehaviour:
     m_isOriented: 0
     m_referenceObject: {fileID: 0}
     m_primaryDirection: 0
-  - ContactMaterial: {fileID: 5712329992809973550}
+  - ContactMaterial: {fileID: 0}
     m_isOriented: 0
     m_referenceObject: {fileID: 0}
     m_primaryDirection: 0
@@ -1062,6 +929,51 @@ MonoScript:
   m_ClassName: ActiveTargetCollisionMonitor
   m_Namespace: 
   m_AssemblyName: Assembly-CSharp
+--- !u!1 &651452345
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 651452347}
+  - component: {fileID: 651452346}
+  m_Layer: 0
+  m_Name: AGXUnity.RuntimeObjects
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &651452346
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 651452345}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5b6a9e4af77e3804aae97d5030ab5f9c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_serializationVersion: 1
+--- !u!4 &651452347
+Transform:
+  m_ObjectHideFlags: 8
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 651452345}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &779124356
 GameObject:
   m_ObjectHideFlags: 0
@@ -8074,7 +7986,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 819535307}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 275f759b6e4e1f0c382548697f5edd1e, type: 3}
   m_Name: 
@@ -9150,7 +9062,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 353514767192003276, guid: 511b4eec2a3a468a93bab60fc791992a, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 2.28
+      value: 4.147
       objectReference: {fileID: 0}
     - target: {fileID: 353514767192003276, guid: 511b4eec2a3a468a93bab60fc791992a, type: 3}
       propertyPath: m_LocalPosition.z
@@ -9889,9 +9801,9 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: "<b>Keyboard controls:</b>\n\nPageUp/Down\t- Boom up/down\r\nInsert/Delete\t-
-    Move bucket\r\nT/U                \t- Swing left/right\r\nHome/End   \t- Stick
-    up/down\r\nUp/Down     \t- Forward/Backward\r\nLeft/Right     \t- Turn Left/Right"
+  m_Text: "<b>Keyboard controls:</b>\n\nI/K\t- Boom up/down\r\nJ/L\t- Bucket curl/dump\r\nF/H               
+    \t- Swing left/right\r\nT/G   \t- Stick up/down\r\nUp/Down     \t- Forward/Backward\r\nLeft/Right    
+    \t- Turn Left/Right"
 --- !u!222 &1798484408
 CanvasRenderer:
   m_ObjectHideFlags: 0
@@ -10489,41 +10401,6 @@ Transform:
   - {fileID: 324741462}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &2210400866059690810
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4bd8393dfcda7614ba44f4d1ad3f0f29, type: 3}
-  m_Name: Excavator_BucketMaterial
-  m_EditorClassIdentifier: 
-  m_serializationVersion: 1
-  m_density: 1000
-  m_youngsWireStretch: 6e+10
-  m_youngsWireBend: 6e+10
-  m_dampingStretch: 0.06
-  m_dampingBend: 0.12
---- !u!114 &2248592869447976631
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 7119a14bd67d1a84b9caafde286f8582, type: 3}
-  m_Name: FrictionModel_ContactMaterial_Excavator_BucketMaterial_Excavator_RollerMaterial
-  m_EditorClassIdentifier: 
-  m_serializationVersion: 1
-  m_solveType: 3
-  m_type: 0
-  m_normalForceMagnitude: 100
-  m_scaleNormalForceWithDepth: 0
 --- !u!1001 &2994998943779457577
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -11504,33 +11381,6 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: b6b64d1b7f7c4af9a8e2b4b3d5c6e701, type: 3}
---- !u!114 &3134743987640456451
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fa76d302d537f3643a58c6cab77fb092, type: 3}
-  m_Name: ContactMaterial_Excavator_BucketMaterial_Excavator_BucketMaterial
-  m_EditorClassIdentifier: 
-  m_serializationVersion: 1
-  m_material1: {fileID: 2210400866059690810}
-  m_material2: {fileID: 2210400866059690810}
-  m_frictionModel: {fileID: 6049525738807868206}
-  m_youngsModulus: 2e+11
-  m_surfaceViscosity: {x: 0.00000001, y: 0.00000001}
-  m_frictionCoefficients: {x: 0.15, y: 0.15}
-  m_restitution: 0.2
-  m_damping: 0.075
-  m_adhesiveForce: 0
-  m_adhesiveOverlap: 0
-  m_useContactArea: 1
-  m_contactReductionMode: 1
-  m_contactReductionLevel: 2
-  m_wireFrictionCoefficients: {x: 0.41667, y: 0.41667}
 --- !u!1001 &4658255641003998187
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -11664,50 +11514,6 @@ PrefabInstance:
       insertIndex: -1
       addedObject: {fileID: 1944810545}
   m_SourcePrefab: {fileID: 100100000, guid: 7e65279f8334e0f47b393941e4e404a4, type: 3}
---- !u!114 &5712329992809973550
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fa76d302d537f3643a58c6cab77fb092, type: 3}
-  m_Name: ContactMaterial_Excavator_BodyMaterial_Excavator_BucketMaterial
-  m_EditorClassIdentifier: 
-  m_serializationVersion: 1
-  m_material1: {fileID: 11400000, guid: 5066e6f3f0a446f4a8191a57209d7886, type: 2}
-  m_material2: {fileID: 2210400866059690810}
-  m_frictionModel: {fileID: -9006284505217563047}
-  m_youngsModulus: 2e+11
-  m_surfaceViscosity: {x: 0.00000001, y: 0.00000001}
-  m_frictionCoefficients: {x: 0.15, y: 0.15}
-  m_restitution: 0.2
-  m_damping: 0.075
-  m_adhesiveForce: 0
-  m_adhesiveOverlap: 0
-  m_useContactArea: 1
-  m_contactReductionMode: 1
-  m_contactReductionLevel: 2
-  m_wireFrictionCoefficients: {x: 0.41667, y: 0.41667}
---- !u!114 &6049525738807868206
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 7119a14bd67d1a84b9caafde286f8582, type: 3}
-  m_Name: FrictionModel_ContactMaterial_Excavator_BucketMaterial_Excavator_BucketMaterial
-  m_EditorClassIdentifier: 
-  m_serializationVersion: 1
-  m_solveType: 3
-  m_type: 0
-  m_normalForceMagnitude: 100
-  m_scaleNormalForceWithDepth: 0
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -11722,4 +11528,4 @@ SceneRoots:
   - {fileID: 1023327929}
   - {fileID: 779124357}
   - {fileID: 1889999839}
-  - {fileID: 4991193}
+  - {fileID: 651452347}

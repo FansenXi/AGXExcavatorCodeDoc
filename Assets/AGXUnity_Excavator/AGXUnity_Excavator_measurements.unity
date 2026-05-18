@@ -7306,8 +7306,8 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: "<b>Keyboard controls:</b>\n\nPageUp/Down\t- Boom up/down\r\nInsert/Delete\t-
-    Move bucket\r\nT/U\t\t\t\t\t- Swing left/right\r\nHome/End\t\t- Stick up/down\r\nR\t\t\t\t\t\t-
+  m_Text: "<b>Keyboard controls:</b>\n\nI/K\t- Boom up/down\r\nJ/L\t-
+    Bucket curl/dump\r\nF/H\t\t\t\t\t- Swing left/right\r\nT/G\t\t- Stick up/down\r\nR\t\t\t\t\t\t-
     Reset terrain"
 --- !u!222 &1640240596
 CanvasRenderer:
