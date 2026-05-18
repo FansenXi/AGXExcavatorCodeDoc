@@ -39,3 +39,5 @@ Assets/AGXUnity/
 Thumbs.db
 
 .codex
+*.png
+*.svg
