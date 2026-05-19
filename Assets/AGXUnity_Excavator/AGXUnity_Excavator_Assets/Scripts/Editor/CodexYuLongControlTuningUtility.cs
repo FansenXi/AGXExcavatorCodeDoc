@@ -150,7 +150,7 @@ namespace AGXUnity_Excavator.Scripts.Editor
       TuneBody( root, "controller", 1543.7f, agx.RigidBody.MotionControl.DYNAMICS, result );
       TuneBody( root, "dabi", 180.0f, agx.RigidBody.MotionControl.DYNAMICS, result );
       TuneBody( root, "xiaobi", 120.0f, agx.RigidBody.MotionControl.DYNAMICS, result );
-      TuneBody( root, "watou", 70.0f, agx.RigidBody.MotionControl.DYNAMICS, result );
+	      TuneBody( root, "bucket", 70.0f, agx.RigidBody.MotionControl.DYNAMICS, result );
 
       TuneConstraint( rig.SwingHinge, "joint1", SwingTorqueLimit, SwingMinAngle, SwingMaxAngle, result );
       TuneConstraint( rig.BoomConstraint, "joint2", BoomTorqueLimit, BoomMinAngle, BoomMaxAngle, result );
@@ -166,7 +166,9 @@ namespace AGXUnity_Excavator.Scripts.Editor
                                   agx.RigidBody.MotionControl motionControl,
                                   TuneResult result )
     {
-      var transform = FindChildRecursive( root, objectName );
+	      var transform = FindChildRecursive( root, objectName );
+	      if ( transform == null && string.Equals( objectName, "bucket", StringComparison.OrdinalIgnoreCase ) )
+	        transform = FindChildRecursive( root, "watou" );
       var rigidBody = transform != null ? transform.GetComponent<RigidBody>() : null;
       if ( rigidBody == null ) {
         Append( ref result.warnings, $"Missing RigidBody on {objectName}" );

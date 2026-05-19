@@ -12,8 +12,8 @@ public class DigAreaMeasurement : MonoBehaviour
   private const int LongAxisX = 0;
   private const int LongAxisZ = 2;
 
-  public struct CellMetrics
-  {
+	  public struct CellMetrics
+	  {
     public bool GeometryAvailable;
     public int LongAxis;
     public int GridLongCount;
@@ -23,8 +23,18 @@ public class DigAreaMeasurement : MonoBehaviour
     public float ShortNorm;
     public int LongIndex;
     public int ShortIndex;
-    public int CellId;
-  }
+	    public int CellId;
+	  }
+
+	  public struct SurfaceGridMetrics
+	  {
+	    public bool GeometryAvailable;
+	    public float TargetDepthMeters;
+	    public float[] SurfaceDepthMeters;
+	    public float[] RemovedDepthMeters;
+	    public float[] TargetDepthMetersByCell;
+	    public float[] ValidMask;
+	  }
 
   [SerializeField]
   private Transform m_digAreaRoot = null;
@@ -86,9 +96,13 @@ public class DigAreaMeasurement : MonoBehaviour
   [Min( 0.0f )]
   private float m_cellGridHeightOffset = 0.025f;
 
-  [SerializeField]
-  [Min( 0.0f )]
-  private float m_depthHorizontalBlendDistance = 0.25f;
+	  [SerializeField]
+	  [Min( 0.0f )]
+	  private float m_depthHorizontalBlendDistance = 0.25f;
+
+	  [SerializeField]
+	  [Min( 0.0f )]
+	  private float m_targetDepthMeters = 0.08f;
 
   [SerializeField]
   [Range( 3, 9 )]
@@ -96,13 +110,17 @@ public class DigAreaMeasurement : MonoBehaviour
 
   private Material m_runtimeFillMaterial = null;
   private Material m_runtimeContourMaterial = null;
-  private Material m_runtimeCellGridMaterial = null;
-  private LineRenderer[] m_cellGridRenderers = new LineRenderer[ 0 ];
-  private MeshRenderer m_cachedFillRenderer = null;
-  private Material m_originalFillMaterial = null;
-  private bool m_originalFillRendererEnabled = false;
-  private bool m_hasOriginalFillRendererState = false;
-  private bool m_hasAutoAlignedDigArea = false;
+	  private Material m_runtimeCellGridMaterial = null;
+	  private LineRenderer[] m_cellGridRenderers = new LineRenderer[ 0 ];
+	  private MeshRenderer m_cachedFillRenderer = null;
+	  private Material m_originalFillMaterial = null;
+	  private bool m_originalFillRendererEnabled = false;
+	  private bool m_hasOriginalFillRendererState = false;
+	  private bool m_hasAutoAlignedDigArea = false;
+	  private readonly float[] m_surfaceBaselineDepthMeters = new float[ CellGridLongCount * CellGridShortCount ];
+	  private bool m_surfaceBaselineValid = false;
+
+	  public float TargetDepthMeters => m_targetDepthMeters;
 
   private void OnEnable()
   {
@@ -231,8 +249,8 @@ public class DigAreaMeasurement : MonoBehaviour
     return hasBoxMetrics && minDistanceMeters >= 0.0f;
   }
 
-  public bool TryMeasureBucketCellMetrics( Transform bucketReference, out CellMetrics metrics )
-  {
+	  public bool TryMeasureBucketCellMetrics( Transform bucketReference, out CellMetrics metrics )
+	  {
     metrics = new CellMetrics
     {
       GeometryAvailable = false,
@@ -260,9 +278,9 @@ public class DigAreaMeasurement : MonoBehaviour
     if ( halfExtents.x <= 0.0f || halfExtents.z <= 0.0f )
       return false;
 
-    var bucketReferenceWorld = TryGetShovelReferencePointWorld( bucketReference, out var shovelReferenceWorld ) ?
-                               shovelReferenceWorld :
-                               bucketBox.Frame.TransformPoint( bucketBox.CenterLocal );
+	    var bucketReferenceWorld = TryGetBucketReferencePointWorld( bucketReference, out var referenceWorld ) ?
+	                               referenceWorld :
+	                               bucketBox.Frame.TransformPoint( bucketBox.CenterLocal );
     var local = m_digAreaBox.transform.InverseTransformPoint( bucketReferenceWorld );
     var longAxis = halfExtents.x >= halfExtents.z ? LongAxisX : LongAxisZ;
     var longHalf = longAxis == LongAxisX ? halfExtents.x : halfExtents.z;
@@ -292,9 +310,175 @@ public class DigAreaMeasurement : MonoBehaviour
       LongIndex = longIndex,
       ShortIndex = shortIndex,
       CellId = cellId
-    };
-    return true;
-  }
+	    };
+	    return true;
+	  }
+
+	  public void ResetSurfaceBaseline()
+	  {
+	    m_surfaceBaselineValid = false;
+	    for ( var index = 0; index < m_surfaceBaselineDepthMeters.Length; ++index )
+	      m_surfaceBaselineDepthMeters[ index ] = 0.0f;
+	  }
+
+	  public bool TryMeasureBucketTipDigAreaLocal( Transform bucketReference,
+	                                              out Vector3 bucketTipDigAreaLocalMeters )
+	  {
+	    bucketTipDigAreaLocalMeters = Vector3.zero;
+	    ResolveReferences();
+	    if ( bucketReference == null || m_digAreaBox == null )
+	      return false;
+
+	    if ( TryGetBucketReferencePointWorld( bucketReference, out var referenceWorld ) ) {
+	      bucketTipDigAreaLocalMeters = m_digAreaBox.transform.InverseTransformPoint( referenceWorld );
+	      return true;
+	    }
+
+	    return false;
+	  }
+
+	  public bool TryMeasureSurfaceGridMetrics( out SurfaceGridMetrics metrics )
+	  {
+	    metrics = CreateEmptySurfaceGridMetrics();
+	    ResolveReferences();
+	    if ( m_digAreaBox == null )
+	      return false;
+
+	    var surfaceDepth = new float[ CellGridLongCount * CellGridShortCount ];
+	    var removedDepth = new float[ CellGridLongCount * CellGridShortCount ];
+	    var targetDepth = new float[ CellGridLongCount * CellGridShortCount ];
+	    var validMask = new float[ CellGridLongCount * CellGridShortCount ];
+	    var anyValid = false;
+
+	    for ( var longIndex = 0; longIndex < CellGridLongCount; ++longIndex ) {
+	      for ( var shortIndex = 0; shortIndex < CellGridShortCount; ++shortIndex ) {
+	        var cellId = longIndex * CellGridShortCount + shortIndex;
+	        var localPoint = CellCenterLocal( longIndex, shortIndex );
+	        if ( TryMeasureSurfaceDepthAtLocal( localPoint.x,
+	                                            localPoint.z,
+	                                            out var currentSurfaceDepthMeters,
+	                                            out _ ) ) {
+	          surfaceDepth[ cellId ] = currentSurfaceDepthMeters;
+	          validMask[ cellId ] = 1.0f;
+	          targetDepth[ cellId ] = m_targetDepthMeters;
+	          anyValid = true;
+	        }
+	        else {
+	          surfaceDepth[ cellId ] = 0.0f;
+	          validMask[ cellId ] = 0.0f;
+	          targetDepth[ cellId ] = m_targetDepthMeters;
+	        }
+	      }
+	    }
+
+	    if ( anyValid && !m_surfaceBaselineValid ) {
+	      for ( var index = 0; index < surfaceDepth.Length; ++index )
+	        m_surfaceBaselineDepthMeters[ index ] = surfaceDepth[ index ];
+	      m_surfaceBaselineValid = true;
+	    }
+
+	    for ( var index = 0; index < surfaceDepth.Length; ++index ) {
+	      removedDepth[ index ] = validMask[ index ] > 0.5f && m_surfaceBaselineValid ?
+	                              Mathf.Max( 0.0f, surfaceDepth[ index ] - m_surfaceBaselineDepthMeters[ index ] ) :
+	                              0.0f;
+	    }
+
+	    metrics = new SurfaceGridMetrics
+	    {
+	      GeometryAvailable = anyValid,
+	      TargetDepthMeters = m_targetDepthMeters,
+	      SurfaceDepthMeters = surfaceDepth,
+	      RemovedDepthMeters = removedDepth,
+	      TargetDepthMetersByCell = targetDepth,
+	      ValidMask = validMask
+	    };
+	    return anyValid;
+	  }
+
+	  public bool TryMeasureBucketDepthBelowSurface( Vector3 bucketTipDigAreaLocalMeters,
+	                                                out float depthBelowLocalSurfaceMeters,
+	                                                out float depthBelowTargetSurfaceMeters )
+	  {
+	    depthBelowLocalSurfaceMeters = 0.0f;
+	    depthBelowTargetSurfaceMeters = 0.0f;
+	    if ( m_digAreaBox == null )
+	      return false;
+
+	    if ( TryMeasureSurfaceDepthAtLocal( bucketTipDigAreaLocalMeters.x,
+	                                        bucketTipDigAreaLocalMeters.z,
+	                                        out _,
+	                                        out var surfaceLocalYMeters ) ) {
+	      depthBelowLocalSurfaceMeters = Mathf.Max( 0.0f, surfaceLocalYMeters - bucketTipDigAreaLocalMeters.y );
+	    }
+	    depthBelowTargetSurfaceMeters = Mathf.Max( 0.0f, -m_targetDepthMeters - bucketTipDigAreaLocalMeters.y );
+	    return true;
+	  }
+
+	  private SurfaceGridMetrics CreateEmptySurfaceGridMetrics()
+	  {
+	    var cellCount = CellGridLongCount * CellGridShortCount;
+	    var targetDepth = new float[ cellCount ];
+	    for ( var index = 0; index < targetDepth.Length; ++index )
+	      targetDepth[ index ] = m_targetDepthMeters;
+	    return new SurfaceGridMetrics
+	    {
+	      GeometryAvailable = false,
+	      TargetDepthMeters = m_targetDepthMeters,
+	      SurfaceDepthMeters = new float[ cellCount ],
+	      RemovedDepthMeters = new float[ cellCount ],
+	      TargetDepthMetersByCell = targetDepth,
+	      ValidMask = new float[ cellCount ]
+	    };
+	  }
+
+	  private Vector3 CellCenterLocal( int longIndex, int shortIndex )
+	  {
+	    var halfExtents = m_digAreaBox != null ? m_digAreaBox.HalfExtents : Vector3.zero;
+	    var longAxis = halfExtents.x >= halfExtents.z ? LongAxisX : LongAxisZ;
+	    var halfLong = longAxis == LongAxisX ? halfExtents.x : halfExtents.z;
+	    var halfShort = longAxis == LongAxisX ? halfExtents.z : halfExtents.x;
+	    var longNorm = -1.0f + ( longIndex + 0.5f ) * 2.0f / CellGridLongCount;
+	    var shortNorm = -1.0f + ( shortIndex + 0.5f ) * 2.0f / CellGridShortCount;
+	    var longValue = longNorm * halfLong;
+	    var shortValue = shortNorm * halfShort;
+	    return longAxis == LongAxisX ?
+	           new Vector3( longValue, 0.0f, shortValue ) :
+	           new Vector3( shortValue, 0.0f, longValue );
+	  }
+
+	  private bool TryMeasureSurfaceDepthAtLocal( float localXMeters,
+	                                             float localZMeters,
+	                                             out float surfaceDepthMeters,
+	                                             out float surfaceLocalYMeters )
+	  {
+	    surfaceDepthMeters = 0.0f;
+	    surfaceLocalYMeters = 0.0f;
+	    if ( m_digAreaBox == null )
+	      return false;
+
+	    var terrain = FindDigTerrain( m_digTerrainName );
+	    if ( terrain == null || terrain.terrainData == null )
+	      return false;
+
+	    var planeWorld = m_digAreaBox.transform.TransformPoint(
+	      new Vector3( localXMeters, 0.0f, localZMeters ) );
+	    var terrainLocal = terrain.transform.InverseTransformPoint( planeWorld );
+	    var terrainSize = terrain.terrainData.size;
+	    if ( terrainSize.x <= 0.0f || terrainSize.z <= 0.0f )
+	      return false;
+
+	    var normX = terrainLocal.x / terrainSize.x;
+	    var normZ = terrainLocal.z / terrainSize.z;
+	    if ( normX < 0.0f || normX > 1.0f || normZ < 0.0f || normZ > 1.0f )
+	      return false;
+
+	    var surfaceWorldY = terrain.transform.position.y +
+	                        terrain.terrainData.GetInterpolatedHeight( normX, normZ );
+	    var surfaceWorld = new Vector3( planeWorld.x, surfaceWorldY, planeWorld.z );
+	    surfaceLocalYMeters = m_digAreaBox.transform.InverseTransformPoint( surfaceWorld ).y;
+	    surfaceDepthMeters = Mathf.Max( 0.0f, -surfaceLocalYMeters );
+	    return true;
+	  }
 
   private float MeasureEffectiveBucketDepthBelowPlane( OrientedMeasurementBox bucketBox )
   {
@@ -390,12 +574,18 @@ public class DigAreaMeasurement : MonoBehaviour
     hasSample = true;
   }
 
-  private bool TryGetShovelReferencePointWorld( Transform bucketReference, out Vector3 referenceWorld )
-  {
-    referenceWorld = Vector3.zero;
-    var shovel = ResolveShovel( bucketReference );
-    if ( shovel == null || m_digAreaBox == null )
-      return false;
+	  private bool TryGetBucketReferencePointWorld( Transform bucketReference, out Vector3 referenceWorld )
+	  {
+	    referenceWorld = Vector3.zero;
+	    var shovel = ResolveShovel( bucketReference );
+	    if ( shovel == null || m_digAreaBox == null ) {
+	      if ( BucketTargetDistanceMeasurementUtility.TryGetDigAreaMeasurementBox( bucketReference, out var bucketBox ) &&
+	           bucketBox.IsValid ) {
+	        referenceWorld = bucketBox.Frame.TransformPoint( bucketBox.CenterLocal );
+	        return true;
+	      }
+	      return false;
+	    }
 
     var hasPoint = false;
     var bestLocalY = float.PositiveInfinity;

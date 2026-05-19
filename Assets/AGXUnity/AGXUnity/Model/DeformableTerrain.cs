@@ -58,7 +58,7 @@ namespace AGXUnity.Model
       ResetTerrainDataHeightsAndTransform();
 
       var nativeHeightData = TerrainUtils.WriteTerrainDataOffset( Terrain, MaximumDepth );
-      transform.position = transform.position + MaximumDepth * Vector3.down;
+      ApplyMaximumDepthTransformOffset();
 
       Native.setHeights( nativeHeightData.Heights );
 
@@ -109,6 +109,11 @@ namespace AGXUnity.Model
       // Only printing the errors if something is wrong.
       LicenseManager.LicenseInfo.HasModuleLogError( LicenseInfo.Module.AGXTerrain | LicenseInfo.Module.AGXGranular, this );
 
+#if UNITY_EDITOR
+      UsePlayModeTerrainDataInstance();
+      RegisterPlayModeSceneSaveGuard();
+#endif
+
       m_initialHeights = TerrainData.GetHeights( 0, 0, TerrainDataResolution, TerrainDataResolution );
 
       InitializeNative();
@@ -138,6 +143,11 @@ namespace AGXUnity.Model
       }
       Native = null;
 
+#if UNITY_EDITOR
+      UnregisterPlayModeSceneSaveGuard();
+      RestorePlayModeTerrainDataInstance();
+#endif
+
       base.OnDestroy();
     }
 
@@ -145,7 +155,7 @@ namespace AGXUnity.Model
     {
       var nativeHeightData = TerrainUtils.WriteTerrainDataOffset( Terrain, MaximumDepth );
 
-      transform.position = transform.position + MaximumDepth * Vector3.down;
+      ApplyMaximumDepthTransformOffset();
 
       Native = new agxTerrain.Terrain( (uint)nativeHeightData.ResolutionX,
                                        (uint)nativeHeightData.ResolutionY,
@@ -168,7 +178,7 @@ namespace AGXUnity.Model
         return;
 
       TerrainData.SetHeights( 0, 0, m_initialHeights );
-      transform.position = transform.position + MaximumDepth * Vector3.up;
+      RestoreMaximumDepthTransformOffset();
 
 #if UNITY_EDITOR
       // Runtime terrain offsets are temporary AGX visualization state; saving
@@ -210,8 +220,147 @@ namespace AGXUnity.Model
       TerrainData.SyncHeightmap();
     }
 
+    private void ApplyMaximumDepthTransformOffset()
+    {
+#if UNITY_EDITOR
+      if ( Application.isPlaying && !m_hasPlayModeTransformOffset ) {
+        m_playModeTransformPositionBeforeOffset = transform.position;
+        m_hasPlayModeTransformOffset = true;
+      }
+#endif
+
+      transform.position = transform.position + MaximumDepth * Vector3.down;
+    }
+
+    private void RestoreMaximumDepthTransformOffset()
+    {
+#if UNITY_EDITOR
+      if ( Application.isPlaying && m_hasPlayModeTransformOffset ) {
+        transform.position = m_playModeTransformPositionBeforeOffset;
+        m_hasPlayModeTransformOffset = false;
+        return;
+      }
+#endif
+
+      transform.position = transform.position + MaximumDepth * Vector3.up;
+    }
+
+#if UNITY_EDITOR
+    private void UsePlayModeTerrainDataInstance()
+    {
+      if ( !Application.isPlaying || Terrain == null || Terrain.terrainData == null || m_playModeTerrainData != null )
+        return;
+
+      m_playModeOriginalTerrainData = Terrain.terrainData;
+      m_playModeTerrainData = Instantiate( m_playModeOriginalTerrainData );
+      m_playModeTerrainData.name = m_playModeOriginalTerrainData.name + " (Play Mode)";
+      m_playModeTerrainData.hideFlags = HideFlags.DontSave;
+      AssignTerrainData( m_playModeTerrainData );
+    }
+
+    private void RestorePlayModeTerrainDataInstance()
+    {
+      if ( m_playModeOriginalTerrainData != null )
+        AssignTerrainData( m_playModeOriginalTerrainData );
+
+      if ( m_playModeTerrainData != null )
+        DestroyImmediate( m_playModeTerrainData );
+
+      m_playModeOriginalTerrainData = null;
+      m_playModeTerrainData = null;
+      m_playModeTerrainDataWasPreparedForSceneSave = false;
+    }
+
+    private void AssignTerrainData( TerrainData terrainData )
+    {
+      if ( Terrain != null )
+        Terrain.terrainData = terrainData;
+
+      var terrainCollider = GetComponent<TerrainCollider>();
+      if ( terrainCollider != null )
+        terrainCollider.terrainData = terrainData;
+    }
+
+    private void RegisterPlayModeSceneSaveGuard()
+    {
+      if ( !Application.isPlaying || m_isPlayModeSceneSaveGuardRegistered )
+        return;
+
+      UnityEditor.SceneManagement.EditorSceneManager.sceneSaving += OnEditorSceneSaving;
+      UnityEditor.SceneManagement.EditorSceneManager.sceneSaved += OnEditorSceneSaved;
+      m_isPlayModeSceneSaveGuardRegistered = true;
+    }
+
+    private void UnregisterPlayModeSceneSaveGuard()
+    {
+      if ( !m_isPlayModeSceneSaveGuardRegistered )
+        return;
+
+      UnityEditor.SceneManagement.EditorSceneManager.sceneSaving -= OnEditorSceneSaving;
+      UnityEditor.SceneManagement.EditorSceneManager.sceneSaved -= OnEditorSceneSaved;
+      m_isPlayModeSceneSaveGuardRegistered = false;
+    }
+
+    private void OnEditorSceneSaving( UnityEngine.SceneManagement.Scene scene, string path )
+    {
+      if ( this == null || gameObject == null || gameObject.scene != scene )
+        return;
+
+      PreparePlayModeStateForSceneSave();
+    }
+
+    private void OnEditorSceneSaved( UnityEngine.SceneManagement.Scene scene )
+    {
+      if ( this == null || gameObject == null || gameObject.scene != scene )
+        return;
+
+      RestorePlayModeStateAfterSceneSave();
+    }
+
+    private void PreparePlayModeStateForSceneSave()
+    {
+      if ( !Application.isPlaying )
+        return;
+
+      if ( m_hasPlayModeTransformOffset ) {
+        transform.position = m_playModeTransformPositionBeforeOffset;
+        m_playModeTransformWasPreparedForSceneSave = true;
+      }
+
+      if ( m_playModeOriginalTerrainData != null && Terrain != null && Terrain.terrainData == m_playModeTerrainData ) {
+        AssignTerrainData( m_playModeOriginalTerrainData );
+        m_playModeTerrainDataWasPreparedForSceneSave = true;
+      }
+    }
+
+    private void RestorePlayModeStateAfterSceneSave()
+    {
+      if ( !Application.isPlaying )
+        return;
+
+      if ( m_playModeTerrainDataWasPreparedForSceneSave && m_playModeTerrainData != null )
+        AssignTerrainData( m_playModeTerrainData );
+
+      if ( m_playModeTransformWasPreparedForSceneSave && m_hasPlayModeTransformOffset )
+        transform.position = m_playModeTransformPositionBeforeOffset + MaximumDepth * Vector3.down;
+
+      m_playModeTransformWasPreparedForSceneSave = false;
+      m_playModeTerrainDataWasPreparedForSceneSave = false;
+    }
+#endif
+
     private Terrain m_terrain = null;
     private float[,] m_initialHeights = null;
+
+#if UNITY_EDITOR
+    private TerrainData m_playModeOriginalTerrainData = null;
+    private TerrainData m_playModeTerrainData = null;
+    private Vector3 m_playModeTransformPositionBeforeOffset = Vector3.zero;
+    private bool m_hasPlayModeTransformOffset = false;
+    private bool m_isPlayModeSceneSaveGuardRegistered = false;
+    private bool m_playModeTransformWasPreparedForSceneSave = false;
+    private bool m_playModeTerrainDataWasPreparedForSceneSave = false;
+#endif
 
     // -----------------------------------------------------------------------------------------------------------
     // ------------------------------- Implementation of DeformableTerrainBase -----------------------------------

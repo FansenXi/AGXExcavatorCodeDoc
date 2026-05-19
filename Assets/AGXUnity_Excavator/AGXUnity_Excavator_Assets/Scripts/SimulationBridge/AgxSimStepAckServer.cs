@@ -290,11 +290,47 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
         "bucket_dig_area_relative_y_m",
         "bucket_dig_area_relative_z_m",
         "bucket_dig_area_long_norm",
-        "bucket_dig_area_short_norm",
-        "bucket_dig_area_long_index",
-        "bucket_dig_area_short_index",
-        "bucket_dig_area_cell_id"
-      };
+	        "bucket_dig_area_short_norm",
+	        "bucket_dig_area_long_index",
+	        "bucket_dig_area_short_index",
+	        "bucket_dig_area_cell_id",
+	        "bucket_tip_dig_area_x_m",
+	        "bucket_tip_dig_area_y_m",
+	        "bucket_tip_dig_area_z_m",
+	        "bucket_depth_below_local_surface_m",
+	        "bucket_depth_below_target_surface_m",
+	        "dig_area_surface_depth_m_r0_c0",
+	        "dig_area_surface_depth_m_r0_c1",
+	        "dig_area_surface_depth_m_r1_c0",
+	        "dig_area_surface_depth_m_r1_c1",
+	        "dig_area_surface_depth_m_r2_c0",
+	        "dig_area_surface_depth_m_r2_c1",
+	        "dig_area_removed_depth_m_r0_c0",
+	        "dig_area_removed_depth_m_r0_c1",
+	        "dig_area_removed_depth_m_r1_c0",
+	        "dig_area_removed_depth_m_r1_c1",
+	        "dig_area_removed_depth_m_r2_c0",
+	        "dig_area_removed_depth_m_r2_c1",
+	        "dig_area_target_depth_m_r0_c0",
+	        "dig_area_target_depth_m_r0_c1",
+	        "dig_area_target_depth_m_r1_c0",
+	        "dig_area_target_depth_m_r1_c1",
+	        "dig_area_target_depth_m_r2_c0",
+	        "dig_area_target_depth_m_r2_c1",
+	        "dig_area_cell_valid_mask_r0_c0",
+	        "dig_area_cell_valid_mask_r0_c1",
+	        "dig_area_cell_valid_mask_r1_c0",
+	        "dig_area_cell_valid_mask_r1_c1",
+	        "dig_area_cell_valid_mask_r2_c0",
+	        "dig_area_cell_valid_mask_r2_c1",
+	        "bucket_mass_delta_kg",
+	        "deposited_mass_in_dump_area_kg",
+	        "offtarget_deposited_mass_kg",
+	        "target_geometry_available",
+	        "bucket_contact_dig_area_mask",
+	        "bucket_contact_dump_area_mask",
+	        "hard_collision_count"
+	      };
       payload.cameras = CreateCameraDescriptors();
       payload.camera_names = Array.ConvertAll( payload.cameras, camera => camera.name );
       payload.supports_images = payload.cameras.Length > 0;
@@ -411,11 +447,47 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
         observation.task_state != null ? observation.task_state.bucket_dig_area_relative_y_m : 0.0f,
         observation.task_state != null ? observation.task_state.bucket_dig_area_relative_z_m : 0.0f,
         observation.task_state != null ? observation.task_state.bucket_dig_area_long_norm : 0.0f,
-        observation.task_state != null ? observation.task_state.bucket_dig_area_short_norm : 0.0f,
-        observation.task_state != null ? observation.task_state.bucket_dig_area_long_index : -1.0f,
-        observation.task_state != null ? observation.task_state.bucket_dig_area_short_index : -1.0f,
-        observation.task_state != null ? observation.task_state.bucket_dig_area_cell_id : -1.0f
-      };
+	        observation.task_state != null ? observation.task_state.bucket_dig_area_short_norm : 0.0f,
+	        observation.task_state != null ? observation.task_state.bucket_dig_area_long_index : -1.0f,
+	        observation.task_state != null ? observation.task_state.bucket_dig_area_short_index : -1.0f,
+	        observation.task_state != null ? observation.task_state.bucket_dig_area_cell_id : -1.0f,
+	        observation.task_state != null ? observation.task_state.bucket_tip_dig_area_x_m : 0.0f,
+	        observation.task_state != null ? observation.task_state.bucket_tip_dig_area_y_m : 0.0f,
+	        observation.task_state != null ? observation.task_state.bucket_tip_dig_area_z_m : 0.0f,
+	        observation.task_state != null ? observation.task_state.bucket_depth_below_local_surface_m : 0.0f,
+	        observation.task_state != null ? observation.task_state.bucket_depth_below_target_surface_m : 0.0f,
+	        TaskStateArrayValue( observation.task_state, state => state.dig_area_surface_depth_m, 0 ),
+	        TaskStateArrayValue( observation.task_state, state => state.dig_area_surface_depth_m, 1 ),
+	        TaskStateArrayValue( observation.task_state, state => state.dig_area_surface_depth_m, 2 ),
+	        TaskStateArrayValue( observation.task_state, state => state.dig_area_surface_depth_m, 3 ),
+	        TaskStateArrayValue( observation.task_state, state => state.dig_area_surface_depth_m, 4 ),
+	        TaskStateArrayValue( observation.task_state, state => state.dig_area_surface_depth_m, 5 ),
+	        TaskStateArrayValue( observation.task_state, state => state.dig_area_removed_depth_m, 0 ),
+	        TaskStateArrayValue( observation.task_state, state => state.dig_area_removed_depth_m, 1 ),
+	        TaskStateArrayValue( observation.task_state, state => state.dig_area_removed_depth_m, 2 ),
+	        TaskStateArrayValue( observation.task_state, state => state.dig_area_removed_depth_m, 3 ),
+	        TaskStateArrayValue( observation.task_state, state => state.dig_area_removed_depth_m, 4 ),
+	        TaskStateArrayValue( observation.task_state, state => state.dig_area_removed_depth_m, 5 ),
+	        TaskStateArrayValue( observation.task_state, state => state.dig_area_target_depth_m, 0 ),
+	        TaskStateArrayValue( observation.task_state, state => state.dig_area_target_depth_m, 1 ),
+	        TaskStateArrayValue( observation.task_state, state => state.dig_area_target_depth_m, 2 ),
+	        TaskStateArrayValue( observation.task_state, state => state.dig_area_target_depth_m, 3 ),
+	        TaskStateArrayValue( observation.task_state, state => state.dig_area_target_depth_m, 4 ),
+	        TaskStateArrayValue( observation.task_state, state => state.dig_area_target_depth_m, 5 ),
+	        TaskStateArrayValue( observation.task_state, state => state.dig_area_cell_valid_mask, 0 ),
+	        TaskStateArrayValue( observation.task_state, state => state.dig_area_cell_valid_mask, 1 ),
+	        TaskStateArrayValue( observation.task_state, state => state.dig_area_cell_valid_mask, 2 ),
+	        TaskStateArrayValue( observation.task_state, state => state.dig_area_cell_valid_mask, 3 ),
+	        TaskStateArrayValue( observation.task_state, state => state.dig_area_cell_valid_mask, 4 ),
+	        TaskStateArrayValue( observation.task_state, state => state.dig_area_cell_valid_mask, 5 ),
+	        observation.task_state != null ? observation.task_state.bucket_mass_delta_kg : 0.0f,
+	        observation.task_state != null ? observation.task_state.deposited_mass_in_dump_area_kg : 0.0f,
+	        observation.task_state != null ? observation.task_state.offtarget_deposited_mass_kg : -1.0f,
+	        observation.task_state != null ? observation.task_state.target_geometry_available : 0.0f,
+	        observation.task_state != null ? observation.task_state.bucket_contact_dig_area_mask : 0.0f,
+	        observation.task_state != null ? observation.task_state.bucket_contact_dump_area_mask : 0.0f,
+	        observation.task_state != null ? observation.task_state.hard_collision_count : 0.0f
+	      };
       payload.reward = observation.task_state != null ? observation.task_state.deposited_mass_in_target_box_kg : 0.0f;
       payload.sim_time_ns = observation != null ? (long)Math.Round( observation.sim_time_sec * 1000000000.0 ) : -1;
       payload.image_fpv = CaptureImageFrame( warnings );
@@ -473,8 +545,8 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
       };
     }
 
-    private AgxSimImageFrame CaptureImageFrame( List<string> warnings )
-    {
+	    private AgxSimImageFrame CaptureImageFrame( List<string> warnings )
+	    {
       if ( m_fpvCamera == null )
         return null;
 
@@ -491,10 +563,25 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
         pixel_format = AgxSimProtocolConstants.ImagePixelFormat,
         row_order = AgxSimProtocolConstants.ImageRowOrder,
         data = rgb24 ?? Array.Empty<byte>()
-      };
-    }
+	      };
+	    }
 
-    private float GetDt()
+	    private static float TaskStateArrayValue( ActTaskState state,
+	                                             Func<ActTaskState, float[]> selector,
+	                                             int index,
+	                                             float defaultValue = 0.0f )
+	    {
+	      if ( state == null || selector == null )
+	        return defaultValue;
+
+	      var values = selector( state );
+	      if ( values == null || index < 0 || index >= values.Length )
+	        return defaultValue;
+
+	      return values[ index ];
+	    }
+	
+	    private float GetDt()
     {
       if ( Simulation.HasInstance && Simulation.Instance != null )
         return Simulation.Instance.TimeStep;

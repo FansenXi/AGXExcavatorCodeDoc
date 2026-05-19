@@ -48,18 +48,18 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
 
       switch ( m_joystickPattern ) {
         case ExcavatorJoystickPattern.SAE:
-          actuation.Boom = -command.LeftStickY * m_boomScale;
-          actuation.Bucket = command.RightStickX * m_bucketScale;
-          actuation.Stick = command.RightStickY * m_stickScale;
-          actuation.Swing = command.LeftStickX * m_swingScale;
+          actuation.Boom = -command.LeftStickY * GetAxisDirection( m_boomScale, 1.0f );
+          actuation.Bucket = command.RightStickX * GetAxisDirection( m_bucketScale, -1.0f );
+          actuation.Stick = command.RightStickY * GetAxisDirection( m_stickScale, -1.0f );
+          actuation.Swing = command.LeftStickX * GetAxisDirection( m_swingScale, 1.0f );
           break;
 
         case ExcavatorJoystickPattern.ISO:
         default:
-          actuation.Boom = -command.RightStickY * m_boomScale;
-          actuation.Bucket = command.RightStickX * m_bucketScale;
-          actuation.Stick = command.LeftStickY * m_stickScale;
-          actuation.Swing = command.LeftStickX * m_swingScale;
+          actuation.Boom = -command.RightStickY * GetAxisDirection( m_boomScale, 1.0f );
+          actuation.Bucket = command.RightStickX * GetAxisDirection( m_bucketScale, -1.0f );
+          actuation.Stick = command.LeftStickY * GetAxisDirection( m_stickScale, -1.0f );
+          actuation.Swing = command.LeftStickX * GetAxisDirection( m_swingScale, 1.0f );
           break;
       }
 
@@ -70,6 +70,14 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
       var rightTrack = Mathf.Clamp( actuation.Drive + actuation.Steer, -1.0f, 1.0f );
       actuation.Throttle = Mathf.Max( Mathf.Abs( leftTrack ), Mathf.Abs( rightTrack ) );
       return actuation.ClampAxes();
+    }
+
+    private static float GetAxisDirection( float configuredScale, float defaultSign )
+    {
+      if ( Mathf.Abs( configuredScale ) > 1.0e-5f )
+        return Mathf.Sign( configuredScale );
+
+      return Mathf.Approximately( defaultSign, 0.0f ) ? 1.0f : Mathf.Sign( defaultSign );
     }
   }
 }

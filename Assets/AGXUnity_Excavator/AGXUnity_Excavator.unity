@@ -1010,7 +1010,7 @@ Transform:
   m_GameObject: {fileID: 189766937}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -10.5291605, y: 4.05, z: 12.0402155}
+  m_LocalPosition: {x: -10.5291605, y: 3.95, z: 12.0402155}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1063,7 +1063,7 @@ MonoBehaviour:
   m_particleMaterial: {fileID: 11400000, guid: a28b71474335c0844ba12517515c5d9f, type: 2}
   m_defaultTerrainMaterial: {fileID: 11400000, guid: 0f8f715f37c568047b800dda2ff509f0, type: 2}
   m_terrainProperties: {fileID: 11400000, guid: 63d09b7626eaff947810b055d10a1efb, type: 2}
-  m_maximumDepth: 0.7
+  m_maximumDepth: 1.05
   <InitialCompaction>k__BackingField: 1
 --- !u!1001 &194189378
 PrefabInstance:
@@ -3466,19 +3466,19 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1355672924379622295, guid: 9caae67d8c13b1d4280d0b59f75df998, type: 3}
       propertyPath: m_cuttingEdge.m_end.m_localPosition.x
-      value: 0.33088833
+      value: 0.18981797
       objectReference: {fileID: 0}
     - target: {fileID: 1355672924379622295, guid: 9caae67d8c13b1d4280d0b59f75df998, type: 3}
       propertyPath: m_cuttingEdge.m_end.m_localPosition.y
-      value: -0.28075597
+      value: -0.26860282
       objectReference: {fileID: 0}
     - target: {fileID: 1355672924379622295, guid: 9caae67d8c13b1d4280d0b59f75df998, type: 3}
       propertyPath: m_cuttingEdge.m_end.m_localPosition.z
-      value: -0.48142985
+      value: -0.43811443
       objectReference: {fileID: 0}
     - target: {fileID: 1355672924379622295, guid: 9caae67d8c13b1d4280d0b59f75df998, type: 3}
       propertyPath: m_cuttingEdge.m_start.m_localPosition.x
-      value: 0.3308883
+      value: 0.189818
       objectReference: {fileID: 0}
     - target: {fileID: 1355672924379622295, guid: 9caae67d8c13b1d4280d0b59f75df998, type: 3}
       propertyPath: m_cuttingEdge.m_start.m_localPosition.y
@@ -3486,19 +3486,19 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1355672924379622295, guid: 9caae67d8c13b1d4280d0b59f75df998, type: 3}
       propertyPath: m_cuttingEdge.m_start.m_localPosition.z
-      value: -0.4814298
+      value: -0.4381144
       objectReference: {fileID: 0}
     - target: {fileID: 1355672924379622295, guid: 9caae67d8c13b1d4280d0b59f75df998, type: 3}
       propertyPath: m_toothDirection.m_end.m_localPosition.x
-      value: 1.1436384
+      value: 1.1176374
       objectReference: {fileID: 0}
     - target: {fileID: 1355672924379622295, guid: 9caae67d8c13b1d4280d0b59f75df998, type: 3}
       propertyPath: m_toothDirection.m_end.m_localPosition.y
-      value: -0.096015334
+      value: -0.09579885
       objectReference: {fileID: 0}
     - target: {fileID: 1355672924379622295, guid: 9caae67d8c13b1d4280d0b59f75df998, type: 3}
       propertyPath: m_toothDirection.m_end.m_localPosition.z
-      value: -0.8292189
+      value: -0.8185717
       objectReference: {fileID: 0}
     - target: {fileID: 1355672924379622295, guid: 9caae67d8c13b1d4280d0b59f75df998, type: 3}
       propertyPath: m_toothDirection.m_end.m_localRotation.w
@@ -3518,15 +3518,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1355672924379622295, guid: 9caae67d8c13b1d4280d0b59f75df998, type: 3}
       propertyPath: m_toothDirection.m_start.m_localPosition.x
-      value: 0.21825176
+      value: 0.19225079
       objectReference: {fileID: 0}
     - target: {fileID: 1355672924379622295, guid: 9caae67d8c13b1d4280d0b59f75df998, type: 3}
       propertyPath: m_toothDirection.m_start.m_localPosition.y
-      value: -0.08831686
+      value: -0.088100374
       objectReference: {fileID: 0}
     - target: {fileID: 1355672924379622295, guid: 9caae67d8c13b1d4280d0b59f75df998, type: 3}
       propertyPath: m_toothDirection.m_start.m_localPosition.z
-      value: -0.45027184
+      value: -0.4396246
       objectReference: {fileID: 0}
     - target: {fileID: 1355672924379622295, guid: 9caae67d8c13b1d4280d0b59f75df998, type: 3}
       propertyPath: m_toothDirection.m_start.m_localRotation.w
@@ -12911,6 +12911,18 @@ MonoBehaviour:
   m_limits:
     m_maxRotationalAcceleration: 0.65
     m_maxLinearAcceleration: 0.3
+    m_swing:
+      m_maxSpeed: 1
+      m_maxAccelerationOverride: -1
+    m_boom:
+      m_maxSpeed: 1
+      m_maxAccelerationOverride: -1
+    m_stick:
+      m_maxSpeed: 1
+      m_maxAccelerationOverride: -1
+    m_bucket:
+      m_maxSpeed: 1
+      m_maxAccelerationOverride: -1
   m_trackSpeedScale: 0.2
   m_trackCommandDeadZone: 0.05
   m_directTrackSpeedScale: 1.5
@@ -12926,6 +12938,8 @@ MonoBehaviour:
   m_yuLongBoomDirection: -1
   m_yuLongStickDirection: 1
   m_yuLongBucketDirection: 1
+  m_yuLongLockSwingAtNeutral: 1
+  m_yuLongSwingNeutralLockDeadZone: 0.03
   m_enableNormalizationSoftLimits: 1
   m_normalizationSoftLimitsYuLongOnly: 1
   m_normalizationSoftLimitProfilePath: Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/Calibration/YuLong_norm.json
@@ -13037,6 +13051,7 @@ MonoBehaviour:
   m_episodeManager: {fileID: 901000008}
   m_observationCollector: {fileID: 819535310}
   m_stepAckServer: {fileID: 819535313}
+  m_machineController: {fileID: 0}
   m_rect:
     serializedVersion: 2
     x: 316
@@ -13046,6 +13061,11 @@ MonoBehaviour:
   m_showRuntimeConfig: 0
   m_showStepAckDebug: 0
   m_showCalibrationDebug: 1
+  m_isMinimized: 0
+  m_fontSize: 20
+  m_titleFontSize: 24
+  m_speedSliderMax: 1.5
+  m_accelerationSliderMax: 2
 --- !u!114 &901000011
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -15469,7 +15489,7 @@ MonoBehaviour:
   m_particleMaterial: {fileID: 11400000, guid: a28b71474335c0844ba12517515c5d9f, type: 2}
   m_defaultTerrainMaterial: {fileID: 11400000, guid: 0f8f715f37c568047b800dda2ff509f0, type: 2}
   m_terrainProperties: {fileID: 11400000, guid: 3950a5a8f0854ac4c84bd688920209ef, type: 2}
-  m_maximumDepth: 0
+  m_maximumDepth: 1.05
   <InitialCompaction>k__BackingField: 1
 --- !u!154 &1442808301
 TerrainCollider:
@@ -18112,6 +18132,7 @@ MonoBehaviour:
   m_cellGridWidth: 0.035
   m_cellGridHeightOffset: 0.025
   m_depthHorizontalBlendDistance: 0.1666667
+  m_targetDepthMeters: 0.08
   m_depthSamplingResolution: 5
 --- !u!1 &1908176216
 GameObject:

@@ -76,7 +76,9 @@ joint limits are not yet a perfect mechanical bound, the controller also uses
 `YuLong_norm.json` as a calibrated soft-limit profile: when an axis is at or
 outside normalized `[0, 1]`, velocity commands that would push farther outward
 are forced to zero with an immediate stop, while return commands are still
-allowed.
+allowed. YuLong also enables a neutral swing lock: when the commanded swing
+speed is within the neutral dead zone, the swing hinge is locked at its current
+angle so bucket/soil reaction forces do not passively rotate the upper body.
 
 Scene scale:
 
@@ -111,6 +113,10 @@ Scene scale:
   in Play Mode to export the current excavator root transform, rigid-body
   transforms, constraint frames, controller values, and key component transforms
   for IK/initial-pose baking analysis
+- use `Temp/CodexExcavatorActuatedPose.request` with `duration=<seconds>` when
+  an automated Play Mode window is needed for live step-ack smoke/replay runs;
+  the editor helper keeps Play Mode alive for up to `3600s`, then stops motion
+  and exits Play Mode
 - use `Tools/AGX Excavator/Codex/Bake Excavator Pose Snapshot To Scene` or
   `Temp/CodexExcavatorPoseBake.request` to apply a captured Play Mode pose
   snapshot back to the Edit Mode scene; the request defaults to

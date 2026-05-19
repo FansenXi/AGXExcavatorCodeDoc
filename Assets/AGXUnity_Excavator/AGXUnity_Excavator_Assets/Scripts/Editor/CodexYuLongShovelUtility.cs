@@ -103,8 +103,8 @@ namespace AGXUnity_Excavator.Scripts.Editor
           throw new InvalidOperationException( $"Could not load prefab contents: {PrefabPath}" );
 
         var bucket = ResolveBucket( prefabRoot.transform );
-        if ( bucket == null )
-          throw new InvalidOperationException( "Could not find watou in remake3 prefab." );
+	        if ( bucket == null )
+	          throw new InvalidOperationException( "Could not find bucket in remake3 prefab." );
 
         ConfigureBucketShovel( bucket, settings, result, "prefab" );
         PrefabUtility.SaveAsPrefabAsset( prefabRoot, PrefabPath );
@@ -323,7 +323,7 @@ namespace AGXUnity_Excavator.Scripts.Editor
           return rig.BucketReference;
       }
 
-      return FindChildRecursive( root, "watou" );
+	      return FindChildRecursive( root, "bucket" ) ?? FindChildRecursive( root, "watou" );
     }
 
     private static Transform FindChildRecursive( Transform root, string objectName )

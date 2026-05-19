@@ -161,7 +161,8 @@ namespace AGXUnity_Excavator.Scripts.Editor
     {
       var oldTransform = oldRoot.transform;
       var oldYuLong = oldRoot.GetComponent<ExcavatorYuLong>();
-      var oldBucket = FindChildRecursive( oldTransform, "watou" );
+	      var oldBucket = FindChildRecursive( oldTransform, "bucket" ) ??
+	                      FindChildRecursive( oldTransform, "watou" );
       var parent = oldTransform.parent;
       var siblingIndex = oldTransform.GetSiblingIndex();
       var localPosition = oldTransform.localPosition;
@@ -192,9 +193,10 @@ namespace AGXUnity_Excavator.Scripts.Editor
       ConfigureJointRangeAndControllers( newYuLong.StickConstraint );
       ConfigureJointRangeAndControllers( newYuLong.BucketConstraint );
 
-      var newBucket = newYuLong.BucketReference != null ?
-                      newYuLong.BucketReference :
-                      FindChildRecursive( newTransform, "watou" );
+	      var newBucket = newYuLong.BucketReference != null ?
+	                      newYuLong.BucketReference :
+	                      FindChildRecursive( newTransform, "bucket" ) ??
+	                      FindChildRecursive( newTransform, "watou" );
 
       result.reference_replacements += ReplaceSceneObjectReferences( scene,
                                                                      oldTransform,
@@ -208,7 +210,7 @@ namespace AGXUnity_Excavator.Scripts.Editor
       result.replaced_count++;
       Append( ref result.replaced_paths, $"{oldPath} -> {GetHierarchyPath( instantiated )}" );
       Append( ref result.new_roots, GetHierarchyPath( instantiated ) );
-      Append( ref result.new_bucket_references, newBucket != null ? GetHierarchyPath( newBucket.gameObject ) : "<missing watou>" );
+	      Append( ref result.new_bucket_references, newBucket != null ? GetHierarchyPath( newBucket.gameObject ) : "<missing bucket>" );
     }
 
     private static void ConfigureJointRangeAndControllers( Constraint constraint )

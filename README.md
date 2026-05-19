@@ -31,6 +31,21 @@ Use the Unity menu item `Tools/AGX Excavator/Codex/Scale Scene Environment To De
 to rescale non-excavator scene content. The tool scans scene elements
 automatically and excludes the excavator hierarchy.
 
+## Runtime HUD
+
+`ExperimentHUD` is the runtime operator-facing panel in the main scene. It uses
+a larger draggable IMGUI window for 4K displays and can be minimized from the
+HUD header.
+
+When Runtime Config is visible, the HUD exposes machine-level response sliders
+for `Swing`, `Boom`, `Stick`, and `Bucket`. `max speed` defines what normalized
+full command (`action = 1.0`) means for each machine joint, and `accel` defines
+how quickly the target-speed actuator may approach that speed. These settings
+live below the command source, so they affect manual control, ACT control, and
+step-ack actions consistently. The default max-speed values match the previous
+manual-control magnitudes: swing `0.40`, boom `0.20`, stick `0.45`, and bucket
+`0.45`.
+
 ## Tracking Policy
 
 The baseline keeps the current Unity project layout, but it intentionally does

@@ -95,6 +95,14 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
     [SerializeField]
     private float m_yuLongBucketDirection = 1.0f;
 
+    [Header( "YuLong Swing Stabilization" )]
+    [SerializeField]
+    private bool m_yuLongLockSwingAtNeutral = true;
+
+    [SerializeField]
+    [Range( 0.0f, 0.2f )]
+    private float m_yuLongSwingNeutralLockDeadZone = 0.03f;
+
     [Header( "Normalization Soft Limits" )]
     [SerializeField]
     private bool m_enableNormalizationSoftLimits = true;
@@ -147,6 +155,56 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
 
     public ExcavatorActuationCommand LastActuationCommand { get; private set; }
     public bool IsEngineRunning { get; private set; } = true;
+    public float SwingMaxTargetSpeed
+    {
+      get => Limits.Swing.MaxSpeed;
+      set => Limits.Swing.MaxSpeed = value;
+    }
+
+    public float BoomMaxTargetSpeed
+    {
+      get => Limits.Boom.MaxSpeed;
+      set => Limits.Boom.MaxSpeed = value;
+    }
+
+    public float StickMaxTargetSpeed
+    {
+      get => Limits.Stick.MaxSpeed;
+      set => Limits.Stick.MaxSpeed = value;
+    }
+
+    public float BucketMaxTargetSpeed
+    {
+      get => Limits.Bucket.MaxSpeed;
+      set => Limits.Bucket.MaxSpeed = value;
+    }
+
+    public float SwingMaxAcceleration
+    {
+      get => GetSwingMaxAcceleration();
+      set => Limits.Swing.MaxAccelerationOverride = value;
+    }
+
+    public float BoomMaxAcceleration
+    {
+      get => GetBoomMaxAcceleration();
+      set => Limits.Boom.MaxAccelerationOverride = value;
+    }
+
+    public float StickMaxAcceleration
+    {
+      get => GetStickMaxAcceleration();
+      set => Limits.Stick.MaxAccelerationOverride = value;
+    }
+
+    public float BucketMaxAcceleration
+    {
+      get => GetBucketMaxAcceleration();
+      set => Limits.Bucket.MaxAccelerationOverride = value;
+    }
+
+    private ExcavatorActuationLimits Limits => m_limits ?? ( m_limits = new ExcavatorActuationLimits() );
+
     public Excavator Excavator
     {
       get
@@ -479,11 +537,14 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
 
     private void SetSwing( float value, bool immediateStop )
     {
+      var lockNeutralSwing = ShouldLockYuLongSwingAtNeutral( value );
       ApplyLimitedAxisCommand( m_swingActuator,
                                m_swingConstraint,
                                m_softLimitSwingRange,
-                               ApplyMachineAxisDirection( value, m_e85SwingDirection, m_yuLongSwingDirection ),
-                               immediateStop );
+                               lockNeutralSwing ?
+                                 0.0f :
+                                 ApplyMachineAxisDirection( value, m_e85SwingDirection, m_yuLongSwingDirection ),
+                               immediateStop || lockNeutralSwing );
     }
 
     private void SetBoom( float value, bool immediateStop )
@@ -579,6 +640,13 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
     private static float NormalizeAxisDirection( float direction )
     {
       return Mathf.Approximately( direction, 0.0f ) ? 1.0f : Mathf.Sign( direction );
+    }
+
+    private bool ShouldLockYuLongSwingAtNeutral( float command )
+    {
+      return m_machineKind == ExcavatorMachineRigKind.YuLong &&
+             m_yuLongLockSwingAtNeutral &&
+             Mathf.Abs( command ) <= Mathf.Max( 0.0f, m_yuLongSwingNeutralLockDeadZone );
     }
 
     private bool EnsureNormalizationSoftLimitProfileLoaded()
@@ -697,23 +765,23 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
 
       ResolveRigConstraints();
       m_axisActuatorRig = m_machineComponent;
-      var armAccelerationLimit = m_machineKind == ExcavatorMachineRigKind.YuLong ?
-                                 m_limits.MaxRotationalAcceleration :
-                                 m_limits.MaxLinearAcceleration;
       m_swingActuator = CreateSwingActuator();
       m_boomActuator = m_boomConstraints != null && m_boomConstraints.Length > 0 ?
                        new TargetSpeedConstraintAxisActuator( m_boomConstraints,
-                                                              armAccelerationLimit,
+                                                              () => Limits.Boom.MaxSpeed,
+                                                              GetBoomMaxAcceleration,
                                                               GetSimulationDeltaTime ) :
                        null;
       m_stickActuator = m_stickConstraint != null ?
                         new TargetSpeedConstraintAxisActuator( m_stickConstraint,
-                                                               armAccelerationLimit,
+                                                               () => Limits.Stick.MaxSpeed,
+                                                               GetStickMaxAcceleration,
                                                                GetSimulationDeltaTime ) :
                         null;
       m_bucketActuator = m_bucketConstraint != null ?
                          new TargetSpeedConstraintAxisActuator( m_bucketConstraint,
-                                                                armAccelerationLimit,
+                                                                () => Limits.Bucket.MaxSpeed,
+                                                                GetBucketMaxAcceleration,
                                                                 GetSimulationDeltaTime ) :
                          null;
       m_leftTrackActuator = m_leftTrackConstraint != null ?
@@ -755,7 +823,8 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
       }
 
       return new TargetSpeedConstraintAxisActuator( m_swingConstraint,
-                                                   m_limits.MaxRotationalAcceleration,
+                                                   () => Limits.Swing.MaxSpeed,
+                                                   GetSwingMaxAcceleration,
                                                    GetSimulationDeltaTime );
     }
 
@@ -774,6 +843,33 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
         m_swingActuator = hydraulicActuator;
         m_pendingHydraulicSwingActuatorRetry = false;
       }
+    }
+
+    private float GetSwingMaxAcceleration()
+    {
+      return Limits.Swing.ResolveMaxAcceleration( Limits.MaxRotationalAcceleration );
+    }
+
+    private float GetBoomMaxAcceleration()
+    {
+      return Limits.Boom.ResolveMaxAcceleration( GetArmAccelerationFallback() );
+    }
+
+    private float GetStickMaxAcceleration()
+    {
+      return Limits.Stick.ResolveMaxAcceleration( GetArmAccelerationFallback() );
+    }
+
+    private float GetBucketMaxAcceleration()
+    {
+      return Limits.Bucket.ResolveMaxAcceleration( GetArmAccelerationFallback() );
+    }
+
+    private float GetArmAccelerationFallback()
+    {
+      return m_machineKind == ExcavatorMachineRigKind.YuLong ?
+             Limits.MaxRotationalAcceleration :
+             Limits.MaxLinearAcceleration;
     }
 
     private float GetDirectTrackSpeedScale()

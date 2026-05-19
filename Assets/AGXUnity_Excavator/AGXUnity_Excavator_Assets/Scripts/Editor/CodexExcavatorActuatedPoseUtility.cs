@@ -33,6 +33,7 @@ namespace AGXUnity_Excavator.Scripts.Editor
     private const string SessionThrottle = "CodexExcavatorActuatedPose.Throttle";
     private const string SessionDirect = "CodexExcavatorActuatedPose.Direct";
     private const string SessionAwaitingApply = "CodexExcavatorActuatedPose.AwaitingApply";
+    private const float MaxPoseProbeDurationSeconds = 3600.0f;
 
     private static double s_nextPollTime;
     private static bool s_isStarting;
@@ -108,7 +109,7 @@ namespace AGXUnity_Excavator.Scripts.Editor
           continue;
 
         if ( key == "duration" )
-          request.duration = Mathf.Clamp( number, 0.1f, 12.0f );
+          request.duration = Mathf.Clamp( number, 0.1f, MaxPoseProbeDurationSeconds );
         else if ( key == "boom" )
           request.boom = Mathf.Clamp( number, -1.0f, 1.0f );
         else if ( key == "bucket" )

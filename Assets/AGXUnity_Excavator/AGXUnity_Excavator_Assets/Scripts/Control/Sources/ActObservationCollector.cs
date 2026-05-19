@@ -224,9 +224,11 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
     private Quaternion m_lastBaseRotation = Quaternion.identity;
     private float m_lastBaseSampleTime = -1.0f;
     private Vector3 m_lastLinearVelocityLocal = Vector3.zero;
-    private Vector3 m_lastAngularVelocityLocal = Vector3.zero;
-    private ActObservation m_lastCollectedObservation = null;
-    private readonly ActuatorCalibrationDebugInfo m_swingCalibration = new ActuatorCalibrationDebugInfo { label = "Swing" };
+	    private Vector3 m_lastAngularVelocityLocal = Vector3.zero;
+	    private ActObservation m_lastCollectedObservation = null;
+	    private float m_lastMassInBucketKg = 0.0f;
+	    private bool m_hasLastMassInBucket = false;
+	    private readonly ActuatorCalibrationDebugInfo m_swingCalibration = new ActuatorCalibrationDebugInfo { label = "Swing" };
     private readonly ActuatorCalibrationDebugInfo m_boomCalibration = new ActuatorCalibrationDebugInfo { label = "Boom" };
     private readonly ActuatorCalibrationDebugInfo m_stickCalibration = new ActuatorCalibrationDebugInfo { label = "Stick" };
     private readonly ActuatorCalibrationDebugInfo m_bucketCalibration = new ActuatorCalibrationDebugInfo { label = "Bucket" };
@@ -264,9 +266,12 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
 
       m_lastBaseSampleTime = -1.0f;
       m_lastLinearVelocityLocal = Vector3.zero;
-      m_lastAngularVelocityLocal = Vector3.zero;
-      m_lastCollectedObservation = null;
-      m_activeTargetCollisionMonitor?.ResetMonitoring();
+	      m_lastAngularVelocityLocal = Vector3.zero;
+	      m_lastCollectedObservation = null;
+	      m_lastMassInBucketKg = 0.0f;
+	      m_hasLastMassInBucket = false;
+	      m_activeTargetCollisionMonitor?.ResetMonitoring();
+	      m_digAreaMeasurement?.ResetSurfaceBaseline();
 
       var baseTransform = ResolveMachineRoot();
       m_lastBasePosition = baseTransform != null ? baseTransform.position : Vector3.zero;
@@ -455,34 +460,41 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       UpdateCalibrationDebug( m_stickCalibration, stickConstraint, stickPositionRaw, observation.actuator_state.stick_position_norm, m_stickRange, m_calibrationTrackingEnabled );
       UpdateCalibrationDebug( m_bucketCalibration, bucketConstraint, bucketPositionRaw, observation.actuator_state.bucket_position_norm, m_bucketRange, m_calibrationTrackingEnabled );
 
-      if ( m_massTracker != null ) {
-        observation.task_state.mass_in_bucket_kg = m_massTracker.MassInBucket;
-        observation.task_state.excavated_mass_kg = m_massTracker.ExcavatedMass;
-      }
-
-      if ( m_targetMassSensor != null ) {
-        observation.task_state.mass_in_target_box_kg = m_targetMassSensor.MassInBox;
-        observation.task_state.deposited_mass_in_target_box_kg = m_targetMassSensor.DepositedMass;
-      }
+	      if ( m_massTracker != null ) {
+	        observation.task_state.mass_in_bucket_kg = m_massTracker.MassInBucket;
+	        observation.task_state.excavated_mass_kg = m_massTracker.ExcavatedMass;
+	      }
+	      var currentMassInBucketKg = observation.task_state.mass_in_bucket_kg;
+	      observation.task_state.bucket_mass_delta_kg =
+	        m_hasLastMassInBucket ? currentMassInBucketKg - m_lastMassInBucketKg : 0.0f;
+	      m_lastMassInBucketKg = currentMassInBucketKg;
+	      m_hasLastMassInBucket = true;
+	
+	      if ( m_targetMassSensor != null ) {
+	        observation.task_state.mass_in_target_box_kg = m_targetMassSensor.MassInBox;
+	        observation.task_state.deposited_mass_in_target_box_kg = m_targetMassSensor.DepositedMass;
+	        observation.task_state.deposited_mass_in_dump_area_kg = m_targetMassSensor.DepositedMass;
+	      }
 
       observation.task_state.min_distance_to_target_m =
         m_targetMassSensor != null &&
         m_targetMassSensor.TryMeasureBucketDistance( bucketReference, out var minDistanceToTargetMeters ) ?
           minDistanceToTargetMeters :
           -1.0f;
-      if ( m_targetMassSensor != null &&
-           m_targetMassSensor.TryMeasureBucketTargetGeometry( bucketReference,
-                                                              out var targetGeometryMetrics ) &&
-           targetGeometryMetrics.IsValid ) {
-        observation.task_state.target_horizontal_distance_m = targetGeometryMetrics.TargetHorizontalDistanceMeters;
+	      if ( m_targetMassSensor != null &&
+	           m_targetMassSensor.TryMeasureBucketTargetGeometry( bucketReference,
+	                                                              out var targetGeometryMetrics ) &&
+	           targetGeometryMetrics.IsValid ) {
+	        observation.task_state.target_geometry_available = 1.0f;
+	        observation.task_state.target_horizontal_distance_m = targetGeometryMetrics.TargetHorizontalDistanceMeters;
         observation.task_state.bucket_height_above_target_rim_m = targetGeometryMetrics.BucketHeightAboveTargetRimMeters;
         observation.task_state.bucket_over_target_footprint_mask = targetGeometryMetrics.BucketOverTargetFootprintMask;
         observation.task_state.dump_clearance_ok_mask = targetGeometryMetrics.DumpClearanceOkMask;
         observation.task_state.bucket_dump_area_relative_x_m = targetGeometryMetrics.BucketDumpAreaRelativeXMeters;
         observation.task_state.bucket_dump_area_relative_z_m = targetGeometryMetrics.BucketDumpAreaRelativeZMeters;
-        observation.task_state.bucket_dump_area_footprint_outside_distance_m =
-          targetGeometryMetrics.BucketDumpAreaFootprintOutsideDistanceMeters;
-      }
+	        observation.task_state.bucket_dump_area_footprint_outside_distance_m =
+	          targetGeometryMetrics.BucketDumpAreaFootprintOutsideDistanceMeters;
+	      }
       observation.task_state.target_hard_collision_count =
         m_activeTargetCollisionMonitor != null ?
           m_activeTargetCollisionMonitor.TargetHardCollisionCount :
@@ -491,14 +503,19 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
         m_activeTargetCollisionMonitor != null ?
           m_activeTargetCollisionMonitor.TargetContactMaxNormalForceN :
           0.0f;
-      if ( m_digAreaMeasurement != null &&
-           m_digAreaMeasurement.TryMeasureBucketDigAreaMetrics( bucketReference,
-                                                                out var minDistanceToDigAreaMeters,
-                                                                out var bucketDepthBelowDigAreaPlaneMeters ) ) {
-        observation.task_state.min_distance_to_dig_area_m = minDistanceToDigAreaMeters;
-        observation.task_state.bucket_depth_below_dig_area_plane_m = bucketDepthBelowDigAreaPlaneMeters;
-      }
-      if ( m_digAreaMeasurement != null &&
+	      if ( m_digAreaMeasurement != null &&
+	           m_digAreaMeasurement.TryMeasureBucketDigAreaMetrics( bucketReference,
+	                                                                out var minDistanceToDigAreaMeters,
+	                                                                out var bucketDepthBelowDigAreaPlaneMeters ) ) {
+	        observation.task_state.min_distance_to_dig_area_m = minDistanceToDigAreaMeters;
+	        observation.task_state.bucket_depth_below_dig_area_plane_m = bucketDepthBelowDigAreaPlaneMeters;
+	        observation.task_state.bucket_contact_dig_area_mask =
+	          minDistanceToDigAreaMeters >= 0.0f &&
+	          ( minDistanceToDigAreaMeters <= 0.05f || bucketDepthBelowDigAreaPlaneMeters > 0.0f ) ?
+	            1.0f :
+	            0.0f;
+	      }
+	      if ( m_digAreaMeasurement != null &&
            m_digAreaMeasurement.TryMeasureBucketCellMetrics( bucketReference,
                                                              out var cellMetrics ) ) {
         observation.task_state.dig_area_geometry_available =
@@ -515,15 +532,55 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
         observation.task_state.bucket_dig_area_long_norm = cellMetrics.LongNorm;
         observation.task_state.bucket_dig_area_short_norm = cellMetrics.ShortNorm;
         observation.task_state.bucket_dig_area_long_index = cellMetrics.LongIndex;
-        observation.task_state.bucket_dig_area_short_index = cellMetrics.ShortIndex;
-        observation.task_state.bucket_dig_area_cell_id = cellMetrics.CellId;
-      }
+	        observation.task_state.bucket_dig_area_short_index = cellMetrics.ShortIndex;
+	        observation.task_state.bucket_dig_area_cell_id = cellMetrics.CellId;
+	      }
+	      if ( m_digAreaMeasurement != null &&
+	           m_digAreaMeasurement.TryMeasureBucketTipDigAreaLocal( bucketReference,
+	                                                                 out var bucketTipLocal ) ) {
+	        observation.task_state.bucket_tip_dig_area_x_m = bucketTipLocal.x;
+	        observation.task_state.bucket_tip_dig_area_y_m = bucketTipLocal.y;
+	        observation.task_state.bucket_tip_dig_area_z_m = bucketTipLocal.z;
+	        if ( m_digAreaMeasurement.TryMeasureBucketDepthBelowSurface(
+	               bucketTipLocal,
+	               out var depthBelowLocalSurfaceMeters,
+	               out var depthBelowTargetSurfaceMeters ) ) {
+	          observation.task_state.bucket_depth_below_local_surface_m = depthBelowLocalSurfaceMeters;
+	          observation.task_state.bucket_depth_below_target_surface_m = depthBelowTargetSurfaceMeters;
+	        }
+	      }
+	      if ( m_digAreaMeasurement != null ) {
+	        m_digAreaMeasurement.TryMeasureSurfaceGridMetrics( out var surfaceGridMetrics );
+	        CopyFixed6( surfaceGridMetrics.SurfaceDepthMeters,
+	                    observation.task_state.dig_area_surface_depth_m );
+	        CopyFixed6( surfaceGridMetrics.RemovedDepthMeters,
+	                    observation.task_state.dig_area_removed_depth_m );
+	        CopyFixed6( surfaceGridMetrics.TargetDepthMetersByCell,
+	                    observation.task_state.dig_area_target_depth_m );
+	        CopyFixed6( surfaceGridMetrics.ValidMask,
+	                    observation.task_state.dig_area_cell_valid_mask );
+	      }
+	      observation.task_state.bucket_contact_dump_area_mask =
+	        observation.task_state.min_distance_to_target_m >= 0.0f &&
+	        observation.task_state.min_distance_to_target_m <= 0.05f ?
+	          1.0f :
+	          0.0f;
+	      observation.task_state.hard_collision_count =
+	        observation.task_state.target_hard_collision_count;
 
-      m_lastCollectedObservation = observation;
-      return observation;
-    }
+	      m_lastCollectedObservation = observation;
+	      return observation;
+	    }
 
-    private void RefreshCalibrationConfiguredRanges()
+	    private static void CopyFixed6( float[] source, float[] target )
+	    {
+	      if ( target == null )
+	        return;
+	      for ( var index = 0; index < target.Length; ++index )
+	        target[ index ] = source != null && index < source.Length ? source[ index ] : 0.0f;
+	    }
+	
+	    private void RefreshCalibrationConfiguredRanges()
     {
       m_swingCalibration.configured_min = m_swingRange != null ? m_swingRange.Min : 0.0f;
       m_swingCalibration.configured_max = m_swingRange != null ? m_swingRange.Max : 0.0f;

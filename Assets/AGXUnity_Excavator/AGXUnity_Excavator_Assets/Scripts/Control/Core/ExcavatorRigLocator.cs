@@ -5,11 +5,12 @@ namespace AGXUnity_Excavator.Scripts.Control.Core
 {
   public static class ExcavatorRigLocator
   {
-    private static readonly string[] DefaultBucketSemanticNames =
-    {
-      "Bucket",
-      "Shovel",
-      "watou"
+	    private static readonly string[] DefaultBucketSemanticNames =
+	    {
+	      "bucket",
+	      "Bucket",
+	      "Shovel",
+	      "watou"
     };
 
     public static T ResolveComponent<T>( Component context, T current ) where T : Component

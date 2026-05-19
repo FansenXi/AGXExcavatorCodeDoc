@@ -1,5 +1,6 @@
 using System;
 using AGXUnity_Excavator.Scripts.Control.Core;
+using AGXUnity_Excavator.Scripts.Control.Execution;
 using AGXUnity_Excavator.Scripts.Control.Sources;
 using AGXUnity_Excavator.Scripts.Experiment;
 using AGXUnity_Excavator.Scripts.SimulationBridge;
@@ -13,6 +14,12 @@ namespace AGXUnity_Excavator.Scripts.Presentation
     private const string WarnColor = "#FFD166";
     private const string BadColor = "#F4A261";
     private const string NeutralColor = "#B0B0B0";
+    private const int HudWindowId = 0xE85A11;
+    private const float WindowMargin = 16.0f;
+    private const float MinWindowWidth = 620.0f;
+    private const float MinWindowHeight = 360.0f;
+    private const float MinimizedWindowHeight = 72.0f;
+    private const float DragHandleHeight = 44.0f;
 
     [SerializeField]
     private EpisodeManager m_episodeManager = null;
@@ -24,7 +31,10 @@ namespace AGXUnity_Excavator.Scripts.Presentation
     private AgxSimStepAckServer m_stepAckServer = null;
 
     [SerializeField]
-    private Rect m_rect = new Rect( 16.0f, 16.0f, 520.0f, 620.0f );
+    private ExcavatorMachineController m_machineController = null;
+
+    [SerializeField]
+    private Rect m_rect = new Rect( 24.0f, 24.0f, 760.0f, 900.0f );
 
     [SerializeField]
     private bool m_showRuntimeConfig = true;
@@ -35,12 +45,41 @@ namespace AGXUnity_Excavator.Scripts.Presentation
     [SerializeField]
     private bool m_showCalibrationDebug = true;
 
+    [SerializeField]
+    private bool m_isMinimized = false;
+
+    [SerializeField]
+    [Min( 12.0f )]
+    private float m_fontSize = 20.0f;
+
+    [SerializeField]
+    [Min( 14.0f )]
+    private float m_titleFontSize = 24.0f;
+
+    [SerializeField]
+    [Min( 0.05f )]
+    private float m_speedSliderMax = 1.5f;
+
+    [SerializeField]
+    [Min( 0.05f )]
+    private float m_accelerationSliderMax = 2.0f;
+
     private GUIStyle m_style = null;
+    private GUIStyle m_titleStyle = null;
+    private GUIStyle m_windowStyle = null;
+    private GUIStyle m_buttonStyle = null;
+    private GUIStyle m_toggleStyle = null;
+    private GUIStyle m_textFieldStyle = null;
     private GUIStyle m_popupTitleStyle = null;
     private GUIStyle m_popupBodyStyle = null;
     private TrackedCameraWindow[] m_cameraWindows = Array.Empty<TrackedCameraWindow>();
     private float m_nextRuntimeRefreshTime = 0.0f;
     private string m_calibrationProfileNameDraft = string.Empty;
+    private Vector2 m_scrollPosition = Vector2.zero;
+    private float m_restoredWindowHeight = 900.0f;
+    private float m_currentVisibleWindowHeight = 900.0f;
+    private int m_cachedFontSize = -1;
+    private int m_cachedTitleFontSize = -1;
 
     private void Awake()
     {
@@ -64,32 +103,43 @@ namespace AGXUnity_Excavator.Scripts.Presentation
       if ( m_episodeManager == null && m_observationCollector == null )
         return;
 
-      if ( m_style == null ) {
-        m_style = new GUIStyle( GUI.skin.label )
-        {
-          alignment = TextAnchor.UpperLeft,
-          richText = true,
-          wordWrap = true
-        };
+      EnsureStyles();
+      if ( !m_isMinimized )
+        m_restoredWindowHeight = Mathf.Max( MinWindowHeight, m_rect.height );
 
-        m_popupTitleStyle = new GUIStyle( GUI.skin.label )
-        {
-          alignment = TextAnchor.MiddleCenter,
-          fontStyle = FontStyle.Bold,
-          fontSize = 18,
-          richText = true,
-          wordWrap = true
-        };
+      var windowRect = m_rect;
+      windowRect.height = GetCurrentWindowHeight();
+      windowRect = ClampWindowRect( windowRect );
+      m_currentVisibleWindowHeight = windowRect.height;
+      m_rect = GUILayout.Window(
+        HudWindowId,
+        windowRect,
+        DrawHudWindow,
+        string.Empty,
+        m_windowStyle,
+        GUILayout.Width( windowRect.width ),
+        GUILayout.Height( windowRect.height ) );
 
-        m_popupBodyStyle = new GUIStyle( GUI.skin.label )
-        {
-          alignment = TextAnchor.MiddleCenter,
-          fontSize = 14,
-          richText = true,
-          wordWrap = true
-        };
-      }
+      if ( m_isMinimized )
+        m_rect.height = m_restoredWindowHeight;
+      else
+        m_restoredWindowHeight = Mathf.Max( MinWindowHeight, m_rect.height );
 
+      var visibleStoredRect = m_rect;
+      visibleStoredRect.height = GetCurrentWindowHeight();
+      visibleStoredRect = ClampWindowRect( visibleStoredRect );
+      m_rect.x = visibleStoredRect.x;
+      m_rect.y = visibleStoredRect.y;
+      m_rect.width = visibleStoredRect.width;
+      if ( !m_isMinimized )
+        m_rect.height = visibleStoredRect.height;
+
+      if ( m_episodeManager != null && m_episodeManager.ShouldShowTransitionInputCutWarning )
+        DrawReleaseInputPopup();
+    }
+
+    private void DrawHudWindow( int windowId )
+    {
       var collectorTaskState = m_observationCollector != null ? m_observationCollector.LastTaskState : null;
       var useStepAckTelemetry = ShouldUseStepAckTelemetry( collectorTaskState );
       var displayedMassInBucket = GetDisplayedMassInBucket( useStepAckTelemetry, collectorTaskState );
@@ -106,12 +156,22 @@ namespace AGXUnity_Excavator.Scripts.Presentation
       var displayedBucketBelowDigAreaPlane =
         displayedBucketDepthBelowDigAreaPlane >= GetDigAreaBelowPlaneTolerance();
 
-      GUILayout.BeginArea( m_rect, GUI.skin.box );
       GUILayout.BeginHorizontal();
-      GUILayout.Label( "<b>Experiment HUD</b>", m_style );
-      if ( GUILayout.Button( m_showRuntimeConfig ? "Hide Menu" : "Show Menu", GUILayout.Width( 96.0f ) ) )
+      GUILayout.Label( "<b>Experiment HUD</b>", m_titleStyle );
+      if ( GUILayout.Button( m_showRuntimeConfig ? "Hide Menu" : "Show Menu", m_buttonStyle, GUILayout.Width( 132.0f ) ) )
         m_showRuntimeConfig = !m_showRuntimeConfig;
+      if ( GUILayout.Button( m_isMinimized ? "Restore" : "Minimize", m_buttonStyle, GUILayout.Width( 132.0f ) ) )
+        ToggleMinimized();
       GUILayout.EndHorizontal();
+
+      if ( m_isMinimized ) {
+        GUILayout.Label( FormatMinimizedStatusLine( useStepAckTelemetry ), m_style );
+        GUI.DragWindow( new Rect( 0.0f, 0.0f, Mathf.Max( 0.0f, m_rect.width - 280.0f ), DragHandleHeight ) );
+        return;
+      }
+
+      var scrollHeight = Mathf.Max( 120.0f, m_currentVisibleWindowHeight - DragHandleHeight - 24.0f );
+      m_scrollPosition = GUILayout.BeginScrollView( m_scrollPosition, GUILayout.Height( scrollHeight ) );
       if ( useStepAckTelemetry )
         GUILayout.Label( $"Telemetry: {Colorize( "step-ack collector", GoodColor )}    EpisodeManager: {Colorize( "disabled while serving", WarnColor )}", m_style );
       else if ( m_stepAckServer != null && m_stepAckServer.IsListening && m_episodeManager != null && !m_episodeManager.isActiveAndEnabled )
@@ -172,18 +232,132 @@ namespace AGXUnity_Excavator.Scripts.Presentation
         DrawCalibrationDebug();
       GUILayout.Space( 6.0f );
       GUILayout.Label( $"Last log: {( m_episodeManager != null ? m_episodeManager.LastSavedPath : string.Empty )}", m_style );
-      GUILayout.EndArea();
+      GUILayout.EndScrollView();
+      GUI.DragWindow( new Rect( 0.0f, 0.0f, Mathf.Max( 0.0f, m_rect.width - 280.0f ), DragHandleHeight ) );
+    }
 
-      if ( m_episodeManager != null && m_episodeManager.ShouldShowTransitionInputCutWarning )
-        DrawReleaseInputPopup();
+    private void EnsureStyles()
+    {
+      var fontSize = Mathf.RoundToInt( Mathf.Max( 12.0f, m_fontSize ) );
+      var titleFontSize = Mathf.RoundToInt( Mathf.Max( fontSize + 2.0f, m_titleFontSize ) );
+      if ( m_style != null &&
+           m_cachedFontSize == fontSize &&
+           m_cachedTitleFontSize == titleFontSize )
+        return;
+
+      m_cachedFontSize = fontSize;
+      m_cachedTitleFontSize = titleFontSize;
+      m_style = new GUIStyle( GUI.skin.label )
+      {
+        alignment = TextAnchor.UpperLeft,
+        fontSize = fontSize,
+        richText = true,
+        wordWrap = true
+      };
+
+      m_titleStyle = new GUIStyle( GUI.skin.label )
+      {
+        alignment = TextAnchor.MiddleLeft,
+        fontSize = titleFontSize,
+        fontStyle = FontStyle.Bold,
+        richText = true,
+        wordWrap = true
+      };
+
+      m_windowStyle = new GUIStyle( GUI.skin.window )
+      {
+        fontSize = fontSize,
+        padding = new RectOffset( 16, 16, 14, 16 )
+      };
+
+      m_buttonStyle = new GUIStyle( GUI.skin.button )
+      {
+        fontSize = fontSize,
+        fixedHeight = Mathf.Max( 34.0f, fontSize + 14.0f ),
+        wordWrap = true
+      };
+
+      m_toggleStyle = new GUIStyle( GUI.skin.toggle )
+      {
+        fontSize = fontSize,
+        fixedHeight = Mathf.Max( 30.0f, fontSize + 12.0f ),
+        wordWrap = true
+      };
+
+      m_textFieldStyle = new GUIStyle( GUI.skin.textField )
+      {
+        fontSize = fontSize,
+        fixedHeight = Mathf.Max( 32.0f, fontSize + 12.0f )
+      };
+
+      m_popupTitleStyle = new GUIStyle( GUI.skin.label )
+      {
+        alignment = TextAnchor.MiddleCenter,
+        fontStyle = FontStyle.Bold,
+        fontSize = titleFontSize,
+        richText = true,
+        wordWrap = true
+      };
+
+      m_popupBodyStyle = new GUIStyle( GUI.skin.label )
+      {
+        alignment = TextAnchor.MiddleCenter,
+        fontSize = fontSize,
+        richText = true,
+        wordWrap = true
+      };
+    }
+
+    private void ToggleMinimized()
+    {
+      if ( m_isMinimized ) {
+        m_isMinimized = false;
+        m_rect.height = Mathf.Max( MinWindowHeight, m_restoredWindowHeight );
+        return;
+      }
+
+      m_restoredWindowHeight = Mathf.Max( MinWindowHeight, m_rect.height );
+      m_isMinimized = true;
+    }
+
+    private float GetCurrentWindowHeight()
+    {
+      return m_isMinimized ? MinimizedWindowHeight : Mathf.Max( MinWindowHeight, m_rect.height );
+    }
+
+    private static Rect ClampWindowRect( Rect rect )
+    {
+      var maxWidth = Mathf.Max( MinWindowWidth, Screen.width - WindowMargin * 2.0f );
+      var maxHeight = Mathf.Max( MinimizedWindowHeight, Screen.height - WindowMargin * 2.0f );
+      rect.width = Mathf.Clamp( rect.width, MinWindowWidth, maxWidth );
+      rect.height = Mathf.Clamp( rect.height, MinimizedWindowHeight, maxHeight );
+
+      var maxX = Mathf.Max( WindowMargin, Screen.width - rect.width - WindowMargin );
+      var maxY = Mathf.Max( WindowMargin, Screen.height - rect.height - WindowMargin );
+      rect.x = Mathf.Clamp( rect.x, WindowMargin, maxX );
+      rect.y = Mathf.Clamp( rect.y, WindowMargin, maxY );
+      return rect;
+    }
+
+    private string FormatMinimizedStatusLine( bool useStepAckTelemetry )
+    {
+      if ( useStepAckTelemetry )
+        return $"Telemetry: {Colorize( "step-ack collector", GoodColor )}";
+
+      if ( m_episodeManager == null )
+        return "EpisodeManager: n/a";
+
+      return $"Episode: {m_episodeManager.CurrentEpisodeIndex}    Running: {m_episodeManager.IsEpisodeRunning}    Source: {m_episodeManager.CurrentSourceName}";
     }
 
     private void DrawRuntimeConfig()
     {
       GUILayout.Space( 6.0f );
       GUILayout.Label( "<b>Runtime Config</b>", m_style );
+      DrawMachineResponseControls();
 
       if ( m_episodeManager.AvailableSourceCount > 0 ) {
+        GUILayout.Space( 6.0f );
         GUILayout.Label( "Control source (F6/F7 cycle, 1-9 select, switching restarts the active episode):", m_style );
         for ( var sourceIndex = 0; sourceIndex < m_episodeManager.AvailableSourceCount; ++sourceIndex ) {
           var isCurrentSource = sourceIndex == m_episodeManager.CurrentSourceIndex;
@@ -194,7 +368,7 @@ namespace AGXUnity_Excavator.Scripts.Presentation
                             $"{hotkeyPrefix}{sourceDisplayName}";
 
           GUI.enabled = !isCurrentSource;
-          if ( GUILayout.Button( buttonLabel ) )
+          if ( GUILayout.Button( buttonLabel, m_buttonStyle ) )
             m_episodeManager.SetCommandSourceByIndex( sourceIndex );
           GUI.enabled = true;
         }
@@ -214,7 +388,7 @@ namespace AGXUnity_Excavator.Scripts.Presentation
                             targetDisplayName;
 
           GUI.enabled = !isCurrentTarget;
-          if ( GUILayout.Button( buttonLabel ) )
+          if ( GUILayout.Button( buttonLabel, m_buttonStyle ) )
             m_episodeManager.SetTargetByIndex( targetIndex );
           GUI.enabled = true;
         }
@@ -228,11 +402,74 @@ namespace AGXUnity_Excavator.Scripts.Presentation
           if ( cameraWindow == null )
             continue;
 
-          var isVisible = GUILayout.Toggle( cameraWindow.IsVisible, cameraWindow.ViewName );
+          var isVisible = GUILayout.Toggle( cameraWindow.IsVisible, cameraWindow.ViewName, m_toggleStyle );
           if ( isVisible != cameraWindow.IsVisible )
             cameraWindow.IsVisible = isVisible;
         }
       }
+    }
+
+    private void DrawMachineResponseControls()
+    {
+      if ( m_machineController == null ) {
+        GUILayout.Label( "Machine response: no ExcavatorMachineController found.", m_style );
+        return;
+      }
+
+      GUILayout.Space( 6.0f );
+      GUILayout.Label( "<b>Machine response</b>", m_style );
+      GUILayout.Label( "Action remains normalized; these settings define what full command means at the machine actuator.", m_style );
+      DrawAxisResponseRow(
+        "Swing",
+        m_machineController.SwingMaxTargetSpeed,
+        value => m_machineController.SwingMaxTargetSpeed = value,
+        m_machineController.SwingMaxAcceleration,
+        value => m_machineController.SwingMaxAcceleration = value );
+      DrawAxisResponseRow(
+        "Boom",
+        m_machineController.BoomMaxTargetSpeed,
+        value => m_machineController.BoomMaxTargetSpeed = value,
+        m_machineController.BoomMaxAcceleration,
+        value => m_machineController.BoomMaxAcceleration = value );
+      DrawAxisResponseRow(
+        "Stick",
+        m_machineController.StickMaxTargetSpeed,
+        value => m_machineController.StickMaxTargetSpeed = value,
+        m_machineController.StickMaxAcceleration,
+        value => m_machineController.StickMaxAcceleration = value );
+      DrawAxisResponseRow(
+        "Bucket",
+        m_machineController.BucketMaxTargetSpeed,
+        value => m_machineController.BucketMaxTargetSpeed = value,
+        m_machineController.BucketMaxAcceleration,
+        value => m_machineController.BucketMaxAcceleration = value );
+    }
+
+    private void DrawAxisResponseRow( string label,
+                                      float speed,
+                                      Action<float> setSpeed,
+                                      float acceleration,
+                                      Action<float> setAcceleration )
+    {
+      GUILayout.Label( label, m_style );
+      setSpeed( DrawSlider( "max speed", speed, Mathf.Max( m_speedSliderMax, 0.05f ) ) );
+      setAcceleration( DrawSlider( "accel", acceleration, Mathf.Max( m_accelerationSliderMax, 0.05f ) ) );
+    }
+
+    private float DrawSlider( string label, float value, float sliderMax )
+    {
+      var clampedValue = Mathf.Clamp( value, 0.0f, sliderMax );
+      GUILayout.BeginHorizontal();
+      GUILayout.Label( label, m_style, GUILayout.Width( 110.0f ) );
+      var nextValue = GUILayout.HorizontalSlider(
+        clampedValue,
+        0.0f,
+        sliderMax,
+        GUILayout.MinWidth( 240.0f ),
+        GUILayout.Height( 32.0f ) );
+      GUILayout.Label( $"{nextValue:0.00}", m_style, GUILayout.Width( 72.0f ) );
+      GUILayout.EndHorizontal();
+      return Mathf.Clamp( nextValue, 0.0f, sliderMax );
     }
 
     private void RefreshRuntimeTargets()
@@ -242,6 +479,7 @@ namespace AGXUnity_Excavator.Scripts.Presentation
 
       m_observationCollector = ExcavatorRigLocator.ResolveComponent( this, m_observationCollector );
       m_stepAckServer = ExcavatorRigLocator.ResolveComponent( this, m_stepAckServer );
+      m_machineController = ExcavatorRigLocator.ResolveComponent( this, m_machineController );
 
       m_episodeManager?.RefreshAvailableSources();
 
@@ -281,27 +519,27 @@ namespace AGXUnity_Excavator.Scripts.Presentation
         m_calibrationProfileNameDraft = m_observationCollector.CalibrationProfileName;
 
       GUILayout.BeginHorizontal();
-      GUILayout.Label( "Profile name:", m_style, GUILayout.Width( 88.0f ) );
-      m_calibrationProfileNameDraft = GUILayout.TextField( m_calibrationProfileNameDraft ?? string.Empty );
+      GUILayout.Label( "Profile name:", m_style, GUILayout.Width( 128.0f ) );
+      m_calibrationProfileNameDraft = GUILayout.TextField( m_calibrationProfileNameDraft ?? string.Empty, m_textFieldStyle );
       m_observationCollector.CalibrationProfileName = m_calibrationProfileNameDraft;
       GUILayout.EndHorizontal();
 
       GUILayout.BeginHorizontal();
       var trackingButtonLabel = m_observationCollector.IsCalibrationTrackingEnabled ? "Stop Tracking" : "Start Tracking";
-      if ( GUILayout.Button( trackingButtonLabel ) ) {
+      if ( GUILayout.Button( trackingButtonLabel, m_buttonStyle ) ) {
         if ( m_observationCollector.IsCalibrationTrackingEnabled )
           m_observationCollector.EndCalibrationTracking();
         else
           m_observationCollector.BeginCalibrationTracking();
       }
 
-      if ( GUILayout.Button( "Reset Samples" ) )
+      if ( GUILayout.Button( "Reset Samples", m_buttonStyle ) )
         m_observationCollector.ResetCalibrationTracking();
 
-      if ( GUILayout.Button( "Save JSON" ) )
+      if ( GUILayout.Button( "Save JSON", m_buttonStyle ) )
         m_observationCollector.SaveObservedNormalizationProfile( m_calibrationProfileNameDraft );
 
-      if ( GUILayout.Button( "Reload JSON" ) )
+      if ( GUILayout.Button( "Reload JSON", m_buttonStyle ) )
         m_observationCollector.LoadNormalizationProfileFromConfiguredPath();
       GUILayout.EndHorizontal();
 
@@ -491,7 +729,7 @@ namespace AGXUnity_Excavator.Scripts.Presentation
         popupWidth,
         popupHeight );
 
-      GUILayout.BeginArea( popupRect, GUI.skin.window );
+      GUILayout.BeginArea( popupRect, m_windowStyle );
       GUILayout.FlexibleSpace();
       GUILayout.Label( "Release Controls", m_popupTitleStyle );
       GUILayout.Space( 8.0f );

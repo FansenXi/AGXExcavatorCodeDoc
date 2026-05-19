@@ -40,7 +40,7 @@ namespace AGXUnity_Excavator.Scripts.Editor
       new BodySpec( "controller", 800.0f, 400.0f, 1800.0f, agx.RigidBody.MotionControl.DYNAMICS ),
       new BodySpec( "dabi", 350.0f, 180.0f, 900.0f, agx.RigidBody.MotionControl.DYNAMICS ),
       new BodySpec( "xiaobi", 220.0f, 120.0f, 650.0f, agx.RigidBody.MotionControl.DYNAMICS ),
-      new BodySpec( "watou", 120.0f, 70.0f, 380.0f, agx.RigidBody.MotionControl.DYNAMICS )
+	      new BodySpec( "bucket", 120.0f, 70.0f, 380.0f, agx.RigidBody.MotionControl.DYNAMICS )
     };
 
     private static double s_nextPollTime;
@@ -210,10 +210,10 @@ namespace AGXUnity_Excavator.Scripts.Editor
         ApplyBodyMass( root, spec, estimate.applied_mass_kg, result );
       }
 
-      var dynamicMass = SumMass( estimates, "controller", "dabi", "xiaobi", "watou" );
-      var armMass = SumMass( estimates, "dabi", "xiaobi", "watou" );
-      var stickBucketMass = SumMass( estimates, "xiaobi", "watou" );
-      var bucketMass = SumMass( estimates, "watou" );
+	      var dynamicMass = SumMass( estimates, "controller", "dabi", "xiaobi", "bucket" );
+	      var armMass = SumMass( estimates, "dabi", "xiaobi", "bucket" );
+	      var stickBucketMass = SumMass( estimates, "xiaobi", "bucket" );
+	      var bucketMass = SumMass( estimates, "bucket" );
 
       var swingTorque = ScaleTorque( SwingTorqueLimit, dynamicMass / ( 800.0f + 350.0f + 220.0f + 120.0f ) );
       var boomTorque = ScaleTorque( BoomTorqueLimit, armMass / ( 350.0f + 220.0f + 120.0f ) );
@@ -233,7 +233,9 @@ namespace AGXUnity_Excavator.Scripts.Editor
                                        float massKg,
                                        MassEstimateResult result )
     {
-      var transform = FindChildRecursive( root, spec.Name );
+	      var transform = FindChildRecursive( root, spec.Name );
+	      if ( transform == null && string.Equals( spec.Name, "bucket", StringComparison.OrdinalIgnoreCase ) )
+	        transform = FindChildRecursive( root, "watou" );
       var rigidBody = transform != null ? transform.GetComponent<RigidBody>() : null;
       if ( rigidBody == null ) {
         Append( ref result.warnings, $"Missing RigidBody on {spec.Name}" );

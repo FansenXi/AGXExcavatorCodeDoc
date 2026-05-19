@@ -20,7 +20,8 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
     private const float ZeroSpeedThreshold = 1.0e-4f;
 
     private readonly Constraint[] m_constraints = null;
-    private readonly float m_maxAcceleration = 0.0f;
+    private readonly Func<float> m_maxTargetSpeedProvider = null;
+    private readonly Func<float> m_maxAccelerationProvider = null;
     private readonly Func<float> m_deltaTimeProvider = null;
 
     public TargetSpeedConstraintAxisActuator( Constraint constraint,
@@ -33,9 +34,29 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
     public TargetSpeedConstraintAxisActuator( Constraint[] constraints,
                                               float maxAcceleration,
                                               Func<float> deltaTimeProvider )
+      : this( constraints, () => 1.0f, () => maxAcceleration, deltaTimeProvider )
+    {
+    }
+
+    public TargetSpeedConstraintAxisActuator( Constraint constraint,
+                                              Func<float> maxTargetSpeedProvider,
+                                              Func<float> maxAccelerationProvider,
+                                              Func<float> deltaTimeProvider )
+      : this( constraint != null ? new[] { constraint } : null,
+              maxTargetSpeedProvider,
+              maxAccelerationProvider,
+              deltaTimeProvider )
+    {
+    }
+
+    public TargetSpeedConstraintAxisActuator( Constraint[] constraints,
+                                              Func<float> maxTargetSpeedProvider,
+                                              Func<float> maxAccelerationProvider,
+                                              Func<float> deltaTimeProvider )
     {
       m_constraints = constraints ?? new Constraint[0];
-      m_maxAcceleration = maxAcceleration;
+      m_maxTargetSpeedProvider = maxTargetSpeedProvider;
+      m_maxAccelerationProvider = maxAccelerationProvider;
       m_deltaTimeProvider = deltaTimeProvider;
     }
 
@@ -53,7 +74,8 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
       }
 
       var currentSpeed = referenceConstraint.GetCurrentSpeed();
-      var newSpeed = CalculateSpeed( command, currentSpeed, m_maxAcceleration, GetDeltaTime() );
+      var desiredSpeed = Mathf.Clamp( command, -1.0f, 1.0f ) * GetMaxTargetSpeed();
+      var newSpeed = CalculateSpeed( desiredSpeed, currentSpeed, GetMaxAcceleration(), GetDeltaTime() );
       foreach ( var constraint in m_constraints )
         SetSpeed( constraint, newSpeed, immediateStop );
     }
@@ -71,6 +93,16 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
     private float GetDeltaTime()
     {
       return m_deltaTimeProvider != null ? m_deltaTimeProvider() : Time.deltaTime;
+    }
+
+    private float GetMaxTargetSpeed()
+    {
+      return Mathf.Max( 0.0f, m_maxTargetSpeedProvider != null ? m_maxTargetSpeedProvider() : 1.0f );
+    }
+
+    private float GetMaxAcceleration()
+    {
+      return Mathf.Max( 0.0f, m_maxAccelerationProvider != null ? m_maxAccelerationProvider() : 0.0f );
     }
 
     private static float CalculateSpeed( float desiredSpeed, float currentSpeed, float maxAcceleration, float deltaTime )
@@ -96,7 +128,8 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
 
         if ( lockController != null ) {
           speedController.Enable = false;
-          lockController.Position = constraint.GetCurrentAngle();
+          if ( !lockController.Enable )
+            lockController.Position = constraint.GetCurrentAngle();
           lockController.Enable = true;
         }
         else {

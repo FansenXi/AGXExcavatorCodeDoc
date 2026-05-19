@@ -1,7 +1,7 @@
 # AGXUnity Step-Ack Binary Protocol
 
 **Status:** current implementation truth source for Unity side<br>
-**Last updated:** 2026-05-14
+**Last updated:** 2026-05-17
 **Implementation files:**
 - `AGXUnity_Excavator_Assets/Scripts/SimulationBridge/AgxSimProtocol.cs`
 - `AGXUnity_Excavator_Assets/Scripts/SimulationBridge/AgxSimStepAckServer.cs`
@@ -33,12 +33,22 @@ It is a TCP binary protocol with:
 - raw RGB image transport for V0
 
 Current control semantics:
-- action semantics: `actuator_speed_cmd`
+- action semantics: normalized `actuator_speed_cmd` in `[-1, 1]`; Unity's
+  `ExcavatorMachineController` maps full command to machine-level per-axis
+  max speed and acceleration before writing target speeds, so HUD machine
+  response tuning affects manual, ACT, and step-ack control paths consistently
+- manual ISO/SAE mapping now only selects axis/sign/dead-zone; speed magnitude
+  lives in the machine response limits rather than in the command interpreter
 - action order: `[swing_speed_cmd, boom_speed_cmd, stick_speed_cmd, bucket_speed_cmd]`
 - the active YuLong controller applies calibrated `YuLong_norm.json` soft
   limits before writing target speeds: at/outside normalized `[0, 1]`, commands
   that move farther out of range are zeroed with an immediate stop, while
   commands that move back into range are allowed
+- YuLong captures the swing hinge angle when the command first enters the
+  neutral dead zone, then holds that lock target until a deliberate swing
+  command releases it. The lock target is not refreshed while already locked,
+  so rigid-body contact impulses cannot be promoted into a new swing setpoint
+  and cause passive upper-body jumps.
 - V0 task scope is fixed-position / stationary digging; drive / steer / track
   motion are intentionally excluded from the current step-ack action space
 - current baseline consumes pending step-ack requests on Unity `Update`
@@ -115,11 +125,26 @@ qpos normalization:
 
 `min_distance_to_dig_area_m` semantics:
 - this field is the approximate minimum distance between the current bucket and the `DigArea` thin box
-- in the YuLong scene, Unity samples the `DeformableTerrainShovel` cutting edge, tooth direction, and top edge attached to `watou`; the older bucket DigArea proxy volume remains a fallback when shovel geometry is unavailable
+- in the YuLong scene, Unity samples the `DeformableTerrainShovel` cutting edge, tooth direction, and top edge attached to `bucket`; the legacy `watou` object name is accepted only as a deprecated fallback
 - `DigAreaMeasurement` treats the calibrated scene `AGXUnity.RigidBody.DigArea` Box as the source of truth for the measurement footprint and plane
 - terrain auto-align is opt-in repair behavior and is disabled in the YuLong scene, because moving the calibrated Box changes depth labels
 - `0.0` means the shovel edge samples, or fallback bucket DigArea proxy volume, are touching or overlapping the DigArea box volume
 - `-1.0` means the distance could not be evaluated for the current frame
+
+V2.2 `env_state` contract:
+- the old 28 fields stay at indices `0..27` unchanged
+- indices `28..63` are appended for YuLong data collection and bring the ordered
+  state length to `64`
+- appended fields cover bucket tip local `x/y/z`, depth below local/target surface,
+  3x2 DigArea `surface_depth`, `removed_depth`, `target_depth`, `valid_mask`,
+  `bucket_mass_delta_kg`, mirrored dump-area deposited mass,
+  `offtarget_deposited_mass_kg`, geometry/contact masks, and
+  `hard_collision_count`
+- `offtarget_deposited_mass_kg = -1.0` means the active scene has no reliable
+  off-target deposited-mass sensor; consumers must treat it as unavailable rather
+  than as zero
+- DigArea grid depths are meters below the calibrated DigArea plane, positive
+  downward; row-major order is `r0c0, r0c1, r1c0, r1c1, r2c0, r2c1`
 
 `bucket_depth_below_dig_area_plane_m` semantics:
 - this field is the current bucket depth below the DigArea plane

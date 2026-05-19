@@ -96,10 +96,26 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
     public float bucket_dig_area_relative_z_m = 0.0f;
     public float bucket_dig_area_long_norm = 0.0f;
     public float bucket_dig_area_short_norm = 0.0f;
-    public float bucket_dig_area_long_index = -1.0f;
-    public float bucket_dig_area_short_index = -1.0f;
-    public float bucket_dig_area_cell_id = -1.0f;
-  }
+	    public float bucket_dig_area_long_index = -1.0f;
+	    public float bucket_dig_area_short_index = -1.0f;
+	    public float bucket_dig_area_cell_id = -1.0f;
+	    public float bucket_tip_dig_area_x_m = 0.0f;
+	    public float bucket_tip_dig_area_y_m = 0.0f;
+	    public float bucket_tip_dig_area_z_m = 0.0f;
+	    public float bucket_depth_below_local_surface_m = 0.0f;
+	    public float bucket_depth_below_target_surface_m = 0.0f;
+	    public float[] dig_area_surface_depth_m = new float[ 6 ];
+	    public float[] dig_area_removed_depth_m = new float[ 6 ];
+	    public float[] dig_area_target_depth_m = new float[ 6 ];
+	    public float[] dig_area_cell_valid_mask = new float[ 6 ];
+	    public float bucket_mass_delta_kg = 0.0f;
+	    public float deposited_mass_in_dump_area_kg = 0.0f;
+	    public float offtarget_deposited_mass_kg = -1.0f;
+	    public float target_geometry_available = 0.0f;
+	    public float bucket_contact_dig_area_mask = 0.0f;
+	    public float bucket_contact_dump_area_mask = 0.0f;
+	    public float hard_collision_count = 0.0f;
+	  }
 
   [Serializable]
   public class ActWireOperatorCommand

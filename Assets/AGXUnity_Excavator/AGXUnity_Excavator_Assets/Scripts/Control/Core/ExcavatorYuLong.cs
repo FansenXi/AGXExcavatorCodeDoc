@@ -46,11 +46,11 @@ namespace AGXUnity_Excavator.Scripts.Control.Core
       get { return ResolveConstraint( ref m_bucketConstraint, "joint4" ); }
     }
 
-    [AllowRecursiveEditing]
-    public Transform BucketReference
-    {
-      get { return ResolveTransform( ref m_bucketReference, "watou" ); }
-    }
+	    [AllowRecursiveEditing]
+	    public Transform BucketReference
+	    {
+	      get { return ResolveTransform( ref m_bucketReference, "bucket", "Bucket", "watou" ); }
+	    }
 
     public float Speed
     {
@@ -63,7 +63,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Core
       ResolveConstraint( ref m_boomConstraint, "joint2" );
       ResolveConstraint( ref m_stickConstraint, "joint3" );
       ResolveConstraint( ref m_bucketConstraint, "joint4" );
-      ResolveTransform( ref m_bucketReference, "watou" );
+	      ResolveTransform( ref m_bucketReference, "bucket", "Bucket", "watou" );
     }
 
     private Constraint ResolveConstraint( ref Constraint constraint, string objectName )
@@ -76,14 +76,18 @@ namespace AGXUnity_Excavator.Scripts.Control.Core
       return constraint;
     }
 
-    private Transform ResolveTransform( ref Transform reference, string objectName )
-    {
-      if ( reference != null )
-        return reference;
-
-      reference = FindChildRecursive( transform, objectName );
-      return reference;
-    }
+	    private Transform ResolveTransform( ref Transform reference, params string[] objectNames )
+	    {
+	      if ( reference != null )
+	        return reference;
+	
+	      foreach ( var objectName in objectNames ) {
+	        reference = FindChildRecursive( transform, objectName );
+	        if ( reference != null )
+	          return reference;
+	      }
+	      return reference;
+	    }
 
     private static bool IsUsable( Component component )
     {
