@@ -414,6 +414,22 @@ public class DigAreaMeasurement : MonoBehaviour
 	    return true;
 	  }
 
+	  public bool TryDigAreaLocalPlanePointWorld( float localXMeters,
+	                                             float localZMeters,
+	                                             float heightOffsetMeters,
+	                                             out Vector3 worldPoint )
+	  {
+	    worldPoint = Vector3.zero;
+	    ResolveReferences();
+	    if ( m_digAreaBox == null )
+	      return false;
+
+	    worldPoint = m_digAreaBox.transform.TransformPoint(
+	      new Vector3( localXMeters, 0.0f, localZMeters ) );
+	    worldPoint += Vector3.up * Mathf.Max( 0.0f, heightOffsetMeters );
+	    return true;
+	  }
+
 	  private SurfaceGridMetrics CreateEmptySurfaceGridMetrics()
 	  {
 	    var cellCount = CellGridLongCount * CellGridShortCount;

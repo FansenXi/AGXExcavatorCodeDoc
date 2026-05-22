@@ -53,6 +53,12 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
     [Min( 1 )]
     private int m_stepDebugLogInterval = 100;
 
+    [SerializeField]
+    private bool m_autoCreatePlannerVisualizer = true;
+
+    [SerializeField]
+    private PlannerDecisionVisualizer m_plannerDecisionVisualizer = null;
+
     private readonly ConcurrentQueue<PendingRequest> m_pendingRequests = new ConcurrentQueue<PendingRequest>();
     private readonly ConcurrentQueue<byte[]> m_pendingResponses = new ConcurrentQueue<byte[]>();
 
@@ -69,6 +75,7 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
     private int m_lastImagePayloadBytes = 0;
     private string m_lastWarningsSummary = "none";
     private string m_lastError = string.Empty;
+    private PlannerDebugSnapshot m_lastPlannerDebug = PlannerDebugSnapshot.Empty();
 
     public bool IsListening => m_isListening;
     public string LastRequestTypeName => m_lastRequestTypeName;
@@ -80,15 +87,18 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
     public int LastImagePayloadBytes => m_lastImagePayloadBytes;
     public string LastWarningsSummary => m_lastWarningsSummary;
     public string LastError => m_lastError;
+    public PlannerDebugSnapshot LastPlannerDebug => m_lastPlannerDebug ?? PlannerDebugSnapshot.Empty();
 
     private void Awake()
     {
       ResolveReferences();
+      EnsurePlannerVisualizer();
     }
 
     private void OnEnable()
     {
       ResolveReferences();
+      EnsurePlannerVisualizer();
       if ( m_disableEpisodeManagerWhileServing && m_episodeManager != null && m_episodeManager.enabled ) {
         m_restoreEpisodeManagerEnabled = true;
         m_episodeManager.enabled = false;
@@ -114,6 +124,7 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
     private void Update()
     {
       ResolveReferences();
+      EnsurePlannerVisualizer();
       ProcessPendingRequests();
     }
 
@@ -343,6 +354,7 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
     {
       var warnings = new List<string>();
       EnsureManualStepping( warnings );
+      m_lastPlannerDebug = PlannerDebugSnapshot.Empty();
 
       var resetTerrain = request != null && request.reset_terrain;
       var resetPose = request != null && request.reset_pose;
@@ -387,6 +399,7 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
 
       var warnings = new List<string>();
       EnsureManualStepping( warnings );
+      UpdatePlannerDebug( request.planner_debug_json, warnings );
 
       m_machineController?.ApplyActuationCommand( new ExcavatorActuationCommand
       {
@@ -767,6 +780,42 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
       m_lastResponseSuccess = success;
       m_lastError = error ?? string.Empty;
       m_lastWarningsSummary = FormatWarnings( warnings );
+    }
+
+    private void UpdatePlannerDebug( string plannerDebugJson, List<string> warnings )
+    {
+      if ( string.IsNullOrWhiteSpace( plannerDebugJson ) ) {
+        m_lastPlannerDebug = PlannerDebugSnapshot.Empty();
+        return;
+      }
+
+      try {
+        var snapshot = JsonUtility.FromJson<PlannerDebugSnapshot>( plannerDebugJson );
+        if ( snapshot == null ) {
+          m_lastPlannerDebug = PlannerDebugSnapshot.ParseWarning( "planner_debug_json_parse_null" );
+          warnings?.Add( "planner_debug_json_parse_null" );
+          return;
+        }
+
+        snapshot.Normalize();
+        m_lastPlannerDebug = snapshot;
+      }
+      catch ( System.Exception exception ) {
+        var warning = $"planner_debug_json_parse_failed:{exception.Message}";
+        m_lastPlannerDebug = PlannerDebugSnapshot.ParseWarning( warning );
+        warnings?.Add( warning );
+      }
+    }
+
+    private void EnsurePlannerVisualizer()
+    {
+      if ( !m_autoCreatePlannerVisualizer )
+        return;
+      if ( m_plannerDecisionVisualizer == null )
+        m_plannerDecisionVisualizer = GetComponent<PlannerDecisionVisualizer>();
+      if ( m_plannerDecisionVisualizer == null )
+        m_plannerDecisionVisualizer = gameObject.AddComponent<PlannerDecisionVisualizer>();
+      m_plannerDecisionVisualizer.Configure( this );
     }
 
     private bool ShouldLogStepDebug( long stepId, bool hasWarnings )

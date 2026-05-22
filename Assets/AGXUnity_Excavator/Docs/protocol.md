@@ -1,7 +1,7 @@
 # AGXUnity Step-Ack Binary Protocol
 
 **Status:** current implementation truth source for Unity side<br>
-**Last updated:** 2026-05-17
+**Last updated:** 2026-05-19
 **Implementation files:**
 - `AGXUnity_Excavator_Assets/Scripts/SimulationBridge/AgxSimProtocol.cs`
 - `AGXUnity_Excavator_Assets/Scripts/SimulationBridge/AgxSimStepAckServer.cs`
@@ -255,11 +255,15 @@ Binary field order:
 1. `step_id: int64`
 2. `action: float32[]`
 3. `client_time_ns: int64` optional
+4. `planner_debug_json: string` optional, only present when field 3 is present
 
 Constraints:
 - action length must be at least `4`
 - Unity currently consumes the first four action values in this order:
   `[swing, boom, stick, bucket]`
+- `planner_debug_json` is a diagnostic-only tail field. Missing, empty, or
+  malformed JSON must not change action execution; Unity only uses it for the
+  runtime Planner HUD and DigArea corridor visualizer.
 
 ## 6. Common Response Prefix
 
@@ -429,7 +433,7 @@ Image payload rules:
 ## 10. Step-Ack Rules
 
 The required control loop is:
-1. Python sends `STEP_REQ(step_id=k, action=...)`
+1. Python sends `STEP_REQ(step_id=k, action=..., planner_debug_json=optional)`
 2. Unity applies the action
 3. Unity performs exactly one logical `DoStep()`
 4. Unity samples qpos / qvel / env_state / FPV frame
@@ -453,6 +457,14 @@ Compared with older drafts in this repo, the current Unity implementation has th
 - Unity now exports active-target hard-collision summary metrics without changing the meaning of the first five env_state indices.
 - Unity now also exports DigArea good-start geometry metrics while keeping the first seven env_state indices stable.
 - Unity now exports explicit dump-area geometry metrics while keeping the first nine env_state indices stable.
+- `STEP_REQ` accepts an optional trailing `planner_debug_json` string. The
+  Unity server caches the latest valid planner debug snapshot, the HUD shows
+  mode/cycle/skill/corridor/productivity/stop reason, and a runtime visualizer
+  draws the selected `operator_prior_coverage` entry point as a thin vertical
+  pointer in the DigArea local frame. The server now auto-creates the runtime
+  visualizer on itself, so the pointer does not depend on an `ExperimentHUD`
+  component being present. When present, pre-dig align debug fields are shown
+  in the HUD only; they remain diagnostic and do not change Unity control.
 
 ## 12. Known Limits
 

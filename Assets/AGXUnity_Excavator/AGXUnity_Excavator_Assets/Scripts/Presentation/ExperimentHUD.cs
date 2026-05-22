@@ -43,6 +43,9 @@ namespace AGXUnity_Excavator.Scripts.Presentation
     private bool m_showStepAckDebug = true;
 
     [SerializeField]
+    private bool m_showPlannerDebug = true;
+
+    [SerializeField]
     private bool m_showCalibrationDebug = true;
 
     [SerializeField]
@@ -80,6 +83,7 @@ namespace AGXUnity_Excavator.Scripts.Presentation
     private float m_currentVisibleWindowHeight = 900.0f;
     private int m_cachedFontSize = -1;
     private int m_cachedTitleFontSize = -1;
+    private PlannerDecisionVisualizer m_plannerDecisionVisualizer = null;
 
     private void Awake()
     {
@@ -228,6 +232,8 @@ namespace AGXUnity_Excavator.Scripts.Presentation
       GUILayout.Label( $"Target max normal force (step): {displayedTargetContactMaxNormalForceN:0.0} N", m_style );
       if ( m_showStepAckDebug )
         DrawStepAckDebug();
+      if ( m_showPlannerDebug )
+        DrawPlannerDebug();
       if ( m_showCalibrationDebug )
         DrawCalibrationDebug();
       GUILayout.Space( 6.0f );
@@ -480,6 +486,7 @@ namespace AGXUnity_Excavator.Scripts.Presentation
       m_observationCollector = ExcavatorRigLocator.ResolveComponent( this, m_observationCollector );
       m_stepAckServer = ExcavatorRigLocator.ResolveComponent( this, m_stepAckServer );
       m_machineController = ExcavatorRigLocator.ResolveComponent( this, m_machineController );
+      EnsurePlannerVisualizer();
 
       m_episodeManager?.RefreshAvailableSources();
 
@@ -502,6 +509,43 @@ namespace AGXUnity_Excavator.Scripts.Presentation
       GUILayout.Label( $"Warnings: {m_stepAckServer.LastWarningsSummary}", m_style );
       if ( !string.IsNullOrWhiteSpace( m_stepAckServer.LastError ) )
         GUILayout.Label( $"Error: {m_stepAckServer.LastError}", m_style );
+    }
+
+    private void DrawPlannerDebug()
+    {
+      if ( m_stepAckServer == null )
+        return;
+
+      var debug = m_stepAckServer.LastPlannerDebug;
+      if ( debug == null || !debug.valid ) {
+        if ( debug != null && !string.IsNullOrWhiteSpace( debug.parse_warning ) ) {
+          GUILayout.Space( 6.0f );
+          GUILayout.Label( "<b>Planner</b>", m_style );
+          GUILayout.Label( $"Parse warning: {debug.parse_warning}", m_style );
+        }
+        return;
+      }
+
+      GUILayout.Space( 6.0f );
+      GUILayout.Label( "<b>Planner</b>", m_style );
+      GUILayout.Label( $"Mode: {debug.mode}    Skill: {debug.skill}    Cycle: {debug.cycle}", m_style );
+      GUILayout.Label( $"Corridor: {debug.selected_corridor_id}    Score: {debug.score:0.000}    Depleted: {debug.depleted_count}", m_style );
+      GUILayout.Label( $"Entry: ({debug.entry_x_m:0.000}, {debug.entry_z_m:0.000})    Exit: ({debug.exit_x_m:0.000}, {debug.exit_z_m:0.000})", m_style );
+      GUILayout.Label( $"Last payload: {debug.last_payload_gain_kg:0.0} kg    Last deposit: {debug.last_effective_deposit_delta_kg:0.0} kg", m_style );
+      GUILayout.Label( $"Token: {debug.token_source}    Prior: {debug.prior_id}", m_style );
+      if ( debug.pre_dig_align_enabled )
+        GUILayout.Label( $"Pre-align: step {debug.pre_dig_align_step_count}    hold {debug.pre_dig_align_hold_count}    entry err {debug.pre_dig_align_entry_error_m:0.000} m", m_style );
+      if ( debug.terminal_stop_requested || !string.IsNullOrWhiteSpace( debug.stop_reason ) )
+        GUILayout.Label( $"Stop: {Colorize( debug.stop_reason, WarnColor )}", m_style );
+    }
+
+    private void EnsurePlannerVisualizer()
+    {
+      if ( m_plannerDecisionVisualizer == null )
+        m_plannerDecisionVisualizer = GetComponent<PlannerDecisionVisualizer>();
+      if ( m_plannerDecisionVisualizer == null )
+        m_plannerDecisionVisualizer = gameObject.AddComponent<PlannerDecisionVisualizer>();
+      m_plannerDecisionVisualizer.Configure( m_stepAckServer );
     }
 
     private void DrawCalibrationDebug()

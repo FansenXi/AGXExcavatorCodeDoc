@@ -57,6 +57,7 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
     public int seed = 0;
     public string scenario_id = string.Empty;
     public long client_time_ns = -1;
+    public string planner_debug_json = string.Empty;
     public bool reset_terrain = true;
     public bool reset_pose = true;
   }
@@ -192,6 +193,9 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
               payload.client_time_ns = payloadStream.Position + sizeof(long) <= payloadStream.Length ?
                                        reader.ReadInt64() :
                                        -1;
+              payload.planner_debug_json = payloadStream.Position < payloadStream.Length ?
+                                           ReadString( reader ) :
+                                           string.Empty;
               return true;
             default:
               error = "unsupported_request_type";

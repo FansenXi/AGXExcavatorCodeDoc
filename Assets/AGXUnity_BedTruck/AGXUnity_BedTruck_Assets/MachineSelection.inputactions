@@ -1,0 +1,45 @@
+{
+    "name": "MachineSelection",
+    "maps": [
+        {
+            "name": "MachineSelection",
+            "id": "d9a48fb3-4b03-450a-b576-fedad49563df",
+            "actions": [
+                {
+                    "name": "Swap",
+                    "type": "Button",
+                    "id": "ed0de13c-84e7-4b05-9a8e-bce751db428e",
+                    "expectedControlType": "Button",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                }
+            ],
+            "bindings": [
+                {
+                    "name": "",
+                    "id": "ee873177-6fae-4ece-828d-46e014c3d20a",
+                    "path": "<Keyboard>/tab",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Swap",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "d9542250-09ba-419f-abe2-5b0a4f0274a5",
+                    "path": "<Gamepad>/dpad/right",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "Swap",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                }
+            ]
+        }
+    ],
+    "controlSchemes": []
+}

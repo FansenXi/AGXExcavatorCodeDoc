@@ -1,0 +1,11 @@
+Model Information:
+* title:	Road with substance designer
+* source:	https://sketchfab.com/3d-models/road-with-substance-designer-1b2916d72e724558b1ccfe09646f46a7
+* author:	Gaby4545 (https://sketchfab.com/Gaby4545)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Road with substance designer" (https://sketchfab.com/3d-models/road-with-substance-designer-1b2916d72e724558b1ccfe09646f46a7) by Gaby4545 (https://sketchfab.com/Gaby4545) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

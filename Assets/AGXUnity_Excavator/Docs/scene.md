@@ -149,6 +149,17 @@ When `AgxSimStepAckServer` is serving and temporarily disables
 `ActObservationCollector` task-state sample for live mass, target-distance,
 DigArea, and active-target-collision telemetry instead of showing stale
 EpisodeManager-side cached values.
+For YuLong V2.4 coverage-planner evals, Repo A may append
+`planner_debug_json` to each `STEP_REQ`; the HUD then shows the selected
+planner corridor, productivity history, depleted count, and stop reason, while
+`PlannerDecisionVisualizer` draws a thin vertical entry pointer from above the
+DigArea plane down to the planned dig point. `AgxSimStepAckServer` also
+auto-creates this runtime visualizer, so the pointer still appears when the HUD
+object is missing or not refreshed. This visualization is diagnostic-only and
+does not affect action execution or recorded `env_state`.
+When Repo A enables pre-dig align, the same Planner HUD also shows the align
+step, hold count, and entry error so operators can tell whether the scripted
+alignment layer reached the planned entry before dig ACT takes over.
 
 ### 3.2 Target Mass Measurement
 
