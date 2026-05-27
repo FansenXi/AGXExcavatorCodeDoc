@@ -14,13 +14,14 @@
 
 ## 2. 适用范围与真值源
 
-当前活跃集成目标是：
+当前仓库保留两个场景：
 
 - `AGXUnity_Excavator.unity`
+  简单场景（挖机 + 沙池 + 卡车），是 step-ack / ACT / 图感知 v0 的主线集成目标。
+- `Open-pit mine.unity`
+  露天矿场景，用于后续多场景实验，目前不承载主线集成。
 
-当前不作为主线说明对象的是：
-
-- `AGXUnity_Excavator_measurements.unity`
+历史场景 `AGXUnity_Excavator_measurements.unity` 已经从仓库移除。
 
 与当前实现最接近的真值源是：
 
@@ -102,7 +103,7 @@ step-ack 端口
 ```text
 AGXUnity_Excavator/
   AGXUnity_Excavator.unity
-  AGXUnity_Excavator_measurements.unity
+  Open-pit mine.unity
   AGXUnity_Excavator_Assets/
     Physics/
     Prefabs/

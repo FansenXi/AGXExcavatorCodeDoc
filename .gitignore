@@ -41,3 +41,8 @@ Thumbs.db
 .codex
 *.png
 *.svg
+*.pdf
+TerrainGraphSnapshots
+*.pyc
+output
+output/*
