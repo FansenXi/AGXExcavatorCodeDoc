@@ -60,12 +60,24 @@
 
 ## 关键文档入口点
 
+- [`.ai/roadmap/architecture-roadmap-2026-2029.md`](.ai/roadmap/architecture-roadmap-2026-2029.md) — **2026-2029 PhD 架构主线（AI 代理必读，含执行协议）**。
 - [`.ai/README.md`](.ai/README.md) — AI 文档地图。
 - [`.ai/handoff/project-context-compact.md`](.ai/handoff/project-context-compact.md) — 单页项目快照。
+- [`.ai/handoff/latest-session-summary.md`](.ai/handoff/latest-session-summary.md) — 上次会话进度。
 - [`.ai/project/overview.md`](.ai/project/overview.md) — 已确认的子系统。
-- [`Assets/AGXUnity_Excavator/Docs/protocol.md`](Assets/AGXUnity_Excavator/Docs/protocol.md) — step-ack 合约。
+- [`Assets/AGXUnity_Excavator/Docs/protocol.md`](Assets/AGXUnity_Excavator/Docs/protocol.md) — step-ack 合约（Track 2 收尾后归档）。
 - [`Assets/AGXUnity_Excavator/Docs/terrain_graph_observation.md`](Assets/AGXUnity_Excavator/Docs/terrain_graph_observation.md) — 图感知 v0 模式。
 - [`Assets/AGXUnity_Excavator/README.md`](Assets/AGXUnity_Excavator/README.md) — 团队维护的子系统概述。
+
+## AI 代理工作前必读
+
+**任何 AI 代理（Claude Code / Codex / Gemini / Copilot）在本仓库动手前**，必须先读 [`.ai/roadmap/architecture-roadmap-2026-2029.md`](.ai/roadmap/architecture-roadmap-2026-2029.md) 中的"Agent 执行协议"节。该节定义了：
+- 阅读顺序
+- 严格 Track 顺序（不跳级）
+- 任务三段式（Pre-condition / Action / Acceptance）
+- 偏离方案的合法路径
+
+不读 = 不要动手。
 
 ## 不要修改
 

@@ -48,6 +48,8 @@
 │   ├── latest-session-summary.md   每次会话覆盖 — 更改了什么
 │   ├── handoff-template.md         交接文档模板
 │   └── quick-reference.md          交接快速参考
+├── roadmap/                        2026-2029 PhD 主线路线图（AI 代理必读）
+│   └── architecture-roadmap-2026-2029.md  三仓双轨架构总方案 + Agent 执行协议
 └── archive/                        已过时但有价值的文档
     ├── README.md                   索引 + 原因
     └── graph_perception_handoff/   2026-05-25 从 knowledges/ 移动
