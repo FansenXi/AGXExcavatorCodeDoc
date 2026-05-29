@@ -2,6 +2,14 @@
 
 ## 已实现的内容（已确认）
 
+### AGX LiDAR ROS 2 点云
+
+- 当前通过 AGX 原生 `LidarSensor` + `LidarROS2Publisher` 发布 ROS 2 `sensor_msgs/msg/PointCloud2`。
+- 已验证 topic：`/lidar/pointcloud`；此前也观察到 `/lidar/pointcloud_ex`。
+- RViz 中订阅 `/lidar/pointcloud` 需要将 PointCloud2 `Reliability Policy` 设为 `Best Effort`。
+- 当前验证记录见 [`Assets/AGXUnity_Excavator/Docs/lidar_ros2_validation.md`](../../Assets/AGXUnity_Excavator/Docs/lidar_ros2_validation.md)。
+- 当前结论：LiDAR 已满足 ROS 2 smoke test；单帧旋转 LiDAR 不应被期待为完整稠密地形高度图来源。
+
 ### FPV RGB 捕获
 
 - 文件：`Scripts/Presentation/TrackedCameraWindow.cs`。
@@ -34,7 +42,7 @@
 
 ## 未实现的内容（已验证）
 
-- **无深度/点云导出。** Unity 使用 AGX `DeformableTerrain` 高度数据和 AGX 粒子迭代，而不是深度相机或模拟 LIDAR。
+- **无稳定的 depth/heightmap 在线输出。** Unity 当前已有 AGX LiDAR 点云导出，但尚未在 Repo B 中提供在线 dense depth grid、heightmap 或 elevation map topic。Repo A 已有首版 `/lidar/pointcloud` 到 heightmap 的离线/ROS 2 live 工具，仍需用当前 Unity 点云做质量验证。
 - **二进制 step-ack 响应中无实时图负载。** 图观察 v0 仅离线（文件导出）。参见 `Docs/terrain_graph_observation.md` §11 了解添加伴随通道的分阶段计划。
 - **Unity 中无图像预处理/编码器。** 原始 RGB 字节通过线路传输；任何嵌入都在 Python 侧。
 - **无多相机立体/视差。** `TrackedCameraWindow` 每个实例一次处理一个 FPV 相机，尽管原则上可以向场景添加多个窗口。

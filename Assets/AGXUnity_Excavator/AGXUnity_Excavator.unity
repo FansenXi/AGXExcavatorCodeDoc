@@ -391,6 +391,58 @@ Material:
     m_Colors:
     - _Color: {r: 1, g: 0.4509804, b: 0.050980393, a: 0}
   m_BuildTextureStacks: []
+--- !u!1 &288305450
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 288305452}
+  - component: {fileID: 288305451}
+  m_Layer: 0
+  m_Name: SensorEnvironment
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &288305451
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 288305450}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 84ee4673e51460b4aa8bf2814f053b7e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_serializationVersion: 1
+  DisabledObjectsVisibleToSensors: 0
+  DebugLogOnAdd: 0
+  IncludedLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  m_ambientMaterial: {fileID: 0}
+  m_defaultSurfaceMaterial: {fileID: 0}
+--- !u!4 &288305452
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 288305450}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 29.346813, y: -18.877716, z: -21.508158}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &324741460
 GameObject:
   m_ObjectHideFlags: 0
@@ -1021,6 +1073,105 @@ MonoScript:
   m_ClassName: ActiveTargetCollisionMonitor
   m_Namespace: 
   m_AssemblyName: Assembly-CSharp
+--- !u!1 &652678593
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 652678597}
+  - component: {fileID: 652678595}
+  - component: {fileID: 652678594}
+  m_Layer: 0
+  m_Name: DigAreaTaskLidar
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &652678594
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 652678593}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6c450ea728857ae4c8e57658f532f489, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_serializationVersion: 1
+  <QOS>k__BackingField:
+    reliabilityPolicy: 1
+    durabilityPolicy: 1
+    historyPolicy: 1
+    historyDepth: 5
+  m_pcl24Topic: lidar/pointcloud
+  m_pcl48Topic: lidar/pointcloud_ex
+  m_instanceIdTopic: lidar/instance_id
+  <FrameID>k__BackingField: world
+  m_publishPCL24: 1
+  m_publishPCL48: 0
+  m_publishInstanceId: 0
+--- !u!114 &652678595
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 652678593}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3f9b266514e3e764cba0052250bb78a9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_serializationVersion: 1
+  m_lidarModelPreset: 2
+  <ModelData>k__BackingField:
+    rid: 934240276424425476
+  LidarFrame: {fileID: 0}
+  LocalRotation: {x: 0, y: 0, z: 0}
+  LocalPosition: {x: 0, y: 0, z: 0}
+  m_lidarRange:
+    Min: 0.01
+    Max: 20
+  m_beamDivergence: 0.057295784
+  m_beamExitRadius: 0.005
+  m_setEnableRemoveRayMisses: 1
+  <DistanceGaussianNoise>k__BackingField:
+    m_enable: 0
+    m_mean: 0
+    m_standardDeviationBase: 0
+    m_standardDeviationSlope: 0
+  <RayAngleGaussianNoises>k__BackingField: []
+  m_outputs: []
+  references:
+    version: 2
+    RefIds:
+    - rid: 934240276424425476
+      type: {class: OusterData, ns: AGXUnity.Sensor, asm: AGXUnity}
+      data:
+        ChannelCount: 2
+        BeamSpacing: 1
+        LidarMode: 3
+--- !u!4 &652678597
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 652678593}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0.22319752, y: 0.67095673, z: -0.22319752, w: 0.67095673}
+  m_LocalPosition: {x: 9.13, y: 24.09, z: 39.17}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1041029867}
+  m_LocalEulerAnglesHint: {x: 36.8, y: 90, z: 0}
 --- !u!1 &653766521
 GameObject:
   m_ObjectHideFlags: 0
@@ -1030,9 +1181,10 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 653766522}
-  - component: {fileID: 653766523}
+  - component: {fileID: 653766525}
+  - component: {fileID: 653766524}
   m_Layer: 0
-  m_Name: DigAreaLidar
+  m_Name: CabinSurroundLidar
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1046,14 +1198,39 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 653766521}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 4.653, y: 5.646, z: 6.489}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -2.9605718, y: 24.09914, z: 40.588997}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 0}
+  m_Father: {fileID: 1041029867}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &653766523
+--- !u!114 &653766524
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 653766521}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6c450ea728857ae4c8e57658f532f489, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_serializationVersion: 1
+  <QOS>k__BackingField:
+    reliabilityPolicy: 1
+    durabilityPolicy: 1
+    historyPolicy: 1
+    historyDepth: 5
+  m_pcl24Topic: lidar/pointcloud
+  m_pcl48Topic: lidar/pointcloud_ex
+  m_instanceIdTopic: lidar/instance_id
+  <FrameID>k__BackingField: world
+  m_publishPCL24: 1
+  m_publishPCL48: 0
+  m_publishInstanceId: 0
+--- !u!114 &653766525
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -1062,69 +1239,38 @@ MonoBehaviour:
   m_GameObject: {fileID: 653766521}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 35506869ae26e8be286c2a16815d5acf, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  m_exportKey: 55
-  m_secondaryExportKey: 263
-  m_outputDirectory: LidarSnapshots
-  m_rings: 16
-  m_azimuthSteps: 360
-  m_horizontalFovDegrees: 360
-  m_verticalMinDegrees: -15
-  m_verticalMaxDegrees: 15
-  m_maxDistanceMeters: 40
-  m_layerMask:
-    serializedVersion: 2
-    m_Bits: 4294967295
-  m_triggerInteraction: 1
-  m_exportOnStart: 0
-  m_logExport: 1
---- !u!1 &709981973
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 709981975}
-  - component: {fileID: 709981974}
-  m_Layer: 0
-  m_Name: AGXUnity.RuntimeObjects
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &709981974
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 709981973}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5b6a9e4af77e3804aae97d5030ab5f9c, type: 3}
+  m_Script: {fileID: 11500000, guid: 3f9b266514e3e764cba0052250bb78a9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   m_serializationVersion: 1
---- !u!4 &709981975
-Transform:
-  m_ObjectHideFlags: 8
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 709981973}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_lidarModelPreset: 3
+  <ModelData>k__BackingField:
+    rid: 934240276424425472
+  LidarFrame: {fileID: 0}
+  LocalRotation: {x: 0, y: 0, z: 0}
+  LocalPosition: {x: 0, y: 0, z: 0}
+  m_lidarRange:
+    Min: 0.1
+    Max: 35
+  m_beamDivergence: 0.057295784
+  m_beamExitRadius: 0.005
+  m_setEnableRemoveRayMisses: 1
+  <DistanceGaussianNoise>k__BackingField:
+    m_enable: 0
+    m_mean: 0
+    m_standardDeviationBase: 0
+    m_standardDeviationSlope: 0
+  <RayAngleGaussianNoises>k__BackingField: []
+  m_outputs: []
+  references:
+    version: 2
+    RefIds:
+    - rid: 934240276424425472
+      type: {class: OusterData, ns: AGXUnity.Sensor, asm: AGXUnity}
+      data:
+        ChannelCount: 0
+        BeamSpacing: 0
+        LidarMode: 1
 --- !u!1 &779124356
 GameObject:
   m_ObjectHideFlags: 0
@@ -9206,6 +9352,39 @@ MonoBehaviour:
   m_localLookAtPoint: {x: -3, y: 0, z: -0.005}
   m_localRotationOffsetEuler: {x: 0, y: 0, z: -90}
   m_followTargetRotation: 1
+--- !u!1 &1041029866
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1041029867}
+  m_Layer: 0
+  m_Name: ' ==== Lidar ===='
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1041029867
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1041029866}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 7.6135716, y: -18.45314, z: -34.1}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 653766522}
+  - {fileID: 652678597}
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!4 &1060290806 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 1150798280503279812, guid: 7e65279f8334e0f47b393941e4e404a4, type: 3}
@@ -9968,6 +10147,11 @@ LightingSettings:
   m_PVRTiledBaking: 0
   m_NumRaysToShootPerTexel: -1
   m_RespectSceneVisibilityWhenBakingGI: 0
+--- !u!4 &1672341676 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 2445912438342003644, guid: b6b64d1b7f7c4af9a8e2b4b3d5c6e701, type: 3}
+  m_PrefabInstance: {fileID: 2994998943779457577}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1753810548
 GameObject:
   m_ObjectHideFlags: 0
@@ -10002,7 +10186,7 @@ Camera:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1753810548}
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 2
   m_ClearFlags: 1
   m_BackGroundColor: {r: 0.19215687, g: 0.3019608, b: 0.4745098, a: 0}
@@ -10715,6 +10899,66 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1cedfabd9097a634e9e9f4a41289cda1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!1 &2016266426
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2016266427}
+  - component: {fileID: 2016266429}
+  - component: {fileID: 2016266428}
+  m_Layer: 0
+  m_Name: VisualScripting SceneVariables
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &2016266427
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2016266426}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1672341676}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2016266428
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2016266426}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 765181c9ef4b24d32a4f7cbd2ef370dc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!114 &2016266429
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2016266426}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e741851cba3ad425c91ecf922cc6b379, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _data:
+    _json: '{"declarations":{"Kind":"Object","collection":{"$content":[],"$version":"A"},"$version":"A"}}'
+    _objectReferences: []
 --- !u!1 &2086211236
 GameObject:
   m_ObjectHideFlags: 0
@@ -11059,6 +11303,10 @@ PrefabInstance:
     - target: {fileID: 2879705091739798497, guid: b6b64d1b7f7c4af9a8e2b4b3d5c6e701, type: 3}
       propertyPath: m_attachmentPairComponent.m_connectedFrame.m_localPosition.z
       value: 0.000000007450581
+      objectReference: {fileID: 0}
+    - target: {fileID: 2994998943355307600, guid: b6b64d1b7f7c4af9a8e2b4b3d5c6e701, type: 3}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 2994998943355307603, guid: b6b64d1b7f7c4af9a8e2b4b3d5c6e701, type: 3}
       propertyPath: m_RootOrder
@@ -11874,6 +12122,9 @@ PrefabInstance:
     - {fileID: 6679900732749606700, guid: b6b64d1b7f7c4af9a8e2b4b3d5c6e701, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects:
+    - targetCorrespondingSourceObject: {fileID: 2445912438342003644, guid: b6b64d1b7f7c4af9a8e2b4b3d5c6e701, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 2016266427}
     - targetCorrespondingSourceObject: {fileID: 4708412311667502741, guid: b6b64d1b7f7c4af9a8e2b4b3d5c6e701, type: 3}
       insertIndex: -1
       addedObject: {fileID: 192748453}
@@ -12082,5 +12333,5 @@ SceneRoots:
   - {fileID: 779124357}
   - {fileID: 1889999839}
   - {fileID: 1753810551}
-  - {fileID: 653766522}
-  - {fileID: 709981975}
+  - {fileID: 288305452}
+  - {fileID: 1041029867}

@@ -1,13 +1,21 @@
 # Terrain Graph Observation Schema
 
-**Status:** v0 (offline export only); volumetric subsurface + bucket-mesh tool
-sampling landed 2026-05-25. Context background nodes + tool↔soil KNN edges
-landed 2026-05-25 (same day, follow-up).
+**Status:** v0 (offline export + transitional ROS 2 JSON topic, paused as
+current mainline); volumetric subsurface + bucket-mesh tool sampling landed
+2026-05-25. Context background nodes + tool↔soil KNN edges landed 2026-05-25
+(same day, follow-up).
 **Schema version string:** `terrain_graph_observation_v0` (additive update —
 new fields default to 0 / empty; new `kind` values added; surface node kind
 renamed `surface` → `surface_soil`).
 **Replaces:** `terrain_graph_snapshot_v0` (offline snapshot exporter)
-**Last updated:** 2026-05-25
+**Last updated:** 2026-05-28
+
+**2026-05-28 planning note:** Track 1 has been revised to prioritize AGX
+native LiDAR point clouds converted into local heightmap / elevation / depth
+grids, then fixed dig/drop points, trajectory planning, and RL trajectory
+tracking. Do not continue expanding or mounting the TerrainGraph online
+publisher unless the project explicitly returns to this branch. The schema and
+offline exporter remain useful reference assets.
 
 This document specifies the JSON schema produced by the Unity-side
 `TerrainGraphObservationProvider`. The first deliverable is an *offline export*
@@ -40,6 +48,12 @@ removed.
 - `Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/Scripts/TerrainGraphSnapshotExporter.cs`
   Thin wrapper around the observation provider that handles key/context-menu
   triggers and writes one JSON file per export.
+- `Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/Scripts/Ros2Bridge/Publishers/TerrainGraphJsonRos2Publisher.cs`
+  Transitional ROS 2 publisher that sends the same JSON schema on
+  `/terrain_graph/json` as `std_msgs/String`. This is an integration bridge
+  until Repo B has a generated/custom publisher for
+  `excavator_msgs/msg/TerrainGraph`. As of 2026-05-28 this online branch is
+  paused and should not be expanded during the LiDAR heightmap mainline.
 
 The exporter previously inlined sampling. It now delegates to the provider so
 that offline exports and any future online channels share one schema.
@@ -343,27 +357,58 @@ New consumers should read `nodes` and `edges`, apply
 `world_from_graph_origin_*` to recover world coordinates, and ignore the
 legacy `surface_nodes` / `particles` arrays.
 
-## 11. Future protocol integration
+## 11. ROS 2 / protocol integration
 
-This schema is intentionally Unity-only for v0. The following sequencing is
-recommended before it touches the binary step-ack protocol:
+This schema remains decoupled from the binary step-ack payload. The existing
+online branch is ROS 2 sideband publication, not `STEP_RESP` mutation, but it
+is paused while Track 1 focuses on LiDAR-derived heightmaps.
 
-1. **Sidecar JSONL.** Add a scripted-rollout sidecar that calls
-   `TerrainGraphObservationProvider.Collect()` once per step and writes the
-   resulting `TerrainGraphObservation` to a per-step JSONL stream tagged with
-   the binary `step_id`. No protocol change needed.
-2. **`GET_INFO` capability flags.** Once the schema is stable, advertise the
-   following in `AgxSimResponsePayload`:
+Existing paused bridge:
+
+1. **ROS 2 JSON sideband.** `TerrainGraphJsonRos2Publisher` calls
+   `TerrainGraphObservationProvider.Collect()` after AGX simulation steps and
+   publishes the resulting JSON to:
+
+   ```text
+   /terrain_graph/json
+   ```
+
+   Message type:
+
+   ```text
+   std_msgs/msg/String
+   ```
+
+   This keeps the existing JSON schema and offline tools intact while allowing
+   `ros2 topic echo` and `ros2 bag record` to capture graph observations when
+   this branch is explicitly resumed.
+
+2. **Repo C typed target.** Repo C now contains a draft ROS 2 interface package:
+
+   ```text
+   excavator_msgs/msg/TerrainGraph
+   ```
+
+   The typed message remains a possible future target once Unity has a
+   generated or custom publisher path for `excavator_msgs`, but it is not a
+   Track 1 blocker.
+
+Future sequencing before any binary protocol integration:
+
+1. **`GET_INFO` capability flags.** Once the typed schema is stable, advertise the
+   following in `AgxSimResponsePayload` if the binary protocol still needs to
+   report graph support:
    - `supports_terrain_graph: bool`
    - `terrain_graph_schema_version: string`
    - `terrain_graph_node_fields: string[]`
    - `terrain_graph_edge_fields: string[]`
-3. **Online graph channel.** Either upgrade the step-ack protocol version and
-   append graph bytes to `STEP_RESP`, or expose a dedicated `GET_GRAPH`
-   message, or open a parallel TCP stream aligned by `step_id`. The lowest-
-   risk option is the parallel stream because it leaves the image/action
-   client untouched.
+2. **Typed ROS 2 graph channel.** Replace the JSON sideband with
+   `excavator_msgs/msg/TerrainGraph` on `/terrain_graph` once Repo A/B both
+   consume Repo C generated interfaces.
+3. **Legacy TCP fallback only if needed.** If ROS 2 cannot be used in a specific
+   experiment, expose a dedicated `GET_GRAPH` message or parallel TCP stream
+   aligned by `step_id`. Avoid appending graph bytes to `STEP_RESP`.
 
-Until step 3 is agreed with Repo A / Repo C, **do not** insert graph payloads
-into the existing `STEP_RESP` or change `env_state` ordering. Doing so
-would silently break clients that hard-code the V0 layout.
+Until this is agreed with Repo A / Repo C, **do not** insert graph payloads into
+the existing `STEP_RESP` or change `env_state` ordering. Doing so would silently
+break clients that hard-code the V0 layout.

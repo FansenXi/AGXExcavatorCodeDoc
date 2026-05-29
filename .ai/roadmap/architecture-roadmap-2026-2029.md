@@ -5,7 +5,7 @@
 **为什么做这个方案。**
 你接手深圳团队留下的 Repo B（Unity+AGX 挖掘机仿真），整体理解吃力。在我们的对话里你确认了 4 个决定性事实：
 
-1. PhD 主线是**感知中心**（graph / depth / 多模态世界表示）。
+1. PhD 主线是**感知中心**。2026-05-28 修订后,当前第一阶段聚焦 LiDAR-derived local heightmap / elevation / depth grid；graph/depth camera/多模态世界表示作为后续或旁路方向保留。
 2. **缩比挖掘机样机已经存在**（遥控/操纵杆 + Jetson Orin）—— 真机集成不是远期问题，是近期问题。
 3. **AGX 必须用、Unity 可以让步**。
 4. **6 个月内必须出第一篇论文**（开题/中期压力）—— 这是唯一硬约束。其他都不是硬约束。
@@ -70,13 +70,22 @@
 - 真机端 Lidar 已有/可负担,sim 端 AGX 原生 GPU Lidar + ROS 2 publisher 现成,**sim/real 共用 `sensor_msgs/PointCloud2`,sim2real 入口最干净**。
 - 这也是 AGX 投资最大的传感器子系统（`libagxSensor.so` + `libAlgoryxGPUSensorsImpl.so`）,不用是浪费。
 
+**Track 1 立即主线（2026-05-28 修订）**：
+- 停止继续扩展 `TerrainGraph` publisher；已有 provider/schema 作为研究旁路保留,但不再作为当前主线。
+- 先做 `/lidar/pointcloud` → local heightmap / elevation grid / depth grid,把 AGX 原生点云变成可学习、可规划的局部 2.5D 表示。
+- 在 RViz 或 Python 中可视化 heightmap,直到能稳定表达挖掘区域、台阶/坡面、铲斗附近地形变化。
+- heightmap 质量达标后,先假设一个固定落铲点和固定卸料点,不要过早训练/实现下铲点 planner。
+- 用 RRT* 等轨迹规划算法生成铲斗从落铲点到卸料点的参考轨迹。
+- 用强化学习训练低层控制器,目标是让挖掘机铲斗跟踪参考轨迹。
+- 只有当 LiDAR→heightmap→轨迹规划→轨迹跟踪闭环跑通后,再回头做下铲点 / dig-point planner。
+
 **Depth Camera 降为可选项**:
 - 短期内 sim 端不投入。真机端若后期加 Realsense/Orbbec,再启用 Unity Camera `depthTextureMode` + 标准 `sensor_msgs/Image` publisher。
 - 这一选择**不锁死架构** —— ROS 2 自描述消息让你随时加传感器,Repo A 端只是订阅多一个 topic。
 
-**其他感知通道并行保留**:
+**其他感知通道保留但不抢主线**:
 - FPV RGB(`TrackedCameraWindow`)→ `sensor_msgs/Image`
-- 地形图 v0(`TerrainGraphObservationProvider`)→ 自定义 `TerrainGraph.msg`
+- 地形图 v0(`TerrainGraphObservationProvider`)→ 保留离线 JSON/schema 和现有 provider；`TerrainGraphJsonRos2Publisher` 与 typed `TerrainGraph.msg` 暂停扩展,待 LiDAR heightmap/轨迹跟踪闭环后再评估是否恢复。
 - 关节状态 → `sensor_msgs/JointState`
 
 ---
@@ -90,23 +99,24 @@
 - **协议层从 TCP 二进制 step-ack → ROS 2 topics/services/actions**。废弃 `AgxSimProtocol.cs` / `AgxSimStepAckServer.cs`。
 - **传感器全部使用 AGX 原生组件**：
   - Lidar → `AGXUnity.Sensor.LidarSensor` + `LidarROS2Publisher`（已存在,未启用）
-  - Depth Camera → AGX 原生 depth camera（如果 AGX 5.5.1 包含,否则用 Unity Camera + `Camera.depthTextureMode`,废弃当前的 `Physics.Raycast` 版本）
+  - LiDAR preprocessing → 将标准 `sensor_msgs/PointCloud2` 转成 local heightmap / elevation grid / depth grid；优先在 ROS 2 / Python / RViz 链路验证,不要回退到 Unity 内部 oracle。
+  - Depth Camera → 可选后续通道。当前不投入 AGX depth 或 Unity Camera depthTextureMode 实现,废弃当前的 `Physics.Raycast` 版本。
   - IMU / 关节编码器 → 从 AGX RigidBody / Constraint 状态导出
-  - 地形图 v0（Graph Perception）→ 保留你已经做的 `TerrainGraphObservationProvider`,但发布为自定义 ROS 2 message
-- **动作命令通过 ROS 2 action 接收**：替换 step-ack。
+  - 地形图 v0（Graph Perception）→ 保留你已经做的 `TerrainGraphObservationProvider` 和离线 schema,但当前停止继续扩展 online publisher。
+- **动作命令通过 ROS 2 action 接收**：Track 2 后期替换 step-ack；Track 1 仍保持 TCP 兼容。
 - **场景/任务配置外置为 YAML/ROS param**（取代当前 `ScenarioPreset.cs` 的硬编码 if-else）。
 - **可选保留**：Unity Editor 的可视化、teleop 操纵杆输入（用 ROS 2 `joy` 消息）。
 
-**砍掉的**：
+**Track 2 后期替换/砍掉的**：
 - `Scripts/SimulationBridge/AgxSimProtocol.cs`、`AgxSimStepAckServer.cs`（被 ROS 2 替代）
 - `Scripts/DepthPerception/DepthCameraSnapshotExporter.cs`、`Scripts/LidarPerception/LidarSnapshotExporter.cs`（被 AGX 原生传感器 + ROS 2 发布替代）
-- `Scripts/TerrainGraphSnapshotExporter.cs` 的离线 JSON 路径（保留 Provider,把输出端改成 ROS 2 publisher）
+- `Scripts/TerrainGraphSnapshotExporter.cs` 不作为当前 online 主线继续扩展；保留离线 JSON 路径和 Provider,不再把 TerrainGraph publisher 放在 Track 1 前排。
 - 整套 `Scripts/Control/Sources/Act*.cs` 的 JSON 行 TCP（被 ROS 2 action 替代）
 
 **保留的**：
 - `Scripts/Control/Execution/ExcavatorMachineController.cs` —— 挖掘机驱动,与协议无关
 - `Scripts/Experiment/SceneResetService.cs` —— AGX 预热重置时序调好的,不要碰
-- `Scripts/GraphPerception/TerrainGraphObservationProvider.cs` —— 采样逻辑,只换输出端
+- `Scripts/GraphPerception/TerrainGraphObservationProvider.cs` —— 采样逻辑旁路资产；当前不继续扩展 online publisher
 - `Scripts/Presentation/TrackedCameraWindow.cs` —— FPV 渲染
 - 所有 `Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/Prefabs/*`、`Physics/`、`Terrains/`、`Profiles/`
 - AGENTS.md、.ai/ 文档体系（迁移而非丢弃）
@@ -130,7 +140,7 @@
 excavator-research/
 ├── data/              # rosbag2 录制、scripted teleop、随机策略
 │   └── converters/    # rosbag2 → LeRobot dataset / HDF5
-├── perception/        # 你 PhD 的主战场:graph encoder、depth encoder、多模态融合
+├── perception/        # 你 PhD 的主战场:LiDAR heightmap/depth grid 优先,graph/depth/multimodal 后续保留
 ├── policy/            # IL (ACT / Diffusion Policy)、RL (PPO / SAC)
 ├── world_model/       # 学习的动力学（Liu et al. 风格 GNN 动力学）
 ├── eval/              # 闭环评估,sim + real 同一套代码
@@ -179,16 +189,15 @@ excavator-research/
 
 | 月份 | 任务 | 触碰范围 |
 |---|---|---|
-| M1 | 在现有 Unity 场景里启用 AGX 原生 LidarSensor + LidarROS2Publisher（替代你刚写的 `Physics.Raycast` 版本）。挂载到挖掘机驾驶舱上方 | Unity Editor + 5 行 C# |
-| M1 | 把 `TerrainGraphObservationProvider` 的输出加一条 ROS 2 publisher 分支（保留离线 JSON 不动）；定义 `TerrainGraph.msg` 草案 | Repo B 增量 + Repo C 启动 |
-| M2 | 用 `rosbag2 record` 在挖掘任务里录 50-100 个 episode,得到第一份多模态数据集（lidar pointcloud + terrain graph + 关节状态 + FPV RGB） | Repo A 启动 |
-| M2 | 在 Repo A 里写 rosbag2 → LeRobot/HDF5 转换器 | Repo A |
-| M3 | 训练第一个感知模型（baseline:纯 lidar 点云 vs. 纯地形图 vs. 多模态融合 → 预测下一步 mass_in_bucket / dig_area depth） | Repo A |
-| M4 | 加 domain randomization:terrain seed、土壤参数、传感器噪声、相机位姿。重新采数据 | Repo B 增量 |
-| M5 | 论文初稿:感知表示对挖掘动力学预测的影响（benchmark 论文方向） | Repo A |
-| M6 | 投稿（ICRA/IROS/CoRL 25 deadline 对应 9 月/3 月,按你的窗口选） | — |
+| M1 | 在现有 Unity 场景里启用 AGX 原生 LidarSensor + LidarROS2Publisher,并确认 `/lidar/pointcloud` 能被 ROS 2/RViz 实时看到 | Unity Editor + AGX 原生组件 |
+| M1-M2 | 做 `/lidar/pointcloud` → local heightmap / elevation grid / depth grid；先在 RViz 或 Python 里可视化,确认地形变化和铲斗附近区域可用 | Repo A 优先；Repo B 只保留 AGX 原生点云出口 |
+| M2 | 记录 heightmap 质量基线和 rosbag2 数据；先人工/配置固定一个落铲点和一个卸料点 | Repo A + Repo C 轻量配置 |
+| M2-M3 | 用 RRT* 等规划器生成铲斗参考轨迹,输入为固定落铲点、固定卸料点和局部 heightmap/障碍约束 | Repo A |
+| M3-M4 | 训练 RL 低层控制器,目标是让铲斗跟踪规划出的参考轨迹；step-ack TCP 可继续作为现有控制通道 | Repo A + Repo B 现有控制面 |
+| M4-M5 | 跑通固定落铲点/卸料点的完整挖掘-卸料闭环,记录失败模式和控制/感知瓶颈 | Repo A + Unity Editor 验证 |
+| M5-M6 | 在闭环稳定后,再回到下铲点 / dig-point planner；论文方向聚焦 LiDAR-derived heightmap 表示 + 规划/控制闭环 | Repo A |
 
-**Track 1 不做的事**:废弃 step-ack TCP、废弃 ScenarioPreset、改 Repo A 的 ACT 接口。**保持现状,只新增不删除**。
+**Track 1 不做的事**:废弃 step-ack TCP、废弃 ScenarioPreset、改 Repo A 的 ACT 接口、继续扩展 `TerrainGraph` publisher、把 TerrainGraph 当主感知通道、在 heightmap/轨迹跟踪闭环前训练下铲点 planner。**保持现状,只新增不删除**。
 
 ### Track 2 — 架构基础轨（M2–M12,并行）
 
@@ -219,7 +228,7 @@ excavator-research/
 **Repo B 保留（不动）**:
 - `Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/Scripts/Control/Execution/ExcavatorMachineController.cs` —— 挖掘机驱动
 - `Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/Scripts/Experiment/SceneResetService.cs` —— AGX 预热重置（精心调过的）
-- `Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/Scripts/GraphPerception/TerrainGraphObservationProvider.cs` —— 地形图采样（换输出端）
+- `Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/Scripts/GraphPerception/TerrainGraphObservationProvider.cs` —— 地形图采样旁路资产；当前保留但暂停扩展 online publisher
 - `Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/Scripts/Presentation/TrackedCameraWindow.cs` —— FPV 渲染
 - 所有 Prefab、Physics 材料、Terrain 资产
 
@@ -236,9 +245,20 @@ excavator-research/
 - `Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/Scripts/LidarPerception/LidarSnapshotExporter.cs` —— **删掉,用 LidarSensor + LidarROS2Publisher 替代**
 - `Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/Scripts/Control/Sources/ActProtocol.cs` 等 ACT TCP/JSON 系列 —— Track 2 后期统一到 ROS 2 action
 
+**Repo A 优先新增（Track 1 当前主战场）**:
+- `/lidar/pointcloud` → local heightmap / elevation grid / depth grid 的转换脚本或节点
+- heightmap 的 RViz/Python 可视化工具
+- 固定落铲点 / 固定卸料点配置
+- 基于 RRT* 等算法的铲斗参考轨迹规划器
+- 面向铲斗轨迹跟踪的 RL 控制器训练入口
+
+**Repo B 暂停扩展**:
+- `Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/Scripts/Ros2Bridge/Publishers/TerrainGraphJsonRos2Publisher.cs` —— 已有过渡脚本可保留,但当前不挂载、不继续扩展,除非后续明确恢复 TerrainGraph 方向
+- `excavator_msgs/msg/TerrainGraph*` —— Repo C draft 可保留为未来接口草案,当前不作为 Track 1 主线依赖
+
 **Repo B 新增**:
 - `Scripts/Ros2Bridge/*` 子目录（Track 2 期间逐步建立）
-- `Scripts/Ros2Bridge/Publishers/{TerrainGraphPublisher,EnvStatePublisher,JointStatePublisher,DepthImagePublisher}.cs`
+- `Scripts/Ros2Bridge/Publishers/{EnvStatePublisher,JointStatePublisher}.cs`
 - `Scripts/Ros2Bridge/ActionServers/ExecuteStepActionServer.cs`
 - `Scripts/Ros2Bridge/Services/{ResetEpisodeService,SetScenarioService}.cs`
 
@@ -251,12 +271,16 @@ excavator-research/
 
 ## 风险与开放问题
 
-1. **AGX-Native Lidar 是否真的开箱即用**:需要在 Editor 里实际把 `LidarSensor` 挂到挖掘机上、配 SensorEnvironment、勾上 LidarROS2Publisher,跑一次 `ros2 topic echo /lidar/pointcloud` 验证。**M1 的第一周必须验证这个**,否则整个 Track 1 时间线要重算。
-2. **AGX 是否提供原生 Depth Camera 传感器**:未确认。如果没有,回退方案是 Unity Camera 配 `depthTextureMode = Depth` + 自定义 RenderTexture 抓取 + 一个手写 ROS 2 publisher。
-3. **学校 AGX license 的 ROS 2 模块是否激活**:`libagxROS2.so` 在仓库里,但运行时是否要单独的 ROS 2 license feature flag,需要查 license 文件。
-4. **Jetson Orin 上的 ROS 2 与 sim 端的 DDS 配置**:跨机网络 DDS 调参偶尔有坑,提前留 2 天 buffer。
-5. **TerrainGraph.msg 的字段稳定性**:你 PhD 主线在感知,这个消息的 schema 会频繁演化。建议第一年只在 Repo C 标 `0.x.y`,breaking change 自由；进入第二年 sim2real 阶段后再冻结到 `1.0`。
-6. **现有 ACT 桥接的迁移**:你说"没有硬约束",但如果实际上 Repo A 的某个学生/合作者在用 ACT 桥接,需要先确认。如果是,先双轨并行。
+1. **AGX-Native Lidar 是否真的开箱即用**:已在 2026-05-28 由用户验证通过。`/lidar/pointcloud` 非空,约 50 Hz,RViz 设为 `Best Effort` 后可实时显示并随挖掘机控制变化。
+2. **PointCloud2 到 local heightmap 是否足够表达挖掘状态**:当前未验证。下一步必须先证明 heightmap/depth grid 能稳定覆盖挖掘区域、台阶/坡面和铲斗附近地形变化,否则后续 RRT* 和 RL 控制器会吃到错误状态。
+3. **heightmap 可视化与坐标系**:需要明确 grid 原点、朝向、分辨率、RoI 尺寸、地面/铲斗遮挡处理；这些决定 RRT* 和后续 planner 输入是否一致。
+4. **固定落铲点/卸料点假设是否足够启动闭环**:这是为了先验证规划和控制,不是最终任务定义。若固定点闭环都不稳定,不应提前做 dig-point planner。
+5. **RRT* 轨迹与挖掘机运动学约束的接口**:需要确认规划空间是铲斗笛卡尔轨迹、关节空间轨迹,还是混合约束；这会影响 RL 控制器的 observation/action/reward 设计。
+6. **RL 控制器与现有 step-ack/ACT 表面的关系**:Track 1 仍保留现有 `[swing, boom, stick, bucket]` 速度命令,不要提前破坏 TCP 兼容。
+7. **AGX 是否提供原生 Depth Camera 传感器**:未确认,但当前不作为主线风险处理。后续若需要 depth camera,再回到 AGX depth 或 Unity Camera `depthTextureMode` 方案。
+8. **Jetson Orin 上的 ROS 2 与 sim 端的 DDS 配置**:跨机网络 DDS 调参偶尔有坑,提前留 2 天 buffer；但这不是 Track 1 下一步的阻塞项。
+9. **TerrainGraph.msg 的字段稳定性**:当前暂停扩展,仅作为 Repo C draft 保留。不要让它阻塞 LiDAR heightmap/轨迹跟踪主线。
+10. **现有 ACT 桥接的迁移**:你说"没有硬约束",但如果实际上 Repo A 的某个学生/合作者在用 ACT 桥接,需要先确认。如果是,先双轨并行。
 
 ---
 
@@ -279,36 +303,52 @@ excavator-research/
 # 在终端:
 source /opt/ros/jazzy/setup.bash
 ros2 topic list                    # 期望看到 /lidar/pointcloud
-ros2 topic hz /lidar/pointcloud    # 期望 ~10 Hz
+ros2 topic hz /lidar/pointcloud    # 期望非空且频率稳定；本机已观察到约 50 Hz
 ros2 run rviz2 rviz2               # 期望能可视化点云
 ```
 - **如果点云非空且能在 RViz 看到挖掘机周围地形** → AGX-Native 验证通过,按方案走
 - **如果 topic 出来了但点云全空** → 需要配 `LidarSurfaceMaterial` 给地形和挖掘机
 - **如果 topic 都没出来** → 检查 license feature flag、检查 `libagxROS2.so` 加载日志
 
-### 验证 2 — Jetson Orin 能否订阅 sim 的 topic（M2 第 1 周）
-
-在 Jetson Orin 上装 ROS 2 Jazzy,配同一 DDS domain id,跑 `ros2 topic echo /lidar/pointcloud`,看能否收到 PC 仿真机发出的数据。
-
-### 验证 3 — rosbag2 能否完整录制多模态数据（M2 第 2 周）
+### 验证 2 — PointCloud2 能否稳定转成 local heightmap / depth grid（M1-M2）
 
 ```bash
-ros2 bag record /lidar/pointcloud /joint_states /fpv/image_raw /terrain_graph
-# 跑一个 episode
-# 然后回放:
-ros2 bag play <bag>
-# 用 Foxglove Studio 打开 bag,期望多通道时间同步
+source /opt/ros/jazzy/setup.bash
+ros2 topic echo /lidar/pointcloud --once
+# 期望 height/width/data 非空
 ```
 
-### 验证 4 — TerrainGraphObservationProvider 出 ROS 2 message 不破坏现有 JSON 路径
+- 在 Repo A 或临时 Python 节点中订阅 `/lidar/pointcloud`,输出局部 heightmap / elevation grid / depth grid。
+- 可观测结果:输出 grid 非空,分辨率/范围固定,坐标系定义写入配置,挖掘机运动和地形变化会反映到 grid。
+- 可视化结果:RViz 或 Python 窗口能看到局部地形高度图,不是只有原始点云。
 
-- 在 `TerrainGraphObservationProvider.Collect()` 之后加一条 publisher 分支
-- 同时按 `Alpha9` 仍然能导出 JSON（确认现有工具链未被破坏）
-- 同时 `ros2 topic echo /terrain_graph` 看到节点和边
+### 验证 3 — heightmap 数据能否被记录和回放（M2）
 
-### 验证 5 — Repo A 切换 sim/real backend 只改一行 launch 配置
+```bash
+ros2 bag record /lidar/pointcloud <heightmap_topic_or_artifact_topic>
+# 跑一个短 episode
+ros2 bag play <bag>
+```
 
-设计期目标。M5 时验证:同一个 perception inference Python 脚本,靠 `--remap-ns sim:=real` 或 ROS 2 namespace 切换即可对接 sim 或真机。
+- 如果 heightmap 先作为文件/NumPy artifact 生成,则 Acceptance 是输出目录出现非空 artifact,并能用同一可视化脚本复现。
+- 先不强制把 heightmap 定成 Repo C 自定义消息；等 grid schema 稳定后再决定是否进入 Repo C。
+
+### 验证 4 — 固定落铲点/卸料点下的参考轨迹是否可规划（M2-M3）
+
+- 在固定落铲点、固定卸料点、局部 heightmap/障碍约束下运行 RRT* 或等价规划器。
+- 可观测结果:生成一条非空铲斗参考轨迹,包含时间或路径点序列,且能在 Python/RViz/Unity 侧可视化。
+- 失败时先调整规划空间和约束,不要提前把问题推给 dig-point planner。
+
+### 验证 5 — RL 控制器能否跟踪参考轨迹（M3-M4）
+
+- 使用现有 `[swing, boom, stick, bucket]` 速度命令面训练低层控制器。
+- 可观测结果:铲斗末端轨迹误差随训练下降,并能在固定落铲点/卸料点任务上闭环运行。
+- 不记录或声称训练指标,直到 Repo A 中有可复现实验日志。
+
+### 验证 6 — 闭环稳定后再验证 dig-point planner（M5-M6）
+
+- 只有当 heightmap、参考轨迹、轨迹跟踪控制器都稳定后,才启动下铲点 / dig-point planner。
+- 可观测结果:planner 输出落铲点,替换固定落铲点配置后,仍能走完整规划和控制链路。
 
 ---
 
