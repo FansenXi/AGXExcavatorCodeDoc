@@ -38,6 +38,14 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
 
       return Mathf.Clamp01( Mathf.InverseLerp( m_min, m_max, value ) );
     }
+
+    public float Denormalize( float normalizedValue )
+    {
+      if ( Mathf.Abs( m_max - m_min ) < 1.0e-5f )
+        return m_min;
+
+      return Mathf.Lerp( m_min, m_max, Mathf.Clamp01( normalizedValue ) );
+    }
   }
 
   [System.Serializable]
@@ -159,6 +167,8 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       "Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/Calibration/CAT365_norm.json";
     private const string DefaultCalibrationSaveDirectory =
       "Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/Calibration";
+    private const float DigAreaContactDistanceToleranceMeters = 0.03f;
+    private const float DigAreaContactDepthToleranceMeters = 0.005f;
 
     [SerializeField]
     private ExcavatorMachineController m_machineController = null;
@@ -509,31 +519,52 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
 	                                                                out var bucketDepthBelowDigAreaPlaneMeters ) ) {
 	        observation.task_state.min_distance_to_dig_area_m = minDistanceToDigAreaMeters;
 	        observation.task_state.bucket_depth_below_dig_area_plane_m = bucketDepthBelowDigAreaPlaneMeters;
-	        observation.task_state.bucket_contact_dig_area_mask =
+	        observation.task_state.bucket_dig_area_penetration_contact_mask =
 	          minDistanceToDigAreaMeters >= 0.0f &&
-	          ( minDistanceToDigAreaMeters <= 0.05f || bucketDepthBelowDigAreaPlaneMeters > 0.0f ) ?
+	          minDistanceToDigAreaMeters <= DigAreaContactDistanceToleranceMeters &&
+	          bucketDepthBelowDigAreaPlaneMeters > DigAreaContactDepthToleranceMeters ?
 	            1.0f :
 	            0.0f;
 	      }
+	      DigAreaMeasurement.CellMetrics bucketCellMetrics = default;
+	      var hasBucketCellMetrics = false;
 	      if ( m_digAreaMeasurement != null &&
            m_digAreaMeasurement.TryMeasureBucketCellMetrics( bucketReference,
-                                                             out var cellMetrics ) ) {
-        observation.task_state.dig_area_geometry_available =
-          cellMetrics.GeometryAvailable ? 1.0f : 0.0f;
-        observation.task_state.dig_area_long_axis = cellMetrics.LongAxis;
-        observation.task_state.dig_area_grid_long_count = cellMetrics.GridLongCount;
-        observation.task_state.dig_area_grid_short_count = cellMetrics.GridShortCount;
+                                                             out bucketCellMetrics ) ) {
+	        hasBucketCellMetrics = true;
+        observation.task_state.bucket_dig_area_cell_in_bounds_mask =
+          bucketCellMetrics.GeometryAvailable ? 1.0f : 0.0f;
+        observation.task_state.dig_area_long_axis = bucketCellMetrics.LongAxis;
+        observation.task_state.dig_area_grid_long_count = bucketCellMetrics.GridLongCount;
+        observation.task_state.dig_area_grid_short_count = bucketCellMetrics.GridShortCount;
         observation.task_state.bucket_dig_area_relative_x_m =
-          cellMetrics.BucketDigAreaLocalMeters.x;
+          bucketCellMetrics.BucketDigAreaLocalMeters.x;
         observation.task_state.bucket_dig_area_relative_y_m =
-          cellMetrics.BucketDigAreaLocalMeters.y;
+          bucketCellMetrics.BucketDigAreaLocalMeters.y;
         observation.task_state.bucket_dig_area_relative_z_m =
-          cellMetrics.BucketDigAreaLocalMeters.z;
-        observation.task_state.bucket_dig_area_long_norm = cellMetrics.LongNorm;
-        observation.task_state.bucket_dig_area_short_norm = cellMetrics.ShortNorm;
-        observation.task_state.bucket_dig_area_long_index = cellMetrics.LongIndex;
-	        observation.task_state.bucket_dig_area_short_index = cellMetrics.ShortIndex;
-	        observation.task_state.bucket_dig_area_cell_id = cellMetrics.CellId;
+          bucketCellMetrics.BucketDigAreaLocalMeters.z;
+        observation.task_state.bucket_dig_area_long_norm = bucketCellMetrics.LongNorm;
+        observation.task_state.bucket_dig_area_short_norm = bucketCellMetrics.ShortNorm;
+        observation.task_state.bucket_dig_area_long_index = bucketCellMetrics.LongIndex;
+	        observation.task_state.bucket_dig_area_short_index = bucketCellMetrics.ShortIndex;
+	        observation.task_state.bucket_dig_area_cell_id = bucketCellMetrics.CellId;
+	      }
+	      if ( hasBucketCellMetrics )
+	        m_digAreaMeasurement.AccumulateMassAttributedRemoval(
+	          bucketCellMetrics,
+	          observation.task_state.bucket_mass_delta_kg );
+	      if ( m_digAreaMeasurement != null &&
+	           m_digAreaMeasurement.TryMeasureBucketDepthBelowSurface(
+	             bucketReference,
+	             out var depthBelowLocalSurfaceMeters,
+	             out var depthBelowTargetSurfaceMeters,
+	             out var localSurfaceAvailable ) ) {
+	        observation.task_state.bucket_depth_below_target_surface_m = depthBelowTargetSurfaceMeters;
+	        if ( localSurfaceAvailable ) {
+	          observation.task_state.bucket_depth_below_local_surface_m = depthBelowLocalSurfaceMeters;
+	          observation.task_state.bucket_dig_area_penetration_contact_mask =
+	            depthBelowLocalSurfaceMeters > DigAreaContactDepthToleranceMeters ? 1.0f : 0.0f;
+	        }
 	      }
 	      if ( m_digAreaMeasurement != null &&
 	           m_digAreaMeasurement.TryMeasureBucketTipDigAreaLocal( bucketReference,
@@ -541,13 +572,6 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
 	        observation.task_state.bucket_tip_dig_area_x_m = bucketTipLocal.x;
 	        observation.task_state.bucket_tip_dig_area_y_m = bucketTipLocal.y;
 	        observation.task_state.bucket_tip_dig_area_z_m = bucketTipLocal.z;
-	        if ( m_digAreaMeasurement.TryMeasureBucketDepthBelowSurface(
-	               bucketTipLocal,
-	               out var depthBelowLocalSurfaceMeters,
-	               out var depthBelowTargetSurfaceMeters ) ) {
-	          observation.task_state.bucket_depth_below_local_surface_m = depthBelowLocalSurfaceMeters;
-	          observation.task_state.bucket_depth_below_target_surface_m = depthBelowTargetSurfaceMeters;
-	        }
 	      }
 	      if ( m_digAreaMeasurement != null ) {
 	        m_digAreaMeasurement.TryMeasureSurfaceGridMetrics( out var surfaceGridMetrics );

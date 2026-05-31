@@ -1,12 +1,11 @@
 using AGXUnity;
 using AGXUnity.Collide;
 using AGXUnity.Model;
+using AGXUnity.Utils;
 using UnityEngine;
-using UnityEngine.Rendering;
 
 public class DigAreaMeasurement : MonoBehaviour
 {
-  private const string DefaultDigAreaRootName = "AGXUnity.RigidBody.DigArea";
   private const int CellGridLongCount = 3;
   private const int CellGridShortCount = 2;
   private const int LongAxisX = 0;
@@ -43,102 +42,84 @@ public class DigAreaMeasurement : MonoBehaviour
   private Box m_digAreaBox = null;
 
   [SerializeField]
-  private string m_digAreaRootName = DefaultDigAreaRootName;
-
-  [SerializeField]
-  private bool m_autoAlignToDigTerrain = false;
-
-  [SerializeField]
   private string m_digTerrainName = "DigTerrain";
 
   [SerializeField]
-  [Min( 0.0f )]
-  private float m_digAreaPlaneYOffset = 0.0f;
+  private DeformableTerrainBase m_digDeformableTerrain = null;
 
   [SerializeField]
-  [Min( 0.001f )]
-  private float m_digAreaHalfHeight = 0.0375f;
+  private bool m_preferLiveDeformableTerrainSurface = true;
 
   [SerializeField]
-  private bool m_enableRuntimeVisuals = false;
+  private bool m_preferPhysicsTerrainSurface = true;
 
   [SerializeField]
-  private MeshRenderer m_fillRenderer = null;
+  [Min( 0.01f )]
+  private float m_surfaceRaycastAbovePlaneMeters = 2.0f;
 
   [SerializeField]
-  private LineRenderer m_contourRenderer = null;
-
-  [SerializeField]
-  private Color m_fillColor = new Color( 1.0f, 0.55f, 0.20f, 0.12f );
-
-  [SerializeField]
-  private Color m_contourColor = new Color( 1.0f, 0.45f, 0.05f, 0.98f );
-
-  [SerializeField]
-  [Min( 0.001f )]
-  private float m_contourWidth = 0.08f;
-
-  [SerializeField]
-  [Min( 0.0f )]
-  private float m_contourHeightOffset = 0.015f;
-
-  [SerializeField]
-  private bool m_enableCellGridVisuals = true;
-
-  [SerializeField]
-  private Color m_cellGridColor = new Color( 1.0f, 0.55f, 0.0f, 0.95f );
-
-  [SerializeField]
-  [Min( 0.001f )]
-  private float m_cellGridWidth = 0.035f;
-
-  [SerializeField]
-  [Min( 0.0f )]
-  private float m_cellGridHeightOffset = 0.025f;
-
-	  [SerializeField]
-	  [Min( 0.0f )]
-	  private float m_depthHorizontalBlendDistance = 0.25f;
+  [Min( 0.01f )]
+  private float m_surfaceRaycastBelowPlaneMeters = 2.0f;
 
 	  [SerializeField]
 	  [Min( 0.0f )]
 	  private float m_targetDepthMeters = 0.08f;
 
   [SerializeField]
-  [Range( 3, 9 )]
-  private int m_depthSamplingResolution = 5;
+  [Range( 1, 7 )]
+  private int m_surfaceGridSamplesPerCellAxis = 3;
 
-  private Material m_runtimeFillMaterial = null;
-  private Material m_runtimeContourMaterial = null;
-	  private Material m_runtimeCellGridMaterial = null;
-	  private LineRenderer[] m_cellGridRenderers = new LineRenderer[ 0 ];
-	  private MeshRenderer m_cachedFillRenderer = null;
-	  private Material m_originalFillMaterial = null;
-	  private bool m_originalFillRendererEnabled = false;
-	  private bool m_hasOriginalFillRendererState = false;
-	  private bool m_hasAutoAlignedDigArea = false;
+  [SerializeField]
+  private bool m_enableMassAttributedRemovedDepthFallback = false;
+
+  [SerializeField]
+  [Min( 1.0f )]
+  private float m_massAttributionSoilBulkDensityKgPerM3 = 1600.0f;
+
+  [SerializeField]
+  [Min( 0.0f )]
+  private float m_massAttributionMinBucketGainKg = 0.25f;
+
 	  private readonly float[] m_surfaceBaselineDepthMeters = new float[ CellGridLongCount * CellGridShortCount ];
+	  private readonly float[] m_massAttributedRemovedDepthMeters = new float[ CellGridLongCount * CellGridShortCount ];
 	  private bool m_surfaceBaselineValid = false;
 
 	  public float TargetDepthMeters => m_targetDepthMeters;
+  public Transform DigAreaRoot => m_digAreaRoot;
+  public Box DigAreaBox => m_digAreaBox;
+
+  public RigidBody DigAreaRigidBody =>
+    m_digAreaRoot != null ? m_digAreaRoot.GetComponent<RigidBody>() : GetComponent<RigidBody>();
+
+  public bool TryGetDigAreaNativeBoxPosition( out Vector3 nativePosition )
+  {
+    nativePosition = Vector3.zero;
+    if ( m_digAreaBox == null || m_digAreaBox.NativeGeometry == null )
+      return false;
+
+    nativePosition = m_digAreaBox.NativeGeometry.getPosition().ToHandedVector3();
+    return true;
+  }
+
+  public bool TryGetDigAreaNativeRigidBodyPosition( out Vector3 nativePosition )
+  {
+    nativePosition = Vector3.zero;
+    var rigidBody = DigAreaRigidBody;
+    if ( rigidBody == null || rigidBody.Native == null )
+      return false;
+
+    nativePosition = rigidBody.Native.getPosition().ToHandedVector3();
+    return true;
+  }
 
   private void OnEnable()
   {
     ResolveReferences();
-    ApplyVisuals();
   }
 
   private void LateUpdate()
   {
     ResolveReferences();
-    RefreshContourGeometry();
-    RefreshCellGridGeometry();
-  }
-
-  private void OnDestroy()
-  {
-    RestoreFillRendererState();
-    DestroyRuntimeMaterials();
   }
 
   public static DigAreaMeasurement FindOrCreateInScene()
@@ -156,56 +137,67 @@ public class DigAreaMeasurement : MonoBehaviour
       }
     }
 
-    var digAreaRoot = FindDigAreaRoot( DefaultDigAreaRootName );
-    if ( digAreaRoot == null )
-      return null;
-
-    var measurement = digAreaRoot.GetComponent<DigAreaMeasurement>();
-    if ( measurement == null )
-      measurement = digAreaRoot.gameObject.AddComponent<DigAreaMeasurement>();
-
-    measurement.ResolveReferences();
-    return measurement;
+    return null;
   }
 
   public void ResolveReferences()
   {
     if ( m_digAreaRoot == null )
-      m_digAreaRoot = FindDigAreaRoot( m_digAreaRootName );
+      m_digAreaRoot = transform;
 
-    if ( m_digAreaRoot == null ) {
-      m_digAreaBox = null;
-      m_fillRenderer = null;
-      m_contourRenderer = null;
-      m_cellGridRenderers = new LineRenderer[ 0 ];
-      m_hasAutoAlignedDigArea = false;
+    if ( m_digAreaRoot == null )
       return;
+
+    DetachManualDigAreaFromAgxRigidBodySync();
+    RemoveLegacyDigAreaRuntimeVisuals();
+  }
+
+  private void DetachManualDigAreaFromAgxRigidBodySync()
+  {
+    var rigidBody = m_digAreaRoot != null ?
+                    m_digAreaRoot.GetComponent<RigidBody>() :
+                    GetComponent<RigidBody>();
+    if ( rigidBody != null ) {
+      rigidBody.MotionControl = agx.RigidBody.MotionControl.STATIC;
+      rigidBody.LinearVelocity = Vector3.zero;
+      rigidBody.AngularVelocity = Vector3.zero;
+      if ( rigidBody.enabled )
+        rigidBody.enabled = false;
     }
 
-    if ( m_digAreaBox == null || !m_digAreaBox.transform.IsChildOf( m_digAreaRoot ) )
-      m_digAreaBox = ResolveDigAreaBox( m_digAreaRoot );
+    if ( m_digAreaBox != null ) {
+      m_digAreaBox.CollisionsEnabled = false;
+      m_digAreaBox.EnableMassProperties = false;
+      if ( m_digAreaBox.enabled )
+        m_digAreaBox.enabled = false;
+    }
+  }
 
-    AlignToDigTerrainOnceIfAvailable();
+  private void RemoveLegacyDigAreaRuntimeVisuals()
+  {
+    RemoveChildIfPresent( m_digAreaRoot, "DigAreaContour" );
+    RemoveChildIfPresent( m_digAreaRoot, "DigAreaContourRuntime" );
+    RemoveChildIfPresent( m_digAreaRoot, "DigAreaCellGridRuntime" );
 
-    if ( m_fillRenderer == null || !m_fillRenderer.transform.IsChildOf( m_digAreaRoot ) )
-      m_fillRenderer = ResolveFillRenderer( m_digAreaRoot );
-    CacheFillRendererState();
+    if ( m_digAreaBox != null ) {
+      RemoveChildIfPresent( m_digAreaBox.transform, "AGXUnity.Collide.Box_Visual" );
+      RemoveChildIfPresent( m_digAreaBox.transform, "DigAreaCellGridRuntime" );
+    }
+  }
 
-    if ( m_contourRenderer == null || !m_contourRenderer.transform.IsChildOf( m_digAreaRoot ) )
-      m_contourRenderer = ResolveContourRenderer( m_digAreaRoot );
+  private static void RemoveChildIfPresent( Transform parent, string childName )
+  {
+    if ( parent == null || string.IsNullOrWhiteSpace( childName ) )
+      return;
 
-    var cellGridParent = m_digAreaBox != null ? m_digAreaBox.transform : m_digAreaRoot;
-    var legacyCellGridRoot = m_digAreaRoot.Find( "DigAreaCellGridRuntime" );
-    if ( legacyCellGridRoot != null && legacyCellGridRoot.parent != cellGridParent )
-      legacyCellGridRoot.SetParent( cellGridParent, false );
-    if ( legacyCellGridRoot != null )
-      legacyCellGridRoot.gameObject.SetActive( true );
-    if ( m_cellGridRenderers == null ||
-         m_cellGridRenderers.Length != 3 ||
-         !CellGridRenderersBelongTo( m_cellGridRenderers, cellGridParent ) )
-      m_cellGridRenderers = ResolveCellGridRenderers( cellGridParent );
+    var child = parent.Find( childName );
+    if ( child == null )
+      return;
 
-    ApplyVisuals();
+    if ( Application.isPlaying )
+      Object.Destroy( child.gameObject );
+    else
+      Object.DestroyImmediate( child.gameObject );
   }
 
   public bool TryMeasureBucketDigAreaMetrics( Transform bucketReference,
@@ -228,25 +220,13 @@ public class DigAreaMeasurement : MonoBehaviour
     if ( !digAreaBox.IsValid )
       return false;
 
-    var hasBoxMetrics = BucketTargetDistanceMeasurementUtility.TryGetDigAreaMeasurementBox( bucketReference, out var bucketBox );
-    if ( hasBoxMetrics ) {
-      minDistanceMeters = BucketTargetDistanceMeasurementUtility.MeasureApproximateDistance( bucketBox, digAreaBox );
-      bucketDepthBelowPlaneMeters = MeasureEffectiveBucketDepthBelowPlane( bucketBox );
-    }
+    if ( !BucketTargetDistanceMeasurementUtility.TryGetMeasurementBox( bucketReference, out var bucketBox ) ||
+         !bucketBox.IsValid )
+      return false;
 
-    if ( TryMeasureShovelDigAreaMetrics( bucketReference,
-                                         digAreaBox,
-                                         out var shovelDistanceMeters,
-                                         out var shovelDepthBelowPlaneMeters ) ) {
-      minDistanceMeters = minDistanceMeters >= 0.0f ?
-                          Mathf.Min( minDistanceMeters, shovelDistanceMeters ) :
-                          shovelDistanceMeters;
-      bucketDepthBelowPlaneMeters = Mathf.Max( bucketDepthBelowPlaneMeters,
-                                               shovelDepthBelowPlaneMeters );
-      return true;
-    }
-
-    return hasBoxMetrics && minDistanceMeters >= 0.0f;
+    minDistanceMeters = MeasureBoxDistanceToReferencePlanePatch( bucketBox, digAreaBox );
+    bucketDepthBelowPlaneMeters = MeasureEffectiveBucketDepthBelowPlane( bucketBox );
+    return minDistanceMeters >= 0.0f;
   }
 
 	  public bool TryMeasureBucketCellMetrics( Transform bucketReference, out CellMetrics metrics )
@@ -269,9 +249,8 @@ public class DigAreaMeasurement : MonoBehaviour
     if ( bucketReference == null || m_digAreaBox == null )
       return false;
 
-    if ( !BucketTargetDistanceMeasurementUtility.TryGetDigAreaMeasurementBox( bucketReference, out var bucketBox ) )
-      return false;
-    if ( !bucketBox.IsValid )
+    if ( !BucketTargetDistanceMeasurementUtility.TryGetMeasurementBox( bucketReference, out var bucketBox ) ||
+         !bucketBox.IsValid )
       return false;
 
     var halfExtents = m_digAreaBox.HalfExtents;
@@ -317,8 +296,33 @@ public class DigAreaMeasurement : MonoBehaviour
 	  public void ResetSurfaceBaseline()
 	  {
 	    m_surfaceBaselineValid = false;
-	    for ( var index = 0; index < m_surfaceBaselineDepthMeters.Length; ++index )
+	    for ( var index = 0; index < m_surfaceBaselineDepthMeters.Length; ++index ) {
 	      m_surfaceBaselineDepthMeters[ index ] = 0.0f;
+	      m_massAttributedRemovedDepthMeters[ index ] = 0.0f;
+	    }
+	  }
+
+	  public void AccumulateMassAttributedRemoval( CellMetrics metrics, float bucketMassDeltaKg )
+	  {
+	    if ( !m_enableMassAttributedRemovedDepthFallback ||
+	         !metrics.GeometryAvailable ||
+	         metrics.CellId < 0 ||
+	         metrics.CellId >= m_massAttributedRemovedDepthMeters.Length ||
+	         bucketMassDeltaKg < m_massAttributionMinBucketGainKg )
+	      return;
+
+	    var cellArea = MeasureCellAreaMetersSquared();
+	    var density = Mathf.Max( 1.0f, m_massAttributionSoilBulkDensityKgPerM3 );
+	    if ( cellArea <= 1.0e-5f )
+	      return;
+
+	    var removedDepthDelta = bucketMassDeltaKg / ( density * cellArea );
+	    if ( float.IsNaN( removedDepthDelta ) ||
+	         float.IsInfinity( removedDepthDelta ) ||
+	         removedDepthDelta <= 0.0f )
+	      return;
+
+	    m_massAttributedRemovedDepthMeters[ metrics.CellId ] += removedDepthDelta;
 	  }
 
 	  public bool TryMeasureBucketTipDigAreaLocal( Transform bucketReference,
@@ -353,9 +357,8 @@ public class DigAreaMeasurement : MonoBehaviour
 	    for ( var longIndex = 0; longIndex < CellGridLongCount; ++longIndex ) {
 	      for ( var shortIndex = 0; shortIndex < CellGridShortCount; ++shortIndex ) {
 	        var cellId = longIndex * CellGridShortCount + shortIndex;
-	        var localPoint = CellCenterLocal( longIndex, shortIndex );
-	        if ( TryMeasureSurfaceDepthAtLocal( localPoint.x,
-	                                            localPoint.z,
+	        if ( TryMeasureSurfaceDepthForCell( longIndex,
+	                                            shortIndex,
 	                                            out var currentSurfaceDepthMeters,
 	                                            out _ ) ) {
 	          surfaceDepth[ cellId ] = currentSurfaceDepthMeters;
@@ -381,6 +384,12 @@ public class DigAreaMeasurement : MonoBehaviour
 	      removedDepth[ index ] = validMask[ index ] > 0.5f && m_surfaceBaselineValid ?
 	                              Mathf.Max( 0.0f, surfaceDepth[ index ] - m_surfaceBaselineDepthMeters[ index ] ) :
 	                              0.0f;
+	      if ( m_enableMassAttributedRemovedDepthFallback && validMask[ index ] > 0.5f ) {
+	        removedDepth[ index ] = Mathf.Max( removedDepth[ index ],
+	                                           m_massAttributedRemovedDepthMeters[ index ] );
+	        surfaceDepth[ index ] = Mathf.Max( surfaceDepth[ index ],
+	                                          m_surfaceBaselineDepthMeters[ index ] + removedDepth[ index ] );
+	      }
 	    }
 
 	    metrics = new SurfaceGridMetrics
@@ -399,8 +408,20 @@ public class DigAreaMeasurement : MonoBehaviour
 	                                                out float depthBelowLocalSurfaceMeters,
 	                                                out float depthBelowTargetSurfaceMeters )
 	  {
+	    return TryMeasureBucketDepthBelowSurface( bucketTipDigAreaLocalMeters,
+	                                             out depthBelowLocalSurfaceMeters,
+	                                             out depthBelowTargetSurfaceMeters,
+	                                             out _ );
+	  }
+
+	  public bool TryMeasureBucketDepthBelowSurface( Vector3 bucketTipDigAreaLocalMeters,
+	                                                out float depthBelowLocalSurfaceMeters,
+	                                                out float depthBelowTargetSurfaceMeters,
+	                                                out bool localSurfaceAvailable )
+	  {
 	    depthBelowLocalSurfaceMeters = 0.0f;
 	    depthBelowTargetSurfaceMeters = 0.0f;
+	    localSurfaceAvailable = false;
 	    if ( m_digAreaBox == null )
 	      return false;
 
@@ -409,8 +430,88 @@ public class DigAreaMeasurement : MonoBehaviour
 	                                        out _,
 	                                        out var surfaceLocalYMeters ) ) {
 	      depthBelowLocalSurfaceMeters = Mathf.Max( 0.0f, surfaceLocalYMeters - bucketTipDigAreaLocalMeters.y );
+	      localSurfaceAvailable = true;
 	    }
-	    depthBelowTargetSurfaceMeters = Mathf.Max( 0.0f, -m_targetDepthMeters - bucketTipDigAreaLocalMeters.y );
+	    depthBelowTargetSurfaceMeters = Mathf.Max(
+	      0.0f,
+	      TargetSurfaceLocalY() - bucketTipDigAreaLocalMeters.y );
+	    return true;
+	  }
+
+	  public bool TryMeasureBucketDepthBelowSurface( Transform bucketReference,
+	                                                out float depthBelowLocalSurfaceMeters,
+	                                                out float depthBelowTargetSurfaceMeters )
+	  {
+	    return TryMeasureBucketDepthBelowSurface( bucketReference,
+	                                             out depthBelowLocalSurfaceMeters,
+	                                             out depthBelowTargetSurfaceMeters,
+	                                             out _ );
+	  }
+
+	  public bool TryMeasureBucketDepthBelowSurface( Transform bucketReference,
+	                                                out float depthBelowLocalSurfaceMeters,
+	                                                out float depthBelowTargetSurfaceMeters,
+	                                                out bool localSurfaceAvailable )
+	  {
+	    depthBelowLocalSurfaceMeters = 0.0f;
+	    depthBelowTargetSurfaceMeters = 0.0f;
+	    localSurfaceAvailable = false;
+	    ResolveReferences();
+	    if ( bucketReference == null || m_digAreaBox == null )
+	      return false;
+
+	    if ( !BucketTargetDistanceMeasurementUtility.TryGetMeasurementBox( bucketReference,
+	                                                                       out var bucketBox ) )
+	      return TryMeasureBucketTipDigAreaLocal( bucketReference, out var bucketTipLocal ) &&
+	             TryMeasureBucketDepthBelowSurface( bucketTipLocal,
+	                                                out depthBelowLocalSurfaceMeters,
+	                                                out depthBelowTargetSurfaceMeters,
+	                                                out localSurfaceAvailable );
+
+	    var hasAnyCorner = false;
+	    for ( var xSign = -1; xSign <= 1; xSign += 2 ) {
+	      for ( var ySign = -1; ySign <= 1; ySign += 2 ) {
+	        for ( var zSign = -1; zSign <= 1; zSign += 2 ) {
+	          var bucketCornerWorld = bucketBox.CornerWorld( xSign, ySign, zSign );
+	          var bucketCornerDigAreaLocal = m_digAreaBox.transform.InverseTransformPoint(
+	            bucketCornerWorld );
+	          hasAnyCorner = true;
+
+	          if ( TryMeasureSurfaceDepthAtLocal( bucketCornerDigAreaLocal.x,
+	                                              bucketCornerDigAreaLocal.z,
+	                                              out _,
+	                                              out var surfaceLocalYMeters ) ) {
+	            depthBelowLocalSurfaceMeters = Mathf.Max(
+	              depthBelowLocalSurfaceMeters,
+	              surfaceLocalYMeters - bucketCornerDigAreaLocal.y );
+	            localSurfaceAvailable = true;
+	          }
+
+	          depthBelowTargetSurfaceMeters = Mathf.Max(
+	            depthBelowTargetSurfaceMeters,
+	            TargetSurfaceLocalY() - bucketCornerDigAreaLocal.y );
+	        }
+	      }
+	    }
+
+	    depthBelowLocalSurfaceMeters = Mathf.Max( 0.0f, depthBelowLocalSurfaceMeters );
+	    depthBelowTargetSurfaceMeters = Mathf.Max( 0.0f, depthBelowTargetSurfaceMeters );
+	    return hasAnyCorner || localSurfaceAvailable;
+	  }
+
+	  public bool TryDigAreaLocalPlanePointWorld( float localXMeters,
+	                                             float localZMeters,
+	                                             float heightOffsetMeters,
+	                                             out Vector3 worldPoint )
+	  {
+	    worldPoint = Vector3.zero;
+	    ResolveReferences();
+	    if ( m_digAreaBox == null )
+	      return false;
+
+	    worldPoint = m_digAreaBox.transform.TransformPoint(
+	      new Vector3( localXMeters, 0.0f, localZMeters ) );
+	    worldPoint += Vector3.up * Mathf.Max( 0.0f, heightOffsetMeters );
 	    return true;
 	  }
 
@@ -446,10 +547,413 @@ public class DigAreaMeasurement : MonoBehaviour
 	           new Vector3( shortValue, 0.0f, longValue );
 	  }
 
+	  private float MeasureCellAreaMetersSquared()
+	  {
+	    if ( m_digAreaBox == null )
+	      return 0.0f;
+
+	    var halfExtents = m_digAreaBox.HalfExtents;
+	    var longAxis = halfExtents.x >= halfExtents.z ? LongAxisX : LongAxisZ;
+	    var halfLong = longAxis == LongAxisX ? halfExtents.x : halfExtents.z;
+	    var halfShort = longAxis == LongAxisX ? halfExtents.z : halfExtents.x;
+	    var cellLong = 2.0f * halfLong / CellGridLongCount;
+	    var cellShort = 2.0f * halfShort / CellGridShortCount;
+	    return Mathf.Max( 0.0f, cellLong * cellShort );
+	  }
+
+	  private Vector3 CellSampleLocal( int longIndex,
+	                                   int shortIndex,
+	                                   int longSampleIndex,
+	                                   int shortSampleIndex,
+	                                   int sampleCount )
+	  {
+	    var halfExtents = m_digAreaBox != null ? m_digAreaBox.HalfExtents : Vector3.zero;
+	    var longAxis = halfExtents.x >= halfExtents.z ? LongAxisX : LongAxisZ;
+	    var halfLong = longAxis == LongAxisX ? halfExtents.x : halfExtents.z;
+	    var halfShort = longAxis == LongAxisX ? halfExtents.z : halfExtents.x;
+	    var longCellMin = -1.0f + longIndex * 2.0f / CellGridLongCount;
+	    var shortCellMin = -1.0f + shortIndex * 2.0f / CellGridShortCount;
+	    var longNorm = longCellMin +
+	                   ( longSampleIndex + 0.5f ) * 2.0f /
+	                   ( CellGridLongCount * sampleCount );
+	    var shortNorm = shortCellMin +
+	                    ( shortSampleIndex + 0.5f ) * 2.0f /
+	                    ( CellGridShortCount * sampleCount );
+	    var longValue = longNorm * halfLong;
+	    var shortValue = shortNorm * halfShort;
+	    return longAxis == LongAxisX ?
+	           new Vector3( longValue, 0.0f, shortValue ) :
+	           new Vector3( shortValue, 0.0f, longValue );
+	  }
+
+	  private bool TrySampleLiveTerrainSurfaceWorldY( Vector3 planeWorld,
+	                                                 out float surfaceWorldY )
+	  {
+	    surfaceWorldY = 0.0f;
+	    var preferredTerrain = ResolveDigDeformableTerrain();
+	    if ( preferredTerrain != null &&
+	         TrySampleDeformableTerrainSurfaceWorldY( preferredTerrain,
+	                                                  planeWorld,
+	                                                  out surfaceWorldY ) )
+	      return true;
+
+	    var terrains = Object.FindObjectsByType<DeformableTerrainBase>(
+	      FindObjectsInactive.Exclude,
+	      FindObjectsSortMode.None );
+	    if ( terrains == null )
+	      return false;
+
+	    foreach ( var terrain in terrains ) {
+	      if ( terrain == null || terrain == preferredTerrain || !terrain.isActiveAndEnabled )
+	        continue;
+
+	      if ( TrySampleDeformableTerrainSurfaceWorldY( terrain,
+	                                                    planeWorld,
+	                                                    out surfaceWorldY ) )
+	        return true;
+	    }
+
+	    return false;
+	  }
+
+	  private DeformableTerrainBase ResolveDigDeformableTerrain()
+	  {
+	    if ( m_digDeformableTerrain != null && m_digDeformableTerrain.isActiveAndEnabled )
+	      return m_digDeformableTerrain;
+
+	    if ( string.IsNullOrWhiteSpace( m_digTerrainName ) )
+	      return null;
+
+	    var terrains = Object.FindObjectsByType<DeformableTerrainBase>(
+	      FindObjectsInactive.Include,
+	      FindObjectsSortMode.None );
+	    if ( terrains == null )
+	      return null;
+
+	    foreach ( var terrain in terrains ) {
+	      if ( terrain == null )
+	        continue;
+
+	      if ( terrain.name == m_digTerrainName || terrain.gameObject.name == m_digTerrainName ) {
+	        m_digDeformableTerrain = terrain;
+	        return m_digDeformableTerrain;
+	      }
+	    }
+
+	    return null;
+	  }
+
+	  private static bool TrySampleDeformableTerrainSurfaceWorldY( DeformableTerrainBase terrain,
+	                                                              Vector3 planeWorld,
+	                                                              out float surfaceWorldY )
+	  {
+	    surfaceWorldY = 0.0f;
+	    if ( terrain == null || !terrain.isActiveAndEnabled )
+	      return false;
+
+	    if ( terrain is DeformableTerrain deformableTerrain )
+	      return TrySampleUnityBackedTerrainSurfaceWorldY(
+	        deformableTerrain,
+	        deformableTerrain.Terrain,
+	        deformableTerrain.TerrainDataResolution,
+	        planeWorld,
+	        out surfaceWorldY );
+
+	    if ( terrain is DeformableTerrainPager deformableTerrainPager )
+	      return TrySampleUnityBackedTerrainSurfaceWorldY(
+	        deformableTerrainPager,
+	        deformableTerrainPager.Terrain,
+	        deformableTerrainPager.TerrainDataResolution,
+	        planeWorld,
+	        out surfaceWorldY );
+
+	    if ( terrain is MovableTerrain movableTerrain )
+	      return TrySampleMovableTerrainSurfaceWorldY( movableTerrain,
+	                                                  planeWorld,
+	                                                  out surfaceWorldY );
+
+	    return false;
+	  }
+
+	  private static bool TrySampleUnityBackedTerrainSurfaceWorldY( DeformableTerrainBase terrain,
+	                                                               Terrain unityTerrain,
+	                                                               int resolution,
+	                                                               Vector3 planeWorld,
+	                                                               out float surfaceWorldY )
+	  {
+	    surfaceWorldY = 0.0f;
+	    if ( terrain == null ||
+	         unityTerrain == null ||
+	         unityTerrain.terrainData == null ||
+	         resolution <= 1 )
+	      return false;
+
+	    var terrainLocal = unityTerrain.transform.InverseTransformPoint( planeWorld );
+	    var terrainSize = unityTerrain.terrainData.size;
+	    if ( terrainSize.x <= 0.0f || terrainSize.z <= 0.0f )
+	      return false;
+
+	    var normX = terrainLocal.x / terrainSize.x;
+	    var normZ = terrainLocal.z / terrainSize.z;
+	    if ( normX < 0.0f || normX > 1.0f || normZ < 0.0f || normZ > 1.0f )
+	      return false;
+
+	    var indexX = normX * ( resolution - 1 );
+	    var indexZ = normZ * ( resolution - 1 );
+	    if ( !TrySampleTerrainHeightMeters( terrain,
+	                                        indexX,
+	                                        indexZ,
+	                                        resolution,
+	                                        resolution,
+	                                        out var nativeHeightMeters ) )
+	      return false;
+
+	    var surfaceWorld = unityTerrain.transform.TransformPoint(
+	      new Vector3( terrainLocal.x, nativeHeightMeters, terrainLocal.z ) );
+	    surfaceWorldY = surfaceWorld.y;
+	    return true;
+	  }
+
+	  private static bool TrySampleMovableTerrainSurfaceWorldY( MovableTerrain terrain,
+	                                                           Vector3 planeWorld,
+	                                                           out float surfaceWorldY )
+	  {
+	    surfaceWorldY = 0.0f;
+	    if ( terrain == null || terrain.SizeCells.x <= 1 || terrain.SizeCells.y <= 1 || terrain.ElementSize <= 0.0f )
+	      return false;
+
+	    var terrainLocal = terrain.transform.InverseTransformPoint( planeWorld );
+	    var indexX = terrainLocal.x / terrain.ElementSize + 0.5f * terrain.SizeCells.x;
+	    var indexZ = terrainLocal.z / terrain.ElementSize + 0.5f * terrain.SizeCells.y;
+	    if ( !TrySampleTerrainHeightMeters( terrain,
+	                                        indexX,
+	                                        indexZ,
+	                                        terrain.SizeCells.x,
+	                                        terrain.SizeCells.y,
+	                                        out var nativeHeightMeters ) )
+	      return false;
+
+	    var surfaceWorld = terrain.transform.TransformPoint(
+	      new Vector3( terrainLocal.x, nativeHeightMeters, terrainLocal.z ) );
+	    surfaceWorldY = surfaceWorld.y;
+	    return true;
+	  }
+
+	  private static bool TrySampleTerrainHeightMeters( DeformableTerrainBase terrain,
+	                                                   float indexX,
+	                                                   float indexZ,
+	                                                   int resolutionX,
+	                                                   int resolutionZ,
+	                                                   out float nativeHeightMeters )
+	  {
+	    nativeHeightMeters = 0.0f;
+	    if ( terrain == null ||
+	         resolutionX <= 1 ||
+	         resolutionZ <= 1 ||
+	         indexX < 0.0f ||
+	         indexZ < 0.0f ||
+	         indexX > resolutionX - 1 ||
+	         indexZ > resolutionZ - 1 )
+	      return false;
+
+	    var x0 = Mathf.Clamp( Mathf.FloorToInt( indexX ), 0, resolutionX - 1 );
+	    var z0 = Mathf.Clamp( Mathf.FloorToInt( indexZ ), 0, resolutionZ - 1 );
+	    var x1 = Mathf.Clamp( x0 + 1, 0, resolutionX - 1 );
+	    var z1 = Mathf.Clamp( z0 + 1, 0, resolutionZ - 1 );
+	    var tx = Mathf.Clamp01( indexX - x0 );
+	    var tz = Mathf.Clamp01( indexZ - z0 );
+
+	    try {
+	      var h00 = terrain.GetHeight( x0, z0 ) + terrain.MaximumDepth;
+	      var h10 = terrain.GetHeight( x1, z0 ) + terrain.MaximumDepth;
+	      var h01 = terrain.GetHeight( x0, z1 ) + terrain.MaximumDepth;
+	      var h11 = terrain.GetHeight( x1, z1 ) + terrain.MaximumDepth;
+	      nativeHeightMeters = Mathf.Lerp( Mathf.Lerp( h00, h10, tx ),
+	                                       Mathf.Lerp( h01, h11, tx ),
+	                                       tz );
+	      return true;
+	    }
+	    catch {
+	      nativeHeightMeters = 0.0f;
+	      return false;
+	    }
+	  }
+
 	  private bool TryMeasureSurfaceDepthAtLocal( float localXMeters,
 	                                             float localZMeters,
 	                                             out float surfaceDepthMeters,
 	                                             out float surfaceLocalYMeters )
+	  {
+	    surfaceDepthMeters = 0.0f;
+	    surfaceLocalYMeters = 0.0f;
+	    if ( m_digAreaBox == null )
+	      return false;
+
+	    if ( m_preferPhysicsTerrainSurface &&
+	         TryMeasurePhysicsTerrainSurfaceDepthAtLocal( localXMeters,
+	                                                       localZMeters,
+	                                                       out surfaceDepthMeters,
+	                                                       out surfaceLocalYMeters ) )
+	      return true;
+
+	    if ( m_preferLiveDeformableTerrainSurface &&
+	         TryMeasureLiveTerrainSurfaceDepthAtLocal( localXMeters,
+	                                                   localZMeters,
+	                                                   out surfaceDepthMeters,
+	                                                   out surfaceLocalYMeters ) )
+	      return true;
+
+	    return TryMeasureUnityTerrainSurfaceDepthAtLocal( localXMeters,
+	                                                     localZMeters,
+	                                                     out surfaceDepthMeters,
+	                                                     out surfaceLocalYMeters );
+	  }
+
+	  private bool TryMeasurePhysicsTerrainSurfaceDepthAtLocal( float localXMeters,
+	                                                           float localZMeters,
+	                                                           out float surfaceDepthMeters,
+	                                                           out float surfaceLocalYMeters )
+	  {
+	    surfaceDepthMeters = 0.0f;
+	    surfaceLocalYMeters = 0.0f;
+	    if ( m_digAreaBox == null )
+	      return false;
+
+	    var digAreaTransform = m_digAreaBox.transform;
+	    var planeWorld = digAreaTransform.TransformPoint(
+	      new Vector3( localXMeters, 0.0f, localZMeters ) );
+	    var up = digAreaTransform.up;
+	    if ( up.sqrMagnitude <= 1.0e-6f )
+	      return false;
+	    up.Normalize();
+
+	    var raycastAbove = Mathf.Max( 0.01f, m_surfaceRaycastAbovePlaneMeters );
+	    var raycastBelow = Mathf.Max( 0.01f, m_surfaceRaycastBelowPlaneMeters );
+	    var origin = planeWorld + up * raycastAbove;
+	    var hits = Physics.RaycastAll(
+	      origin,
+	      -up,
+	      raycastAbove + raycastBelow,
+	      Physics.DefaultRaycastLayers,
+	      QueryTriggerInteraction.Ignore );
+	    if ( hits == null || hits.Length == 0 )
+	      return false;
+
+	    var hasHit = false;
+	    var bestLocalY = float.NegativeInfinity;
+	    for ( var hitIndex = 0; hitIndex < hits.Length; ++hitIndex ) {
+	      var hit = hits[ hitIndex ];
+	      if ( hit.collider == null || !IsDigTerrainSurfaceCollider( hit.collider ) )
+	        continue;
+
+	      var hitLocal = digAreaTransform.InverseTransformPoint( hit.point );
+	      if ( hasHit && hitLocal.y <= bestLocalY )
+	        continue;
+
+	      bestLocalY = hitLocal.y;
+	      hasHit = true;
+	    }
+
+	    if ( !hasHit )
+	      return false;
+
+	    surfaceLocalYMeters = bestLocalY;
+	    surfaceDepthMeters = DepthBelowReferencePlane( surfaceLocalYMeters );
+	    return true;
+	  }
+
+	  private bool IsDigTerrainSurfaceCollider( Collider candidate )
+	  {
+	    if ( candidate == null )
+	      return false;
+
+	    if ( !string.IsNullOrWhiteSpace( m_digTerrainName ) ) {
+	      var transformToCheck = candidate.transform;
+	      while ( transformToCheck != null ) {
+	        if ( transformToCheck.name == m_digTerrainName ||
+	             transformToCheck.gameObject.name == m_digTerrainName )
+	          return true;
+	        transformToCheck = transformToCheck.parent;
+	      }
+	    }
+
+	    if ( candidate.GetComponentInParent<DeformableTerrainBase>() != null )
+	      return true;
+
+	    return candidate is TerrainCollider && string.IsNullOrWhiteSpace( m_digTerrainName );
+	  }
+
+	  private bool TryMeasureSurfaceDepthForCell( int longIndex,
+	                                             int shortIndex,
+	                                             out float surfaceDepthMeters,
+	                                             out float surfaceLocalYMeters )
+	  {
+	    surfaceDepthMeters = 0.0f;
+	    surfaceLocalYMeters = 0.0f;
+	    var sampleCount = Mathf.Max( 1, m_surfaceGridSamplesPerCellAxis );
+	    if ( sampleCount <= 1 ) {
+	      var localPoint = CellCenterLocal( longIndex, shortIndex );
+	      return TryMeasureSurfaceDepthAtLocal( localPoint.x,
+	                                           localPoint.z,
+	                                           out surfaceDepthMeters,
+	                                           out surfaceLocalYMeters );
+	    }
+
+	    var depthSum = 0.0f;
+	    var localYSum = 0.0f;
+	    var validCount = 0;
+	    for ( var longSample = 0; longSample < sampleCount; ++longSample ) {
+	      for ( var shortSample = 0; shortSample < sampleCount; ++shortSample ) {
+	        var localPoint = CellSampleLocal( longIndex,
+	                                          shortIndex,
+	                                          longSample,
+	                                          shortSample,
+	                                          sampleCount );
+	        if ( !TryMeasureSurfaceDepthAtLocal( localPoint.x,
+	                                             localPoint.z,
+	                                             out var sampleDepthMeters,
+	                                             out var sampleLocalYMeters ) )
+	          continue;
+
+	        depthSum += sampleDepthMeters;
+	        localYSum += sampleLocalYMeters;
+	        validCount++;
+	      }
+	    }
+
+	    if ( validCount <= 0 )
+	      return false;
+
+	    surfaceDepthMeters = depthSum / validCount;
+	    surfaceLocalYMeters = localYSum / validCount;
+	    return true;
+	  }
+
+	  private bool TryMeasureLiveTerrainSurfaceDepthAtLocal( float localXMeters,
+	                                                        float localZMeters,
+	                                                        out float surfaceDepthMeters,
+	                                                        out float surfaceLocalYMeters )
+	  {
+	    surfaceDepthMeters = 0.0f;
+	    surfaceLocalYMeters = 0.0f;
+	    if ( m_digAreaBox == null )
+	      return false;
+
+	    var planeWorld = m_digAreaBox.transform.TransformPoint(
+	      new Vector3( localXMeters, 0.0f, localZMeters ) );
+	    if ( !TrySampleLiveTerrainSurfaceWorldY( planeWorld, out var surfaceWorldY ) )
+	      return false;
+
+	    var surfaceWorld = new Vector3( planeWorld.x, surfaceWorldY, planeWorld.z );
+	    surfaceLocalYMeters = m_digAreaBox.transform.InverseTransformPoint( surfaceWorld ).y;
+	    surfaceDepthMeters = DepthBelowReferencePlane( surfaceLocalYMeters );
+	    return true;
+	  }
+
+	  private bool TryMeasureUnityTerrainSurfaceDepthAtLocal( float localXMeters,
+	                                                         float localZMeters,
+	                                                         out float surfaceDepthMeters,
+	                                                         out float surfaceLocalYMeters )
 	  {
 	    surfaceDepthMeters = 0.0f;
 	    surfaceLocalYMeters = 0.0f;
@@ -476,7 +980,7 @@ public class DigAreaMeasurement : MonoBehaviour
 	                        terrain.terrainData.GetInterpolatedHeight( normX, normZ );
 	    var surfaceWorld = new Vector3( planeWorld.x, surfaceWorldY, planeWorld.z );
 	    surfaceLocalYMeters = m_digAreaBox.transform.InverseTransformPoint( surfaceWorld ).y;
-	    surfaceDepthMeters = Mathf.Max( 0.0f, -surfaceLocalYMeters );
+	    surfaceDepthMeters = DepthBelowReferencePlane( surfaceLocalYMeters );
 	    return true;
 	  }
 
@@ -497,219 +1001,334 @@ public class DigAreaMeasurement : MonoBehaviour
       }
     }
 
-    return float.IsPositiveInfinity( minBucketDigAreaLocalY ) ?
-           0.0f :
-           Mathf.Max( 0.0f, -minBucketDigAreaLocalY );
+    if ( float.IsPositiveInfinity( minBucketDigAreaLocalY ) )
+      return 0.0f;
+
+    return DepthBelowReferencePlane( minBucketDigAreaLocalY );
   }
 
-  private bool TryMeasureShovelDigAreaMetrics( Transform bucketReference,
-                                               OrientedMeasurementBox digAreaBox,
-                                               out float minDistanceMeters,
-                                               out float bucketDepthBelowPlaneMeters )
+  private float ReferencePlaneLocalY()
   {
-    minDistanceMeters = -1.0f;
-    bucketDepthBelowPlaneMeters = 0.0f;
-
-    var shovel = ResolveShovel( bucketReference );
-    if ( shovel == null || digAreaBox.Frame == null )
-      return false;
-
-    var hasSample = false;
-    SampleShovelLine( shovel.CuttingEdge, digAreaBox, ref hasSample, ref minDistanceMeters, ref bucketDepthBelowPlaneMeters );
-    SampleShovelLine( shovel.ToothDirection, digAreaBox, ref hasSample, ref minDistanceMeters, ref bucketDepthBelowPlaneMeters );
-    SampleShovelLine( shovel.TopEdge, digAreaBox, ref hasSample, ref minDistanceMeters, ref bucketDepthBelowPlaneMeters );
-    return hasSample && minDistanceMeters >= 0.0f;
+    return m_digAreaBox != null ? -m_digAreaBox.HalfExtents.y : 0.0f;
   }
 
-  private void SampleShovelLine( Line line,
-                                 OrientedMeasurementBox digAreaBox,
-                                 ref bool hasSample,
-                                 ref float minDistanceMeters,
-                                 ref float bucketDepthBelowPlaneMeters )
+  private float TargetSurfaceLocalY()
   {
-    if ( line == null || !line.Valid )
-      return;
+    return ReferencePlaneLocalY() - m_targetDepthMeters;
+  }
 
-    var sampleCount = Mathf.Max( 2, m_depthSamplingResolution );
-    for ( var sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++ ) {
-      var t = sampleCount <= 1 ? 0.0f : sampleIndex / (float)( sampleCount - 1 );
-      var sampleWorld = Vector3.Lerp( line.Start.Position, line.End.Position, t );
-      MeasureShovelPoint( sampleWorld,
-                          digAreaBox,
-                          ref hasSample,
-                          ref minDistanceMeters,
-                          ref bucketDepthBelowPlaneMeters );
+  private float DepthBelowReferencePlane( float digAreaLocalY )
+  {
+    return Mathf.Max( 0.0f, ReferencePlaneLocalY() - digAreaLocalY );
+  }
+
+  private float MeasureBoxDistanceToReferencePlanePatch( OrientedMeasurementBox bucketBox,
+                                                         OrientedMeasurementBox digAreaBox )
+  {
+    if ( !bucketBox.IsValid || !digAreaBox.IsValid )
+      return -1.0f;
+
+    var bucketCorners = BuildBoxCornersWorld( bucketBox );
+    var referenceCorners = BuildReferencePlaneCornersWorld( digAreaBox );
+    var minDistanceSq = float.PositiveInfinity;
+
+    foreach ( var bucketCorner in bucketCorners )
+      minDistanceSq = Mathf.Min(
+        minDistanceSq,
+        MeasurePointDistanceSqToReferencePlanePatch( bucketCorner, digAreaBox ) );
+
+    foreach ( var referenceCorner in referenceCorners )
+      minDistanceSq = Mathf.Min(
+        minDistanceSq,
+        MeasurePointDistanceSqToBox( referenceCorner, bucketBox ) );
+
+    AccumulateBoxEdgeToReferencePlaneEdgeDistance( bucketCorners,
+                                                  referenceCorners,
+                                                  bucketBox,
+                                                  digAreaBox,
+                                                  ref minDistanceSq );
+
+    return float.IsPositiveInfinity( minDistanceSq ) ?
+      -1.0f :
+      Mathf.Sqrt( Mathf.Max( 0.0f, minDistanceSq ) );
+  }
+
+  private float MeasurePointDistanceSqToReferencePlanePatch( Vector3 pointWorld,
+                                                             OrientedMeasurementBox digAreaBox )
+  {
+    if ( digAreaBox.Frame == null )
+      return float.PositiveInfinity;
+
+    var local = digAreaBox.Frame.InverseTransformPoint( pointWorld ) - digAreaBox.CenterLocal;
+    var outsideX = Mathf.Max( Mathf.Abs( local.x ) - digAreaBox.HalfExtents.x, 0.0f );
+    var outsideZ = Mathf.Max( Mathf.Abs( local.z ) - digAreaBox.HalfExtents.z, 0.0f );
+    var deltaY = local.y - ReferencePlaneLocalY();
+    return outsideX * outsideX + deltaY * deltaY + outsideZ * outsideZ;
+  }
+
+  private static float MeasurePointDistanceSqToBox( Vector3 pointWorld,
+                                                    OrientedMeasurementBox box )
+  {
+    if ( !box.IsValid )
+      return float.PositiveInfinity;
+
+    var closestWorld = box.ClosestPointWorld( pointWorld );
+    return ( pointWorld - closestWorld ).sqrMagnitude;
+  }
+
+  private Vector3[] BuildReferencePlaneCornersWorld( OrientedMeasurementBox digAreaBox )
+  {
+    var localY = ReferencePlaneLocalY();
+    return new[]
+    {
+      digAreaBox.Frame.TransformPoint(
+        digAreaBox.CenterLocal + new Vector3( -digAreaBox.HalfExtents.x, localY, -digAreaBox.HalfExtents.z ) ),
+      digAreaBox.Frame.TransformPoint(
+        digAreaBox.CenterLocal + new Vector3( -digAreaBox.HalfExtents.x, localY,  digAreaBox.HalfExtents.z ) ),
+      digAreaBox.Frame.TransformPoint(
+        digAreaBox.CenterLocal + new Vector3(  digAreaBox.HalfExtents.x, localY,  digAreaBox.HalfExtents.z ) ),
+      digAreaBox.Frame.TransformPoint(
+        digAreaBox.CenterLocal + new Vector3(  digAreaBox.HalfExtents.x, localY, -digAreaBox.HalfExtents.z ) )
+    };
+  }
+
+  private static Vector3[] BuildBoxCornersWorld( OrientedMeasurementBox box )
+  {
+    return new[]
+    {
+      box.CornerWorld( -1, -1, -1 ),
+      box.CornerWorld( -1, -1,  1 ),
+      box.CornerWorld( -1,  1, -1 ),
+      box.CornerWorld( -1,  1,  1 ),
+      box.CornerWorld(  1, -1, -1 ),
+      box.CornerWorld(  1, -1,  1 ),
+      box.CornerWorld(  1,  1, -1 ),
+      box.CornerWorld(  1,  1,  1 )
+    };
+  }
+
+  private static void AccumulateBoxEdgeToReferencePlaneEdgeDistance( Vector3[] boxCorners,
+                                                                     Vector3[] referenceCorners,
+                                                                     OrientedMeasurementBox bucketBox,
+                                                                     OrientedMeasurementBox digAreaBox,
+                                                                     ref float minDistanceSq )
+  {
+    var boxEdges = new[,]
+    {
+      { 0, 1 }, { 0, 2 }, { 0, 4 }, { 1, 3 }, { 1, 5 }, { 2, 3 },
+      { 2, 6 }, { 3, 7 }, { 4, 5 }, { 4, 6 }, { 5, 7 }, { 6, 7 }
+    };
+    var referenceEdges = new[,]
+    {
+      { 0, 1 }, { 1, 2 }, { 2, 3 }, { 3, 0 }
+    };
+
+    for ( var referenceEdgeIndex = 0; referenceEdgeIndex < referenceEdges.GetLength( 0 ); ++referenceEdgeIndex ) {
+      var referenceStart = referenceCorners[ referenceEdges[ referenceEdgeIndex, 0 ] ];
+      var referenceEnd = referenceCorners[ referenceEdges[ referenceEdgeIndex, 1 ] ];
+      if ( TrySegmentBoxIntersection( referenceStart, referenceEnd, bucketBox ) ) {
+        minDistanceSq = 0.0f;
+        return;
+      }
+    }
+
+    for ( var boxEdgeIndex = 0; boxEdgeIndex < boxEdges.GetLength( 0 ); ++boxEdgeIndex ) {
+      var boxStart = boxCorners[ boxEdges[ boxEdgeIndex, 0 ] ];
+      var boxEnd = boxCorners[ boxEdges[ boxEdgeIndex, 1 ] ];
+      if ( TrySegmentReferencePlanePatchIntersection( boxStart, boxEnd, digAreaBox ) ) {
+        minDistanceSq = 0.0f;
+        return;
+      }
+
+      for ( var referenceEdgeIndex = 0; referenceEdgeIndex < referenceEdges.GetLength( 0 ); ++referenceEdgeIndex ) {
+        var referenceStart = referenceCorners[ referenceEdges[ referenceEdgeIndex, 0 ] ];
+        var referenceEnd = referenceCorners[ referenceEdges[ referenceEdgeIndex, 1 ] ];
+        minDistanceSq = Mathf.Min(
+          minDistanceSq,
+          MeasureSegmentSegmentDistanceSq( boxStart, boxEnd, referenceStart, referenceEnd ) );
+      }
     }
   }
 
-  private void MeasureShovelPoint( Vector3 sampleWorld,
-                                   OrientedMeasurementBox digAreaBox,
-                                   ref bool hasSample,
-                                   ref float minDistanceMeters,
-                                   ref float bucketDepthBelowPlaneMeters )
+  private static bool TrySegmentBoxIntersection( Vector3 segmentStart,
+                                                 Vector3 segmentEnd,
+                                                 OrientedMeasurementBox box )
   {
-    if ( digAreaBox.Frame == null )
-      return;
+    if ( !box.IsValid )
+      return false;
 
-    var local = digAreaBox.Frame.InverseTransformPoint( sampleWorld ) - digAreaBox.CenterLocal;
-    var outsideX = Mathf.Max( Mathf.Abs( local.x ) - digAreaBox.HalfExtents.x, 0.0f );
-    var outsideZ = Mathf.Max( Mathf.Abs( local.z ) - digAreaBox.HalfExtents.z, 0.0f );
-    var outsideHorizontal = Mathf.Sqrt( outsideX * outsideX + outsideZ * outsideZ );
-    var verticalGapAbovePlane = Mathf.Max( local.y - digAreaBox.HalfExtents.y, 0.0f );
-    var distanceMeters = Mathf.Sqrt(
-      outsideHorizontal * outsideHorizontal +
-      verticalGapAbovePlane * verticalGapAbovePlane );
+    var startLocal = box.Frame.InverseTransformPoint( segmentStart ) - box.CenterLocal;
+    var endLocal = box.Frame.InverseTransformPoint( segmentEnd ) - box.CenterLocal;
+    var delta = endLocal - startLocal;
+    var tMin = 0.0f;
+    var tMax = 1.0f;
 
-    if ( !hasSample || distanceMeters < minDistanceMeters )
-      minDistanceMeters = distanceMeters;
+    return UpdateSegmentBoxSlab( startLocal.x, delta.x, box.HalfExtents.x, ref tMin, ref tMax ) &&
+           UpdateSegmentBoxSlab( startLocal.y, delta.y, box.HalfExtents.y, ref tMin, ref tMax ) &&
+           UpdateSegmentBoxSlab( startLocal.z, delta.z, box.HalfExtents.z, ref tMin, ref tMax );
+  }
 
-    var horizontalWeight = 1.0f;
-    if ( m_depthHorizontalBlendDistance <= 0.0f )
-      horizontalWeight = outsideHorizontal <= 0.0f ? 1.0f : 0.0f;
-    else
-      horizontalWeight = 1.0f - Mathf.Clamp01( outsideHorizontal / m_depthHorizontalBlendDistance );
+  private static bool UpdateSegmentBoxSlab( float start,
+                                            float delta,
+                                            float halfExtent,
+                                            ref float tMin,
+                                            ref float tMax )
+  {
+    if ( Mathf.Abs( delta ) <= Mathf.Epsilon )
+      return start >= -halfExtent && start <= halfExtent;
 
-    var depthMeters = Mathf.Max( 0.0f, -local.y ) * horizontalWeight;
-    bucketDepthBelowPlaneMeters = Mathf.Max( bucketDepthBelowPlaneMeters, depthMeters );
-    hasSample = true;
+    var inverseDelta = 1.0f / delta;
+    var t1 = ( -halfExtent - start ) * inverseDelta;
+    var t2 = ( halfExtent - start ) * inverseDelta;
+    if ( t1 > t2 ) {
+      var swap = t1;
+      t1 = t2;
+      t2 = swap;
+    }
+
+    tMin = Mathf.Max( tMin, t1 );
+    tMax = Mathf.Min( tMax, t2 );
+    return tMin <= tMax;
+  }
+
+  private static bool TrySegmentReferencePlanePatchIntersection( Vector3 segmentStart,
+                                                                 Vector3 segmentEnd,
+                                                                 OrientedMeasurementBox digAreaBox )
+  {
+    if ( !digAreaBox.IsValid )
+      return false;
+
+    var startLocal = digAreaBox.Frame.InverseTransformPoint( segmentStart ) - digAreaBox.CenterLocal;
+    var endLocal = digAreaBox.Frame.InverseTransformPoint( segmentEnd ) - digAreaBox.CenterLocal;
+    var planeLocalY = -digAreaBox.HalfExtents.y;
+    var startDistance = startLocal.y - planeLocalY;
+    var endDistance = endLocal.y - planeLocalY;
+    if ( Mathf.Abs( startDistance ) <= Mathf.Epsilon &&
+         IsInsideReferencePlanePatch( startLocal, digAreaBox ) )
+      return true;
+    if ( Mathf.Abs( endDistance ) <= Mathf.Epsilon &&
+         IsInsideReferencePlanePatch( endLocal, digAreaBox ) )
+      return true;
+    if ( startDistance * endDistance > 0.0f )
+      return false;
+
+    var denominator = startLocal.y - endLocal.y;
+    if ( Mathf.Abs( denominator ) <= Mathf.Epsilon )
+      return false;
+
+    var t = ( startLocal.y - planeLocalY ) / denominator;
+    if ( t < 0.0f || t > 1.0f )
+      return false;
+
+    var intersectionLocal = Vector3.Lerp( startLocal, endLocal, t );
+    return IsInsideReferencePlanePatch( intersectionLocal, digAreaBox );
+  }
+
+  private static bool IsInsideReferencePlanePatch( Vector3 digAreaLocalPoint,
+                                                   OrientedMeasurementBox digAreaBox )
+  {
+    return Mathf.Abs( digAreaLocalPoint.x ) <= digAreaBox.HalfExtents.x &&
+           Mathf.Abs( digAreaLocalPoint.z ) <= digAreaBox.HalfExtents.z;
+  }
+
+  private static float MeasureSegmentSegmentDistanceSq( Vector3 firstStart,
+                                                        Vector3 firstEnd,
+                                                        Vector3 secondStart,
+                                                        Vector3 secondEnd )
+  {
+    var firstDelta = firstEnd - firstStart;
+    var secondDelta = secondEnd - secondStart;
+    var startDelta = firstStart - secondStart;
+    var firstLengthSq = Vector3.Dot( firstDelta, firstDelta );
+    var secondLengthSq = Vector3.Dot( secondDelta, secondDelta );
+    var secondStartProjection = Vector3.Dot( secondDelta, startDelta );
+    float firstT;
+    float secondT;
+
+    if ( firstLengthSq <= Mathf.Epsilon && secondLengthSq <= Mathf.Epsilon )
+      return ( firstStart - secondStart ).sqrMagnitude;
+
+    if ( firstLengthSq <= Mathf.Epsilon ) {
+      firstT = 0.0f;
+      secondT = Mathf.Clamp01( secondStartProjection / secondLengthSq );
+    }
+    else {
+      var firstStartProjection = Vector3.Dot( firstDelta, startDelta );
+      if ( secondLengthSq <= Mathf.Epsilon ) {
+        secondT = 0.0f;
+        firstT = Mathf.Clamp01( -firstStartProjection / firstLengthSq );
+      }
+      else {
+        var crossProjection = Vector3.Dot( firstDelta, secondDelta );
+        var denominator = firstLengthSq * secondLengthSq - crossProjection * crossProjection;
+        firstT = denominator != 0.0f ?
+                 Mathf.Clamp01( ( crossProjection * secondStartProjection - firstStartProjection * secondLengthSq ) / denominator ) :
+                 0.0f;
+        secondT = ( crossProjection * firstT + secondStartProjection ) / secondLengthSq;
+        if ( secondT < 0.0f ) {
+          secondT = 0.0f;
+          firstT = Mathf.Clamp01( -firstStartProjection / firstLengthSq );
+        }
+        else if ( secondT > 1.0f ) {
+          secondT = 1.0f;
+          firstT = Mathf.Clamp01( ( crossProjection - firstStartProjection ) / firstLengthSq );
+        }
+      }
+    }
+
+    var firstClosest = firstStart + firstDelta * firstT;
+    var secondClosest = secondStart + secondDelta * secondT;
+    return ( firstClosest - secondClosest ).sqrMagnitude;
   }
 
 	  private bool TryGetBucketReferencePointWorld( Transform bucketReference, out Vector3 referenceWorld )
 	  {
 	    referenceWorld = Vector3.zero;
-	    var shovel = ResolveShovel( bucketReference );
-	    if ( shovel == null || m_digAreaBox == null ) {
-	      if ( BucketTargetDistanceMeasurementUtility.TryGetDigAreaMeasurementBox( bucketReference, out var bucketBox ) &&
-	           bucketBox.IsValid ) {
-	        referenceWorld = bucketBox.Frame.TransformPoint( bucketBox.CenterLocal );
-	        return true;
-	      }
-	      return false;
-	    }
+    return TrySelectLowestMeasurementBoxPoint( bucketReference, out referenceWorld );
+  }
+
+  private bool TrySelectLowestMeasurementBoxPoint( Transform bucketReference,
+                                                   out Vector3 referenceWorld )
+  {
+    referenceWorld = Vector3.zero;
+    if ( bucketReference == null || m_digAreaBox == null )
+      return false;
+
+    if ( BucketTargetDistanceMeasurementUtility.TryGetMeasurementBox( bucketReference,
+	                                                                      out var bucketBox ) &&
+	         bucketBox.IsValid )
+	      return TrySelectLowestMeasurementBoxPoint( bucketBox, out referenceWorld );
+	
+    return false;
+  }
+
+  private bool TrySelectLowestMeasurementBoxPoint( OrientedMeasurementBox bucketBox,
+                                                   out Vector3 referenceWorld )
+  {
+    referenceWorld = Vector3.zero;
+    if ( !bucketBox.IsValid || m_digAreaBox == null )
+      return false;
 
     var hasPoint = false;
     var bestLocalY = float.PositiveInfinity;
-    TrySelectLowestShovelLinePoint( shovel.CuttingEdge, ref hasPoint, ref bestLocalY, ref referenceWorld );
-    TrySelectLowestShovelLinePoint( shovel.ToothDirection, ref hasPoint, ref bestLocalY, ref referenceWorld );
-    TrySelectLowestShovelLinePoint( shovel.TopEdge, ref hasPoint, ref bestLocalY, ref referenceWorld );
+    for ( var xIndex = -1; xIndex <= 1; xIndex++ ) {
+      for ( var yIndex = -1; yIndex <= 1; yIndex++ ) {
+        for ( var zIndex = -1; zIndex <= 1; zIndex++ ) {
+          var sampleWorld = bucketBox.SamplePointWorld( xIndex,
+                                                        yIndex,
+                                                        zIndex );
+          var sampleLocal = m_digAreaBox.transform.InverseTransformPoint( sampleWorld );
+          if ( hasPoint && sampleLocal.y >= bestLocalY )
+            continue;
+
+          hasPoint = true;
+          bestLocalY = sampleLocal.y;
+          referenceWorld = sampleWorld;
+        }
+      }
+    }
+
     return hasPoint;
-  }
-
-  private void TrySelectLowestShovelLinePoint( Line line,
-                                               ref bool hasPoint,
-                                               ref float bestLocalY,
-                                               ref Vector3 referenceWorld )
-  {
-    if ( line == null || !line.Valid || m_digAreaBox == null )
-      return;
-
-    var sampleCount = Mathf.Max( 2, m_depthSamplingResolution );
-    for ( var sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++ ) {
-      var t = sampleCount <= 1 ? 0.0f : sampleIndex / (float)( sampleCount - 1 );
-      var sampleWorld = Vector3.Lerp( line.Start.Position, line.End.Position, t );
-      var sampleLocal = m_digAreaBox.transform.InverseTransformPoint( sampleWorld );
-      if ( hasPoint && sampleLocal.y >= bestLocalY )
-        continue;
-
-      hasPoint = true;
-      bestLocalY = sampleLocal.y;
-      referenceWorld = sampleWorld;
-    }
-  }
-
-  private static DeformableTerrainShovel ResolveShovel( Transform bucketReference )
-  {
-    if ( bucketReference == null )
-      return null;
-
-    var shovel = bucketReference.GetComponent<DeformableTerrainShovel>();
-    if ( shovel != null )
-      return shovel;
-
-    shovel = bucketReference.GetComponentInChildren<DeformableTerrainShovel>( true );
-    if ( shovel != null )
-      return shovel;
-
-    return bucketReference.GetComponentInParent<DeformableTerrainShovel>( true );
-  }
-
-  private static Transform FindDigAreaRoot( string digAreaRootName )
-  {
-    if ( string.IsNullOrWhiteSpace( digAreaRootName ) )
-      return null;
-
-    var allTransforms = Object.FindObjectsByType<Transform>(
-      FindObjectsInactive.Include,
-      FindObjectsSortMode.None );
-    if ( allTransforms == null )
-      return null;
-
-    foreach ( var candidate in allTransforms ) {
-      if ( candidate != null && candidate.name == digAreaRootName )
-        return candidate;
-    }
-
-    return null;
-  }
-
-  private void AlignToDigTerrainOnceIfAvailable()
-  {
-    if ( m_hasAutoAlignedDigArea || !m_autoAlignToDigTerrain || m_digAreaRoot == null || m_digAreaBox == null )
-      return;
-
-    if ( HasCalibratedSceneBox() ) {
-      m_hasAutoAlignedDigArea = true;
-      return;
-    }
-
-    var terrain = FindDigTerrain( m_digTerrainName );
-    if ( terrain == null || terrain.terrainData == null )
-      return;
-
-    var terrainSize = terrain.terrainData.size;
-    if ( terrainSize.x <= 0.0f || terrainSize.z <= 0.0f )
-      return;
-
-    var centerHeight = terrain.terrainData.GetInterpolatedHeight( 0.5f, 0.5f ) +
-                       m_digAreaPlaneYOffset;
-    if ( m_digAreaRoot.parent != terrain.transform )
-      m_digAreaRoot.SetParent( terrain.transform, false );
-
-    m_digAreaRoot.localPosition = new Vector3(
-      0.5f * terrainSize.x,
-      centerHeight,
-      0.5f * terrainSize.z );
-    m_digAreaRoot.localRotation = Quaternion.identity;
-    m_digAreaRoot.localScale = Vector3.one;
-
-    var boxTransform = m_digAreaBox.transform;
-    if ( boxTransform.parent != m_digAreaRoot )
-      boxTransform.SetParent( m_digAreaRoot, false );
-
-    boxTransform.localPosition = Vector3.zero;
-    boxTransform.localRotation = Quaternion.identity;
-    boxTransform.localScale = Vector3.one;
-
-    m_digAreaBox.HalfExtents = new Vector3(
-      0.5f * terrainSize.x,
-      Mathf.Max( 0.001f, m_digAreaHalfHeight ),
-      0.5f * terrainSize.z );
-    m_hasAutoAlignedDigArea = true;
-  }
-
-  private bool HasCalibratedSceneBox()
-  {
-    if ( m_digAreaRoot == null || m_digAreaBox == null )
-      return false;
-
-    var rootTransform = m_digAreaRoot;
-    var boxTransform = m_digAreaBox.transform;
-    return rootTransform.localPosition.sqrMagnitude > 1.0e-6f ||
-           Quaternion.Angle( rootTransform.localRotation, Quaternion.identity ) > 0.001f ||
-           ( rootTransform.localScale - Vector3.one ).sqrMagnitude > 1.0e-6f ||
-           boxTransform.localPosition.sqrMagnitude > 1.0e-6f ||
-           Quaternion.Angle( boxTransform.localRotation, Quaternion.identity ) > 0.001f ||
-           ( boxTransform.localScale - Vector3.one ).sqrMagnitude > 1.0e-6f;
   }
 
   private static Terrain FindDigTerrain( string digTerrainName )
@@ -731,388 +1350,6 @@ public class DigAreaMeasurement : MonoBehaviour
     return null;
   }
 
-  private static Box ResolveDigAreaBox( Transform digAreaRoot )
-  {
-    if ( digAreaRoot == null )
-      return null;
-
-    var boxes = digAreaRoot.GetComponentsInChildren<Box>( true );
-    if ( boxes == null || boxes.Length == 0 )
-      return null;
-
-    Box bestBox = null;
-    var bestHalfHeight = float.PositiveInfinity;
-    foreach ( var candidate in boxes ) {
-      if ( candidate == null )
-        continue;
-
-      var halfExtents = candidate.HalfExtents;
-      if ( halfExtents.x <= 0.0f || halfExtents.y <= 0.0f || halfExtents.z <= 0.0f )
-        continue;
-
-      if ( halfExtents.y < bestHalfHeight ) {
-        bestBox = candidate;
-        bestHalfHeight = halfExtents.y;
-      }
-    }
-
-    return bestBox;
-  }
-
-  private void ApplyVisuals()
-  {
-    if ( !m_enableRuntimeVisuals ) {
-      RestoreFillRendererState();
-      SetRendererEnabled( m_fillRenderer, false );
-      if ( m_contourRenderer != null )
-        m_contourRenderer.enabled = false;
-      if ( m_enableCellGridVisuals ) {
-        ApplyCellGridVisual();
-        RefreshCellGridGeometry();
-      }
-      else {
-        SetCellGridRenderersEnabled( false );
-      }
-      return;
-    }
-
-    ApplyFillVisual();
-    ApplyContourVisual();
-    ApplyCellGridVisual();
-    RefreshContourGeometry();
-    RefreshCellGridGeometry();
-  }
-
-  private void ApplyFillVisual()
-  {
-    if ( m_fillRenderer == null )
-      return;
-
-    if ( m_runtimeFillMaterial == null ) {
-      var fillShader = FindFirstAvailableShader(
-        "Legacy Shaders/Transparent/Diffuse",
-        "Sprites/Default",
-        "Unlit/Transparent",
-        "Standard" );
-      if ( fillShader == null )
-        return;
-
-      m_runtimeFillMaterial = new Material( fillShader )
-      {
-        name = "DigAreaFillRuntime",
-        hideFlags = HideFlags.DontSave
-      };
-      ConfigureStandardTransparentMaterial( m_runtimeFillMaterial );
-    }
-
-    if ( m_runtimeFillMaterial.HasProperty( "_Color" ) )
-      m_runtimeFillMaterial.color = m_fillColor;
-
-    m_runtimeFillMaterial.renderQueue = 3000;
-    m_fillRenderer.sharedMaterial = m_runtimeFillMaterial;
-    m_fillRenderer.enabled = true;
-    m_fillRenderer.shadowCastingMode = ShadowCastingMode.Off;
-    m_fillRenderer.receiveShadows = false;
-  }
-
-  private void ApplyContourVisual()
-  {
-    if ( m_contourRenderer == null )
-      return;
-
-    if ( m_runtimeContourMaterial == null ) {
-      var contourShader = FindFirstAvailableShader(
-        "Sprites/Default",
-        "Legacy Shaders/Particles/Alpha Blended Premultiply",
-        "Unlit/Color" );
-      if ( contourShader == null )
-        return;
-
-      m_runtimeContourMaterial = new Material( contourShader )
-      {
-        name = "DigAreaContourRuntime",
-        hideFlags = HideFlags.DontSave
-      };
-      if ( m_runtimeContourMaterial.HasProperty( "_Color" ) )
-        m_runtimeContourMaterial.color = m_contourColor;
-      m_runtimeContourMaterial.renderQueue = 3100;
-    }
-
-    m_contourRenderer.sharedMaterial = m_runtimeContourMaterial;
-    m_contourRenderer.loop = true;
-    m_contourRenderer.useWorldSpace = true;
-    m_contourRenderer.positionCount = 4;
-    m_contourRenderer.startWidth = m_contourWidth;
-    m_contourRenderer.endWidth = m_contourWidth;
-    m_contourRenderer.startColor = m_contourColor;
-    m_contourRenderer.endColor = m_contourColor;
-    m_contourRenderer.shadowCastingMode = ShadowCastingMode.Off;
-    m_contourRenderer.receiveShadows = false;
-    m_contourRenderer.textureMode = LineTextureMode.Stretch;
-    m_contourRenderer.numCornerVertices = 2;
-    m_contourRenderer.numCapVertices = 2;
-    m_contourRenderer.sortingOrder = 10;
-    m_contourRenderer.enabled = true;
-  }
-
-  private void RefreshContourGeometry()
-  {
-    if ( m_digAreaBox == null || m_contourRenderer == null )
-      return;
-
-    if ( !m_enableRuntimeVisuals )
-      return;
-
-    var halfExtents = m_digAreaBox.HalfExtents;
-    if ( halfExtents.x <= 0.0f || halfExtents.z <= 0.0f )
-      return;
-
-    m_contourRenderer.SetPosition( 0, DigAreaPlaneCornerWorld( -halfExtents.x, -halfExtents.z ) );
-    m_contourRenderer.SetPosition( 1, DigAreaPlaneCornerWorld( -halfExtents.x,  halfExtents.z ) );
-    m_contourRenderer.SetPosition( 2, DigAreaPlaneCornerWorld(  halfExtents.x,  halfExtents.z ) );
-    m_contourRenderer.SetPosition( 3, DigAreaPlaneCornerWorld(  halfExtents.x, -halfExtents.z ) );
-  }
-
-  private void ApplyCellGridVisual()
-  {
-    if ( !m_enableCellGridVisuals || m_cellGridRenderers == null || m_cellGridRenderers.Length == 0 ) {
-      SetCellGridRenderersEnabled( false );
-      return;
-    }
-
-    if ( m_runtimeCellGridMaterial == null ) {
-      var gridShader = FindFirstAvailableShader(
-        "Sprites/Default",
-        "Legacy Shaders/Particles/Alpha Blended Premultiply",
-        "Unlit/Color" );
-      if ( gridShader == null ) {
-        SetCellGridRenderersEnabled( false );
-        return;
-      }
-
-      m_runtimeCellGridMaterial = new Material( gridShader )
-      {
-        name = "DigAreaCellGridRuntimeMaterial",
-        hideFlags = HideFlags.DontSave
-      };
-      if ( m_runtimeCellGridMaterial.HasProperty( "_Color" ) )
-        m_runtimeCellGridMaterial.color = m_cellGridColor;
-      m_runtimeCellGridMaterial.renderQueue = 3110;
-    }
-
-    foreach ( var renderer in m_cellGridRenderers ) {
-      if ( renderer == null )
-        continue;
-
-      renderer.sharedMaterial = m_runtimeCellGridMaterial;
-      renderer.loop = false;
-      renderer.useWorldSpace = true;
-      renderer.positionCount = 2;
-      renderer.startWidth = m_cellGridWidth;
-      renderer.endWidth = m_cellGridWidth;
-      renderer.startColor = m_cellGridColor;
-      renderer.endColor = m_cellGridColor;
-      renderer.shadowCastingMode = ShadowCastingMode.Off;
-      renderer.receiveShadows = false;
-      renderer.textureMode = LineTextureMode.Stretch;
-      renderer.numCornerVertices = 1;
-      renderer.numCapVertices = 1;
-      renderer.sortingOrder = 11;
-      renderer.enabled = true;
-    }
-  }
-
-  private void RefreshCellGridGeometry()
-  {
-    if ( m_digAreaBox == null || m_cellGridRenderers == null || m_cellGridRenderers.Length < 3 )
-      return;
-
-    if ( !m_enableCellGridVisuals )
-      return;
-
-    var halfExtents = m_digAreaBox.HalfExtents;
-    if ( halfExtents.x <= 0.0f || halfExtents.z <= 0.0f )
-      return;
-
-    var longAxis = halfExtents.x >= halfExtents.z ? LongAxisX : LongAxisZ;
-    var halfLong = longAxis == LongAxisX ? halfExtents.x : halfExtents.z;
-    var halfShort = longAxis == LongAxisX ? halfExtents.z : halfExtents.x;
-
-    SetGridLine(
-      0,
-      DigAreaPlaneGridPointWorld( longAxis, -halfLong / 3.0f, -halfShort ),
-      DigAreaPlaneGridPointWorld( longAxis, -halfLong / 3.0f,  halfShort ) );
-    SetGridLine(
-      1,
-      DigAreaPlaneGridPointWorld( longAxis,  halfLong / 3.0f, -halfShort ),
-      DigAreaPlaneGridPointWorld( longAxis,  halfLong / 3.0f,  halfShort ) );
-    SetGridLine(
-      2,
-      DigAreaPlaneGridPointWorld( longAxis, -halfLong, 0.0f ),
-      DigAreaPlaneGridPointWorld( longAxis,  halfLong, 0.0f ) );
-  }
-
-  private Vector3 DigAreaPlaneCornerWorld( float localX, float localZ )
-  {
-    var worldPoint = m_digAreaBox.transform.TransformPoint( new Vector3( localX, 0.0f, localZ ) );
-    worldPoint += Vector3.up * m_contourHeightOffset;
-    return worldPoint;
-  }
-
-  private Vector3 DigAreaPlaneGridPointWorld( int longAxis, float longValue, float shortValue )
-  {
-    var localPoint = longAxis == LongAxisX ?
-                     new Vector3( longValue, 0.0f, shortValue ) :
-                     new Vector3( shortValue, 0.0f, longValue );
-    var worldPoint = m_digAreaBox.transform.TransformPoint( localPoint );
-    worldPoint += Vector3.up * m_cellGridHeightOffset;
-    return worldPoint;
-  }
-
-  private static MeshRenderer ResolveFillRenderer( Transform digAreaRoot )
-  {
-    if ( digAreaRoot == null )
-      return null;
-
-    var meshRenderers = digAreaRoot.GetComponentsInChildren<MeshRenderer>( true );
-    if ( meshRenderers == null || meshRenderers.Length == 0 )
-      return null;
-
-    foreach ( var meshRenderer in meshRenderers ) {
-      if ( meshRenderer != null )
-        return meshRenderer;
-    }
-
-    return null;
-  }
-
-  private static void SetRendererEnabled( Renderer renderer, bool enabled )
-  {
-    if ( renderer != null )
-      renderer.enabled = enabled;
-  }
-
-  private void CacheFillRendererState()
-  {
-    if ( m_fillRenderer == null ) {
-      m_cachedFillRenderer = null;
-      m_originalFillMaterial = null;
-      m_hasOriginalFillRendererState = false;
-      return;
-    }
-
-    if ( m_cachedFillRenderer == m_fillRenderer && m_hasOriginalFillRendererState )
-      return;
-
-    m_cachedFillRenderer = m_fillRenderer;
-    m_originalFillMaterial = m_fillRenderer.sharedMaterial;
-    m_originalFillRendererEnabled = m_fillRenderer.enabled;
-    m_hasOriginalFillRendererState = true;
-  }
-
-  private void RestoreFillRendererState()
-  {
-    if ( !m_hasOriginalFillRendererState || m_cachedFillRenderer == null )
-      return;
-
-    if ( m_cachedFillRenderer.sharedMaterial == m_runtimeFillMaterial )
-      m_cachedFillRenderer.sharedMaterial = m_originalFillMaterial;
-    m_cachedFillRenderer.enabled = m_originalFillRendererEnabled;
-
-    m_cachedFillRenderer = null;
-    m_originalFillMaterial = null;
-    m_originalFillRendererEnabled = false;
-    m_hasOriginalFillRendererState = false;
-  }
-
-  private static LineRenderer ResolveContourRenderer( Transform digAreaRoot )
-  {
-    if ( digAreaRoot == null )
-      return null;
-
-    var existingContour = digAreaRoot.Find( "DigAreaContour" );
-    if ( existingContour != null ) {
-      var existingLineRenderer = existingContour.GetComponent<LineRenderer>();
-      if ( existingLineRenderer != null )
-        return existingLineRenderer;
-    }
-
-    var contourObject = new GameObject( "DigAreaContour" );
-    contourObject.transform.SetParent( digAreaRoot, false );
-    return contourObject.AddComponent<LineRenderer>();
-  }
-
-  private static LineRenderer[] ResolveCellGridRenderers( Transform cellGridParent )
-  {
-    if ( cellGridParent == null )
-      return new LineRenderer[ 0 ];
-
-    var gridRoot = cellGridParent.Find( "DigAreaCellGridRuntime" );
-    if ( gridRoot == null ) {
-      var gridObject = new GameObject( "DigAreaCellGridRuntime" );
-      gridObject.transform.SetParent( cellGridParent, false );
-      gridRoot = gridObject.transform;
-    }
-    gridRoot.gameObject.SetActive( true );
-
-    var renderers = new LineRenderer[ 3 ];
-    for ( var index = 0; index < renderers.Length; ++index ) {
-      var childName = $"Line{index}";
-      var child = gridRoot.Find( childName );
-      if ( child == null ) {
-        var lineObject = new GameObject( childName );
-        lineObject.transform.SetParent( gridRoot, false );
-        child = lineObject.transform;
-      }
-      child.gameObject.SetActive( true );
-
-      var lineRenderer = child.GetComponent<LineRenderer>();
-      if ( lineRenderer == null )
-        lineRenderer = child.gameObject.AddComponent<LineRenderer>();
-      renderers[ index ] = lineRenderer;
-    }
-
-    return renderers;
-  }
-
-  private static bool CellGridRenderersBelongTo( LineRenderer[] renderers, Transform cellGridParent )
-  {
-    if ( renderers == null || cellGridParent == null )
-      return false;
-
-    foreach ( var renderer in renderers ) {
-      if ( renderer == null || !renderer.transform.IsChildOf( cellGridParent ) )
-        return false;
-    }
-
-    return true;
-  }
-
-  private void SetCellGridRenderersEnabled( bool enabled )
-  {
-    if ( m_cellGridRenderers == null )
-      return;
-
-    foreach ( var renderer in m_cellGridRenderers ) {
-      if ( renderer != null )
-        renderer.enabled = enabled;
-    }
-  }
-
-  private void SetGridLine( int index, Vector3 start, Vector3 end )
-  {
-    if ( m_cellGridRenderers == null || index < 0 || index >= m_cellGridRenderers.Length )
-      return;
-
-    var renderer = m_cellGridRenderers[ index ];
-    if ( renderer == null )
-      return;
-
-    renderer.positionCount = 2;
-    renderer.SetPosition( 0, start );
-    renderer.SetPosition( 1, end );
-  }
-
   private static int CellIndexFromNorm( float norm, int count )
   {
     if ( count <= 0 || norm < -1.0f || norm > 1.0f )
@@ -1122,54 +1359,4 @@ public class DigAreaMeasurement : MonoBehaviour
     return Mathf.Clamp( index, 0, count - 1 );
   }
 
-  private static Shader FindFirstAvailableShader( params string[] shaderNames )
-  {
-    if ( shaderNames == null || shaderNames.Length == 0 )
-      return null;
-
-    foreach ( var shaderName in shaderNames ) {
-      if ( string.IsNullOrWhiteSpace( shaderName ) )
-        continue;
-
-      var shader = Shader.Find( shaderName );
-      if ( shader != null )
-        return shader;
-    }
-
-    return null;
-  }
-
-  private static void ConfigureStandardTransparentMaterial( Material material )
-  {
-    if ( material == null || !material.HasProperty( "_Mode" ) )
-      return;
-
-    material.SetFloat( "_Mode", 3.0f );
-    material.SetInt( "_SrcBlend", (int)BlendMode.SrcAlpha );
-    material.SetInt( "_DstBlend", (int)BlendMode.OneMinusSrcAlpha );
-    material.SetInt( "_ZWrite", 0 );
-    material.DisableKeyword( "_ALPHATEST_ON" );
-    material.EnableKeyword( "_ALPHABLEND_ON" );
-    material.DisableKeyword( "_ALPHAPREMULTIPLY_ON" );
-  }
-
-  private void DestroyRuntimeMaterials()
-  {
-    DestroyRuntimeMaterial( ref m_runtimeFillMaterial );
-    DestroyRuntimeMaterial( ref m_runtimeContourMaterial );
-    DestroyRuntimeMaterial( ref m_runtimeCellGridMaterial );
-  }
-
-  private static void DestroyRuntimeMaterial( ref Material material )
-  {
-    if ( material == null )
-      return;
-
-    if ( Application.isPlaying )
-      Object.Destroy( material );
-    else
-      Object.DestroyImmediate( material );
-
-    material = null;
-  }
 }

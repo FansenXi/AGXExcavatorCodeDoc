@@ -76,7 +76,7 @@ namespace AGXUnity_Excavator.Scripts.Editor
 
         result.scene_backup_path = SaveCurrentSceneBackup( scene );
 
-        AlignDigAreaToFootprint( result );
+        PreserveManualDigAreaReference( result );
         AlignDumpTargetToFootprint( result );
         ConfigureTargetSensorDefault( result );
         CalibrateMachineInitialPose( result );
@@ -96,29 +96,20 @@ namespace AGXUnity_Excavator.Scripts.Editor
       }
     }
 
-    private static void AlignDigAreaToFootprint( TaskBindingResult result )
+    private static void PreserveManualDigAreaReference( TaskBindingResult result )
     {
-      var digFootprint = FindFootprintTransform( "Dig_Footprint", "CodexDigAreaBoards" );
       var digMeasurement = FindObject<global::DigAreaMeasurement>();
       var digBox = digMeasurement != null ? GetSerializedObjectReference<Box>( digMeasurement, "m_digAreaBox" ) : null;
       var digRoot = digBox != null ? digBox.transform.parent : FindSceneTransform( "AGXUnity.RigidBody.DigArea" );
 
-      if ( digFootprint == null || digRoot == null || digBox == null ) {
-        Append( ref result.warnings, "Could not fully align DigArea: missing Dig_Footprint, DigArea root, or Box." );
+      if ( digRoot == null || digBox == null ) {
+        Append( ref result.warnings, "Could not inspect manual DigArea reference: missing DigArea root or assigned Box." );
         return;
       }
 
-      var previousRootPosition = digRoot.position;
-      digRoot.position = digFootprint.position;
-      digBox.transform.localPosition = Vector3.zero;
-      digBox.transform.localRotation = Quaternion.identity;
-
-      EditorUtility.SetDirty( digRoot );
-      EditorUtility.SetDirty( digBox );
-      if ( digMeasurement != null )
-        EditorUtility.SetDirty( digMeasurement );
-
-      result.dig_area = $"DigArea root {FormatVector( previousRootPosition )} -> {FormatVector( digRoot.position )}; halfExtents={FormatVector( digBox.HalfExtents )}";
+      result.dig_area =
+        $"Manual DigArea preserved: root={FormatVector( digRoot.position )}; " +
+        $"box={FormatVector( digBox.transform.position )}; halfExtents={FormatVector( digBox.HalfExtents )}";
     }
 
     private static void AlignDumpTargetToFootprint( TaskBindingResult result )

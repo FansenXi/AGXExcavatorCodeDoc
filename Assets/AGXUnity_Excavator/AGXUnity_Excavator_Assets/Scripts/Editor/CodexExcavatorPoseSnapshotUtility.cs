@@ -17,6 +17,7 @@ namespace AGXUnity_Excavator.Scripts.Editor
     private const string ScenePath = CodexSceneScaleConfig.MainScenePath;
     private const string RequestPath = "Temp/CodexExcavatorPoseSnapshot.request";
     private const string OutputDirectory = "Temp/CodexExcavatorPoseSnapshot";
+    private const string PlayModeTargetPoseFileName = "playmode_target_pose.json";
     private const int MaxKeyTransforms = 260;
 
     private static double s_nextPollTime;
@@ -144,6 +145,10 @@ namespace AGXUnity_Excavator.Scripts.Editor
 
     private static GameObject ResolveExcavatorRoot()
     {
+      var preferredYuLong = ResolveYuLongRoot();
+      if ( preferredYuLong != null )
+        return preferredYuLong;
+
       var preferredBobcat = FindSceneObject( "Excavator_BobcatE85 Variant" ) ??
                             FindSceneObject( "Excavator_BobcatE85" );
       if ( preferredBobcat != null )
@@ -173,6 +178,38 @@ namespace AGXUnity_Excavator.Scripts.Editor
 
       return FindSceneObject( "Excavator CAT 365 Tracked" ) ??
              FindSceneObject( "Excavator" );
+    }
+
+    private static GameObject ResolveYuLongRoot()
+    {
+      var namedYuLongRoot = FindSceneObject( "remake3" );
+      if ( namedYuLongRoot != null )
+        return namedYuLongRoot;
+
+      foreach ( var component in Resources.FindObjectsOfTypeAll<Component>() ) {
+        if ( component == null || component.gameObject == null || !component.gameObject.scene.IsValid() )
+          continue;
+
+        if ( component.GetType().Name != "ExcavatorYuLong" )
+          continue;
+
+        var prefabRoot = PrefabUtility.GetOutermostPrefabInstanceRoot( component.gameObject );
+        if ( prefabRoot != null &&
+             prefabRoot.scene.IsValid() &&
+             prefabRoot.name.IndexOf( "ExperimentRig", StringComparison.OrdinalIgnoreCase ) < 0 &&
+             prefabRoot.name != "=== Scene ===" )
+          return prefabRoot;
+
+        var transform = component.transform;
+        while ( transform.parent != null &&
+                transform.parent.name != "=== Scene ===" &&
+                transform.parent.name.IndexOf( "ExperimentRig", StringComparison.OrdinalIgnoreCase ) < 0 )
+          transform = transform.parent;
+
+        return transform.gameObject;
+      }
+
+      return FindSceneObject( "remake3" );
     }
 
     private static RigidBodySample DescribeRigidBody( RigidBody rigidBody )
@@ -400,9 +437,13 @@ namespace AGXUnity_Excavator.Scripts.Editor
 
     private static void WriteResult( PoseSnapshotResult result )
     {
-      Directory.CreateDirectory( GetProjectRelativeAbsolutePath( OutputDirectory ) );
-      File.WriteAllText( Path.Combine( GetProjectRelativeAbsolutePath( OutputDirectory ), "result.json" ),
-                         JsonUtility.ToJson( result, true ) );
+      var outputDirectory = GetProjectRelativeAbsolutePath( OutputDirectory );
+      Directory.CreateDirectory( outputDirectory );
+
+      var json = JsonUtility.ToJson( result, true );
+      File.WriteAllText( Path.Combine( outputDirectory, "result.json" ), json );
+      if ( result != null && result.success && result.unity_is_playing )
+        File.WriteAllText( Path.Combine( outputDirectory, PlayModeTargetPoseFileName ), json );
     }
 
     private static string GetProjectRelativeAbsolutePath( string projectRelativePath )

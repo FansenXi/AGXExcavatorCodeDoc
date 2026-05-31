@@ -24,7 +24,9 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
     ResetReq = 3,
     ResetResp = 4,
     StepReq = 5,
-    StepResp = 6
+    StepResp = 6,
+    RealignPoseReq = 7,
+    RealignPoseResp = 8
   }
 
   [Serializable]
@@ -57,8 +59,13 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
     public int seed = 0;
     public string scenario_id = string.Empty;
     public long client_time_ns = -1;
+    public string planner_debug_json = string.Empty;
     public bool reset_terrain = true;
     public bool reset_pose = true;
+    public float[] qpos = Array.Empty<float>();
+    public float[] qvel = Array.Empty<float>();
+    public int burn_in_steps = 0;
+    public string realign_reason = string.Empty;
   }
 
   [Serializable]
@@ -192,6 +199,25 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
               payload.client_time_ns = payloadStream.Position + sizeof(long) <= payloadStream.Length ?
                                        reader.ReadInt64() :
                                        -1;
+              payload.planner_debug_json = payloadStream.Position < payloadStream.Length ?
+                                           ReadString( reader ) :
+                                           string.Empty;
+              return true;
+            case AgxSimMessageType.RealignPoseReq:
+              payload.step_id = reader.ReadInt64();
+              payload.qpos = ReadFloatArray( reader );
+              payload.qvel = payloadStream.Position < payloadStream.Length ?
+                             ReadFloatArray( reader ) :
+                             Array.Empty<float>();
+              payload.burn_in_steps = payloadStream.Position + sizeof(int) <= payloadStream.Length ?
+                                      reader.ReadInt32() :
+                                      0;
+              payload.client_time_ns = payloadStream.Position + sizeof(long) <= payloadStream.Length ?
+                                       reader.ReadInt64() :
+                                       -1;
+              payload.realign_reason = payloadStream.Position < payloadStream.Length ?
+                                       ReadString( reader ) :
+                                       string.Empty;
               return true;
             default:
               error = "unsupported_request_type";
@@ -224,6 +250,7 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
             WriteResetResponsePayload( writer, payload );
             break;
           case AgxSimMessageType.StepResp:
+          case AgxSimMessageType.RealignPoseResp:
             WriteStepResponsePayload( writer, payload );
             break;
           default:

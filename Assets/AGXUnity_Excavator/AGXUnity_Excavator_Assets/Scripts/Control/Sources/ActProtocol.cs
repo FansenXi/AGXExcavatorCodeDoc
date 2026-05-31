@@ -87,7 +87,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
     public float bucket_dump_area_relative_x_m = 0.0f;
     public float bucket_dump_area_relative_z_m = 0.0f;
     public float bucket_dump_area_footprint_outside_distance_m = -1.0f;
-    public float dig_area_geometry_available = 0.0f;
+    public float bucket_dig_area_cell_in_bounds_mask = 0.0f;
     public float dig_area_long_axis = -1.0f;
     public float dig_area_grid_long_count = 3.0f;
     public float dig_area_grid_short_count = 2.0f;
@@ -112,7 +112,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
 	    public float deposited_mass_in_dump_area_kg = 0.0f;
 	    public float offtarget_deposited_mass_kg = -1.0f;
 	    public float target_geometry_available = 0.0f;
-	    public float bucket_contact_dig_area_mask = 0.0f;
+	    public float bucket_dig_area_penetration_contact_mask = 0.0f;
 	    public float bucket_contact_dump_area_mask = 0.0f;
 	    public float hard_collision_count = 0.0f;
 	  }

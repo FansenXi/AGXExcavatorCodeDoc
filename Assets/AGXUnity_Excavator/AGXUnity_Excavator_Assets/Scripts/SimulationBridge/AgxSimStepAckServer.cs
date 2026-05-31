@@ -53,6 +53,23 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
     [Min( 1 )]
     private int m_stepDebugLogInterval = 100;
 
+    [SerializeField]
+    private bool m_autoCreatePlannerVisualizer = true;
+
+    [SerializeField]
+    private PlannerDecisionVisualizer m_plannerDecisionVisualizer = null;
+
+    [Header( "Reset Pose QPos" )]
+    [SerializeField]
+    private bool m_applyResetPoseQpos = false;
+
+    [SerializeField]
+    private float[] m_resetPoseQpos = Array.Empty<float>();
+
+    [SerializeField]
+    [Range( 0, 100 )]
+    private int m_resetPoseQposBurnInSteps = 3;
+
     private readonly ConcurrentQueue<PendingRequest> m_pendingRequests = new ConcurrentQueue<PendingRequest>();
     private readonly ConcurrentQueue<byte[]> m_pendingResponses = new ConcurrentQueue<byte[]>();
 
@@ -69,6 +86,7 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
     private int m_lastImagePayloadBytes = 0;
     private string m_lastWarningsSummary = "none";
     private string m_lastError = string.Empty;
+    private PlannerDebugSnapshot m_lastPlannerDebug = PlannerDebugSnapshot.Empty();
 
     public bool IsListening => m_isListening;
     public string LastRequestTypeName => m_lastRequestTypeName;
@@ -80,15 +98,27 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
     public int LastImagePayloadBytes => m_lastImagePayloadBytes;
     public string LastWarningsSummary => m_lastWarningsSummary;
     public string LastError => m_lastError;
+    public PlannerDebugSnapshot LastPlannerDebug => m_lastPlannerDebug ?? PlannerDebugSnapshot.Empty();
+
+    public void ConfigureResetPoseQpos( float[] qpos, int burnInSteps )
+    {
+      m_applyResetPoseQpos = qpos != null && qpos.Length >= 4;
+      m_resetPoseQpos = m_applyResetPoseQpos ?
+        new[] { qpos[ 0 ], qpos[ 1 ], qpos[ 2 ], qpos[ 3 ] } :
+        Array.Empty<float>();
+      m_resetPoseQposBurnInSteps = Mathf.Clamp( burnInSteps, 0, 100 );
+    }
 
     private void Awake()
     {
       ResolveReferences();
+      EnsurePlannerVisualizer();
     }
 
     private void OnEnable()
     {
       ResolveReferences();
+      EnsurePlannerVisualizer();
       if ( m_disableEpisodeManagerWhileServing && m_episodeManager != null && m_episodeManager.enabled ) {
         m_restoreEpisodeManagerEnabled = true;
         m_episodeManager.enabled = false;
@@ -114,6 +144,7 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
     private void Update()
     {
       ResolveReferences();
+      EnsurePlannerVisualizer();
       ProcessPendingRequests();
     }
 
@@ -217,7 +248,8 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
 
       if ( messageType != AgxSimMessageType.GetInfoReq &&
            messageType != AgxSimMessageType.ResetReq &&
-           messageType != AgxSimMessageType.StepReq ) {
+           messageType != AgxSimMessageType.StepReq &&
+           messageType != AgxSimMessageType.RealignPoseReq ) {
         Debug.LogWarning( $"AGX sim step-ack server received unsupported msg_type: {messageType}", this );
         return false;
       }
@@ -251,6 +283,9 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
           case AgxSimMessageType.StepReq:
             QueueResponse( CreateStepResponse( request.Payload ) );
             break;
+          case AgxSimMessageType.RealignPoseReq:
+            QueueResponse( CreateRealignPoseResponse( request.Payload ) );
+            break;
           default:
             Debug.LogWarning( $"AGX sim step-ack server encountered unsupported pending request: {request.Type}", this );
             break;
@@ -282,7 +317,7 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
         "bucket_dump_area_relative_x_m",
         "bucket_dump_area_relative_z_m",
         "bucket_dump_area_footprint_outside_distance_m",
-        "dig_area_geometry_available",
+        "bucket_dig_area_cell_in_bounds_mask",
         "dig_area_long_axis",
         "dig_area_grid_long_count",
         "dig_area_grid_short_count",
@@ -327,7 +362,7 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
 	        "deposited_mass_in_dump_area_kg",
 	        "offtarget_deposited_mass_kg",
 	        "target_geometry_available",
-	        "bucket_contact_dig_area_mask",
+	        "bucket_dig_area_penetration_contact_mask",
 	        "bucket_contact_dump_area_mask",
 	        "hard_collision_count"
 	      };
@@ -343,6 +378,7 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
     {
       var warnings = new List<string>();
       EnsureManualStepping( warnings );
+      m_lastPlannerDebug = PlannerDebugSnapshot.Empty();
 
       var resetTerrain = request != null && request.reset_terrain;
       var resetPose = request != null && request.reset_pose;
@@ -352,11 +388,14 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
       if ( shouldResetToInitialFrame ) {
         if ( m_sceneResetService != null ) {
           m_sceneResetService.ResetScene( resetTerrain, resetPose );
+          if ( resetPose )
+            ApplyConfiguredResetPoseQpos( warnings );
           m_machineController?.StartEngine();
           resetApplied = true;
         }
         else if ( m_episodeManager != null && resetTerrain && resetPose ) {
           m_episodeManager.ResetEpisode( restartEpisode: true );
+          ApplyConfiguredResetPoseQpos( warnings );
           resetApplied = true;
         }
         else {
@@ -377,6 +416,56 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
       return AgxSimBinaryProtocol.SerializeResponse( AgxSimMessageType.ResetResp, payload );
     }
 
+    private void ApplyConfiguredResetPoseQpos( List<string> warnings )
+    {
+      if ( !m_applyResetPoseQpos )
+        return;
+
+      if ( m_resetPoseQpos == null || m_resetPoseQpos.Length < 4 ) {
+        warnings?.Add( "reset_pose_qpos_missing" );
+        return;
+      }
+
+      if ( m_machineController == null ) {
+        warnings?.Add( "reset_pose_qpos_machine_controller_missing" );
+        return;
+      }
+
+      if ( !m_machineController.TryRealignNormalizedPose( m_resetPoseQpos, out var realignWarning ) ) {
+        warnings?.Add(
+          string.IsNullOrWhiteSpace( realignWarning ) ?
+            "reset_pose_qpos_realign_failed" :
+            $"reset_pose_qpos_realign_failed:{realignWarning}" );
+        return;
+      }
+
+      if ( !string.IsNullOrWhiteSpace( realignWarning ) )
+        warnings?.Add( realignWarning );
+
+      var burnInSteps = Mathf.Clamp( m_resetPoseQposBurnInSteps, 0, 100 );
+      for ( var stepIndex = 0; stepIndex < burnInSteps; ++stepIndex ) {
+        if ( Simulation.HasInstance )
+          Simulation.Instance.DoStep();
+        else {
+          warnings?.Add( "simulation_instance_missing" );
+          break;
+        }
+      }
+
+      if ( !m_machineController.TryRealignNormalizedPose( m_resetPoseQpos, out var settleWarning ) ) {
+        warnings?.Add(
+          string.IsNullOrWhiteSpace( settleWarning ) ?
+            "reset_pose_qpos_settle_failed" :
+            $"reset_pose_qpos_settle_failed:{settleWarning}" );
+        return;
+      }
+
+      if ( !string.IsNullOrWhiteSpace( settleWarning ) )
+        warnings?.Add( settleWarning );
+
+      warnings?.Add( $"reset_pose_qpos_applied:burn_in_steps={burnInSteps}" );
+    }
+
     private byte[] CreateStepResponse( AgxSimRequestPayload request )
     {
       if ( request == null )
@@ -387,6 +476,7 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
 
       var warnings = new List<string>();
       EnsureManualStepping( warnings );
+      UpdatePlannerDebug( request.planner_debug_json, warnings );
 
       m_machineController?.ApplyActuationCommand( new ExcavatorActuationCommand
       {
@@ -401,12 +491,62 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
       else
         warnings.Add( "simulation_instance_missing" );
 
+      var payload = CreateObservationStepPayload( request.step_id, warnings );
+      RecordStepResponseDebug( payload );
+
+      return AgxSimBinaryProtocol.SerializeResponse( AgxSimMessageType.StepResp, payload );
+    }
+
+    private byte[] CreateRealignPoseResponse( AgxSimRequestPayload request )
+    {
+      if ( request == null )
+        return CreateErrorResponse( AgxSimMessageType.RealignPoseResp, "missing_payload" );
+
+      if ( request.qpos == null || request.qpos.Length < 4 )
+        return CreateErrorResponse( AgxSimMessageType.RealignPoseResp, "qpos_dim_must_be_4" );
+
+      var warnings = new List<string>();
+      EnsureManualStepping( warnings );
+
+      if ( m_machineController == null ) {
+        return CreateErrorResponse( AgxSimMessageType.RealignPoseResp, "machine_controller_missing" );
+      }
+
+      if ( !m_machineController.TryRealignNormalizedPose( request.qpos, out var realignWarning ) ) {
+        var error = string.IsNullOrWhiteSpace( realignWarning ) ?
+                    "pose_realign_failed" :
+                    $"pose_realign_failed:{realignWarning}";
+        return CreateErrorResponse( AgxSimMessageType.RealignPoseResp, error );
+      }
+
+      if ( !string.IsNullOrWhiteSpace( realignWarning ) )
+        warnings.Add( realignWarning );
+
+      var burnInSteps = Mathf.Clamp( request.burn_in_steps, 0, 100 );
+      for ( var stepIndex = 0; stepIndex < burnInSteps; ++stepIndex ) {
+        if ( Simulation.HasInstance )
+          Simulation.Instance.DoStep();
+        else {
+          warnings.Add( "simulation_instance_missing" );
+          break;
+        }
+      }
+
+      warnings.Add( $"pose_realign_applied:burn_in_steps={burnInSteps}" );
+      var payload = CreateObservationStepPayload( request.step_id, warnings );
+      RecordStepResponseDebug( payload );
+
+      return AgxSimBinaryProtocol.SerializeResponse( AgxSimMessageType.RealignPoseResp, payload );
+    }
+
+    private AgxSimResponsePayload CreateObservationStepPayload( long stepId, List<string> warnings )
+    {
       var observation = m_observationCollector != null ?
                         m_observationCollector.Collect( OperatorCommand.Zero ) :
                         new ActObservation();
 
       var payload = CreateBasePayload();
-      payload.step_id = request.step_id;
+      payload.step_id = stepId;
       payload.qpos = new[]
       {
         observation.actuator_state != null ? observation.actuator_state.swing_position_norm : 0.0f,
@@ -439,7 +579,7 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
         observation.task_state != null ? observation.task_state.bucket_dump_area_relative_x_m : 0.0f,
         observation.task_state != null ? observation.task_state.bucket_dump_area_relative_z_m : 0.0f,
         observation.task_state != null ? observation.task_state.bucket_dump_area_footprint_outside_distance_m : -1.0f,
-        observation.task_state != null ? observation.task_state.dig_area_geometry_available : 0.0f,
+        observation.task_state != null ? observation.task_state.bucket_dig_area_cell_in_bounds_mask : 0.0f,
         observation.task_state != null ? observation.task_state.dig_area_long_axis : -1.0f,
         observation.task_state != null ? observation.task_state.dig_area_grid_long_count : 3.0f,
         observation.task_state != null ? observation.task_state.dig_area_grid_short_count : 2.0f,
@@ -484,7 +624,7 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
 	        observation.task_state != null ? observation.task_state.deposited_mass_in_dump_area_kg : 0.0f,
 	        observation.task_state != null ? observation.task_state.offtarget_deposited_mass_kg : -1.0f,
 	        observation.task_state != null ? observation.task_state.target_geometry_available : 0.0f,
-	        observation.task_state != null ? observation.task_state.bucket_contact_dig_area_mask : 0.0f,
+	        observation.task_state != null ? observation.task_state.bucket_dig_area_penetration_contact_mask : 0.0f,
 	        observation.task_state != null ? observation.task_state.bucket_contact_dump_area_mask : 0.0f,
 	        observation.task_state != null ? observation.task_state.hard_collision_count : 0.0f
 	      };
@@ -492,10 +632,7 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
       payload.sim_time_ns = observation != null ? (long)Math.Round( observation.sim_time_sec * 1000000000.0 ) : -1;
       payload.image_fpv = CaptureImageFrame( warnings );
       payload.warnings = warnings.ToArray();
-
-      RecordStepResponseDebug( payload );
-
-      return AgxSimBinaryProtocol.SerializeResponse( AgxSimMessageType.StepResp, payload );
+      return payload;
     }
 
     private void EnsureManualStepping( List<string> warnings )
@@ -665,6 +802,8 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
           return AgxSimMessageType.GetInfoResp;
         case AgxSimMessageType.ResetReq:
           return AgxSimMessageType.ResetResp;
+        case AgxSimMessageType.RealignPoseReq:
+          return AgxSimMessageType.RealignPoseResp;
         case AgxSimMessageType.StepReq:
         default:
           return AgxSimMessageType.StepResp;
@@ -710,14 +849,17 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
       }
 
       m_lastRequestTypeName = request.Type.ToString();
-      m_lastRequestStepId = request.Type == AgxSimMessageType.StepReq && request.Payload != null ?
+      m_lastRequestStepId = (request.Type == AgxSimMessageType.StepReq ||
+                             request.Type == AgxSimMessageType.RealignPoseReq) &&
+                            request.Payload != null ?
                             request.Payload.step_id :
                             -1;
 
       if ( !m_enableDebugLogs )
         return;
 
-      if ( request.Type != AgxSimMessageType.StepReq ) {
+      if ( request.Type != AgxSimMessageType.StepReq &&
+           request.Type != AgxSimMessageType.RealignPoseReq ) {
         Debug.Log( $"AGX sim step-ack server recv msg_type={request.Type}", this );
         return;
       }
@@ -767,6 +909,42 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
       m_lastResponseSuccess = success;
       m_lastError = error ?? string.Empty;
       m_lastWarningsSummary = FormatWarnings( warnings );
+    }
+
+    private void UpdatePlannerDebug( string plannerDebugJson, List<string> warnings )
+    {
+      if ( string.IsNullOrWhiteSpace( plannerDebugJson ) ) {
+        m_lastPlannerDebug = PlannerDebugSnapshot.Empty();
+        return;
+      }
+
+      try {
+        var snapshot = JsonUtility.FromJson<PlannerDebugSnapshot>( plannerDebugJson );
+        if ( snapshot == null ) {
+          m_lastPlannerDebug = PlannerDebugSnapshot.ParseWarning( "planner_debug_json_parse_null" );
+          warnings?.Add( "planner_debug_json_parse_null" );
+          return;
+        }
+
+        snapshot.Normalize();
+        m_lastPlannerDebug = snapshot;
+      }
+      catch ( System.Exception exception ) {
+        var warning = $"planner_debug_json_parse_failed:{exception.Message}";
+        m_lastPlannerDebug = PlannerDebugSnapshot.ParseWarning( warning );
+        warnings?.Add( warning );
+      }
+    }
+
+    private void EnsurePlannerVisualizer()
+    {
+      if ( !m_autoCreatePlannerVisualizer )
+        return;
+      if ( m_plannerDecisionVisualizer == null )
+        m_plannerDecisionVisualizer = GetComponent<PlannerDecisionVisualizer>();
+      if ( m_plannerDecisionVisualizer == null )
+        m_plannerDecisionVisualizer = gameObject.AddComponent<PlannerDecisionVisualizer>();
+      m_plannerDecisionVisualizer.Configure( this );
     }
 
     private bool ShouldLogStepDebug( long stepId, bool hasWarnings )

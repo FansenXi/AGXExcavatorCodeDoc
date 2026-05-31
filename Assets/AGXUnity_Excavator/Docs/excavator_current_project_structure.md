@@ -387,9 +387,9 @@ V2 **油箱与回油路在 AGX 里的含义（避免与「必须有显式油箱 
 - `target_hard_collision_count` 表示当前 episode 内累计的监控 excavator-vs-active-target 硬碰撞次数
 - 同一段连续接触期间，这个累计值最多只增加一次；必须先离开目标，下一次接触才会再次增加
 - `target_contact_max_normal_force_n` 表示当前这一步中，监控 excavator-vs-active-target 接触的最大法向力
-- `min_distance_to_dig_area_m` 表示 bucket DigArea proxy volume 到场景 `DigArea` 薄 box 的近似最小距离；不可计算时为 `-1`
-- `bucket_depth_below_dig_area_plane_m` 表示当前 bucket DigArea proxy 相对 DigArea 中心平面的“有效下探深度”：Unity 会在 DigArea 局部坐标里对 proxy 做采样，取样点低于平面的原始深度，再按该点到 DigArea footprint 的 XZ 有符号距离做平滑加权，因此 bucket 在 footprint 外侧时该值会保持接近 `0`，接近并进入 DigArea 时才会连续上升
-- `min_distance_to_target_m` 在 bucket 侧现在优先使用 `ExcavationMassTracker` 上单独配置的 target-distance proxy volume；DigArea 两个几何字段现在也复用这套更紧的 proxy 优先链，而不是 bucket 质量统计那套较大的 measurement frame / volume
+- `min_distance_to_dig_area_m` 表示 bucket measurement volume 到手动 DigArea Box 下表面参考平面矩形的最小几何距离；不可计算时为 `-1`
+- `bucket_depth_below_dig_area_plane_m` 表示当前 bucket measurement volume 相对 DigArea Box 下表面参考平面的最大下探深度：Unity 会把 measurement volume corners 转进 DigArea 局部坐标，取超过参考平面向下最远的量；它不再按 footprint 外侧距离做平滑归零
+- `min_distance_to_target_m` 在 bucket 侧仍优先使用 `ExcavationMassTracker` 上单独配置的 target-distance proxy volume；DigArea 几何字段不再复用 target-distance proxy，而是只使用 bucket measurement volume
 - 这两个 DigArea 字段在 Python 手动步进链里一直由 `ActObservationCollector` 直接测量并写进 `STEP_RESP.env_state`，不依赖 `EpisodeManager` 是否处于启用状态
 
 #### E. `ExcavationMassTracker` 的 bucket 统计补充
@@ -619,7 +619,7 @@ Python client
 - 在 `DumpArea` 上方的定向盒体体积内累加 soil particle 质量与上述动态刚体质量
 - `TerrainParticleBoxMassSensor` 用 `DumpArea` footprint 和测量高度构造 dump-area 测量体积，reset 后通过 unique entered-particle ledger 输出 dump-area delivered mass，避免 receiver terrain / soil particle 状态导致漏计或底板穿透造成统计不稳定
 - `BucketTargetDistanceMeasurementUtility` 会基于 bucket 本体的局部包围盒和当前激活目标的测量体积，输出近似最小距离
-- `DigAreaMeasurement` 现在优先复用 bucket 的 target-distance proxy 几何，输出 bucket 到 `DigArea` 的近似最小距离，以及相对 DigArea 中心平面的平滑“有效下探深度”
+- `DigAreaMeasurement` 现在只使用 bucket measurement volume 输出 bucket 到 DigArea 下表面参考平面矩形的最小距离，以及相对该参考平面的最大下探深度
 - `ActiveTargetCollisionMonitor` 会监听 AGX solved contact，只统计 excavator 与当前激活目标硬表面之间的接触；其中 `target_hard_collision_count` 是按“接触开始 -> 离开 -> 再次接触”语义累计的 episode 计数，`target_contact_max_normal_force_n` 是当前步最大法向力
 - `SceneResetService.ResetScene(resetTerrain: true, ...)` 后，terrain native 会清掉动态粒子，传感器计数同步归零
 - 这条质量数据当前进入 `ExperimentHUD`、`ExperimentLogger` 和 `ActObservation.task_state.*`

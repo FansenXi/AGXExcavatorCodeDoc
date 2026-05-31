@@ -21,6 +21,7 @@ namespace AGXUnity_Excavator.Scripts.Editor
     private const string RequestPath = "Temp/CodexYuLongShovel.request";
     private const string OutputDirectory = "Temp/CodexYuLongShovel";
     private const string SettingsPath = "Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/Calibration/YuLongShovelSettings.asset";
+    private const float MaxPenetrationForceN = 30000.0f;
 
     private static double s_nextPollTime;
     private static bool s_isRunning;
@@ -246,6 +247,7 @@ namespace AGXUnity_Excavator.Scripts.Editor
       settings.VerticalBladeSoilMergeDistance = 0.02f;
       settings.PenetrationDepthThreshold = 0.12f;
       settings.PenetrationForceScaling = 0.8f;
+      settings.MaxPenetrationForce = MaxPenetrationForceN;
       settings.NoMergeExtensionDistance = 0.25f;
       settings.MinimumSubmergedContactLengthFraction = 0.25f;
       settings.RemoveContacts = false;

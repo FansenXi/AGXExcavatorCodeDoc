@@ -34,6 +34,9 @@ namespace AGXUnity_Excavator.Scripts.Presentation
     private ExcavatorMachineController m_machineController = null;
 
     [SerializeField]
+    private global::DigAreaMeasurement m_digAreaMeasurement = null;
+
+    [SerializeField]
     private Rect m_rect = new Rect( 24.0f, 24.0f, 760.0f, 900.0f );
 
     [SerializeField]
@@ -41,6 +44,12 @@ namespace AGXUnity_Excavator.Scripts.Presentation
 
     [SerializeField]
     private bool m_showStepAckDebug = true;
+
+    [SerializeField]
+    private bool m_showEnvStateDebug = true;
+
+    [SerializeField]
+    private bool m_showPlannerDebug = true;
 
     [SerializeField]
     private bool m_showCalibrationDebug = true;
@@ -80,6 +89,7 @@ namespace AGXUnity_Excavator.Scripts.Presentation
     private float m_currentVisibleWindowHeight = 900.0f;
     private int m_cachedFontSize = -1;
     private int m_cachedTitleFontSize = -1;
+    private PlannerDecisionVisualizer m_plannerDecisionVisualizer = null;
 
     private void Awake()
     {
@@ -150,16 +160,22 @@ namespace AGXUnity_Excavator.Scripts.Presentation
       var displayedBucketDepthBelowDigAreaPlane = GetDisplayedBucketDepthBelowDigAreaPlane( useStepAckTelemetry, collectorTaskState );
       var displayedTargetHardCollisionCount = GetDisplayedTargetHardCollisionCount( useStepAckTelemetry, collectorTaskState );
       var displayedTargetContactMaxNormalForceN = GetDisplayedTargetContactMaxNormalForceN( useStepAckTelemetry, collectorTaskState );
-      var displayedBucketTouchingDigArea =
+      var displayedBucketNearDigArea =
         displayedMinDistanceToDigArea >= 0.0f &&
         displayedMinDistanceToDigArea <= GetDigAreaTouchTolerance();
       var displayedBucketBelowDigAreaPlane =
         displayedBucketDepthBelowDigAreaPlane >= GetDigAreaBelowPlaneTolerance();
+      var displayedBucketContactDigAreaMask = GetDisplayedBucketContactDigAreaMask( useStepAckTelemetry,
+                                                                                    collectorTaskState,
+                                                                                    displayedBucketNearDigArea,
+                                                                                    displayedBucketBelowDigAreaPlane );
 
       GUILayout.BeginHorizontal();
       GUILayout.Label( "<b>Experiment HUD</b>", m_titleStyle );
       if ( GUILayout.Button( m_showRuntimeConfig ? "Hide Menu" : "Show Menu", m_buttonStyle, GUILayout.Width( 132.0f ) ) )
         m_showRuntimeConfig = !m_showRuntimeConfig;
+      if ( GUILayout.Button( m_showEnvStateDebug ? "Hide Env" : "Show Env", m_buttonStyle, GUILayout.Width( 112.0f ) ) )
+        m_showEnvStateDebug = !m_showEnvStateDebug;
       if ( GUILayout.Button( m_isMinimized ? "Restore" : "Minimize", m_buttonStyle, GUILayout.Width( 132.0f ) ) )
         ToggleMinimized();
       GUILayout.EndHorizontal();
@@ -221,13 +237,19 @@ namespace AGXUnity_Excavator.Scripts.Presentation
                          $"Min distance to target: {displayedMinDistanceToTarget:0.000} m" :
                          "Min distance to target: n/a",
                        m_style );
-      GUILayout.Label( FormatGoodDigStartLine( useStepAckTelemetry, displayedBucketTouchingDigArea, displayedBucketBelowDigAreaPlane ), m_style );
-      GUILayout.Label( FormatDigAreaTouchLine( displayedMinDistanceToDigArea, displayedBucketTouchingDigArea ), m_style );
+      GUILayout.Label( FormatGoodDigStartLine( useStepAckTelemetry, displayedBucketContactDigAreaMask ), m_style );
+      GUILayout.Label( FormatDigAreaProximityLine( displayedMinDistanceToDigArea, displayedBucketNearDigArea ), m_style );
       GUILayout.Label( FormatDigAreaDepthLine( displayedMinDistanceToDigArea, displayedBucketDepthBelowDigAreaPlane, displayedBucketBelowDigAreaPlane ), m_style );
+      GUILayout.Label( FormatDigAreaContactMaskLine( useStepAckTelemetry, displayedBucketContactDigAreaMask ), m_style );
+      DrawDigAreaReferenceDebug();
       GUILayout.Label( $"Target hard collisions (episode): {displayedTargetHardCollisionCount}", m_style );
       GUILayout.Label( $"Target max normal force (step): {displayedTargetContactMaxNormalForceN:0.0} N", m_style );
       if ( m_showStepAckDebug )
         DrawStepAckDebug();
+      if ( m_showEnvStateDebug )
+        DrawEnvStateDebug( collectorTaskState );
+      if ( m_showPlannerDebug )
+        DrawPlannerDebug();
       if ( m_showCalibrationDebug )
         DrawCalibrationDebug();
       GUILayout.Space( 6.0f );
@@ -480,6 +502,7 @@ namespace AGXUnity_Excavator.Scripts.Presentation
       m_observationCollector = ExcavatorRigLocator.ResolveComponent( this, m_observationCollector );
       m_stepAckServer = ExcavatorRigLocator.ResolveComponent( this, m_stepAckServer );
       m_machineController = ExcavatorRigLocator.ResolveComponent( this, m_machineController );
+      EnsurePlannerVisualizer();
 
       m_episodeManager?.RefreshAvailableSources();
 
@@ -502,6 +525,164 @@ namespace AGXUnity_Excavator.Scripts.Presentation
       GUILayout.Label( $"Warnings: {m_stepAckServer.LastWarningsSummary}", m_style );
       if ( !string.IsNullOrWhiteSpace( m_stepAckServer.LastError ) )
         GUILayout.Label( $"Error: {m_stepAckServer.LastError}", m_style );
+    }
+
+    private void DrawEnvStateDebug( ActTaskState state )
+    {
+      GUILayout.Space( 6.0f );
+      GUILayout.Label( "<b>Env State (64D STEP_RESP)</b>", m_style );
+      if ( state == null ) {
+        GUILayout.Label( "No ActObservationCollector task_state sample yet.", m_style );
+        return;
+      }
+
+      DrawEnvScalar( 0, "mass_in_bucket_kg", state.mass_in_bucket_kg );
+      DrawEnvScalar( 1, "excavated_mass_kg", state.excavated_mass_kg );
+      DrawEnvScalar( 2, "mass_in_target_box_kg", state.mass_in_target_box_kg );
+      DrawEnvScalar( 3, "deposited_mass_in_target_box_kg", state.deposited_mass_in_target_box_kg );
+      DrawEnvScalar( 4, "min_distance_to_target_m", state.min_distance_to_target_m );
+      DrawEnvScalar( 5, "target_hard_collision_count", state.target_hard_collision_count );
+      DrawEnvScalar( 6, "target_contact_max_normal_force_n", state.target_contact_max_normal_force_n );
+      DrawEnvScalar( 7, "min_distance_to_dig_area_m", state.min_distance_to_dig_area_m );
+      DrawEnvScalar( 8, "bucket_depth_below_dig_area_plane_m", state.bucket_depth_below_dig_area_plane_m );
+      DrawEnvScalar( 9, "target_horizontal_distance_m", state.target_horizontal_distance_m );
+      DrawEnvScalar( 10, "bucket_height_above_target_rim_m", state.bucket_height_above_target_rim_m );
+      DrawEnvScalar( 11, "bucket_over_target_footprint_mask", state.bucket_over_target_footprint_mask );
+      DrawEnvScalar( 12, "dump_clearance_ok_mask", state.dump_clearance_ok_mask );
+      DrawEnvScalar( 13, "bucket_dump_area_relative_x_m", state.bucket_dump_area_relative_x_m );
+      DrawEnvScalar( 14, "bucket_dump_area_relative_z_m", state.bucket_dump_area_relative_z_m );
+      DrawEnvScalar( 15, "bucket_dump_area_footprint_outside_distance_m", state.bucket_dump_area_footprint_outside_distance_m );
+      DrawEnvScalar( 16, "bucket_dig_area_cell_in_bounds_mask", state.bucket_dig_area_cell_in_bounds_mask );
+      DrawEnvScalar( 17, "dig_area_long_axis", state.dig_area_long_axis );
+      DrawEnvScalar( 18, "dig_area_grid_long_count", state.dig_area_grid_long_count );
+      DrawEnvScalar( 19, "dig_area_grid_short_count", state.dig_area_grid_short_count );
+      DrawEnvScalar( 20, "bucket_dig_area_relative_x_m", state.bucket_dig_area_relative_x_m );
+      DrawEnvScalar( 21, "bucket_dig_area_relative_y_m", state.bucket_dig_area_relative_y_m );
+      DrawEnvScalar( 22, "bucket_dig_area_relative_z_m", state.bucket_dig_area_relative_z_m );
+      DrawEnvScalar( 23, "bucket_dig_area_long_norm", state.bucket_dig_area_long_norm );
+      DrawEnvScalar( 24, "bucket_dig_area_short_norm", state.bucket_dig_area_short_norm );
+      DrawEnvScalar( 25, "bucket_dig_area_long_index", state.bucket_dig_area_long_index );
+      DrawEnvScalar( 26, "bucket_dig_area_short_index", state.bucket_dig_area_short_index );
+      DrawEnvScalar( 27, "bucket_dig_area_cell_id", state.bucket_dig_area_cell_id );
+      DrawEnvScalar( 28, "bucket_tip_dig_area_x_m", state.bucket_tip_dig_area_x_m );
+      DrawEnvScalar( 29, "bucket_tip_dig_area_y_m", state.bucket_tip_dig_area_y_m );
+      DrawEnvScalar( 30, "bucket_tip_dig_area_z_m", state.bucket_tip_dig_area_z_m );
+      DrawEnvScalar( 31, "bucket_depth_below_local_surface_m", state.bucket_depth_below_local_surface_m );
+      DrawEnvScalar( 32, "bucket_depth_below_target_surface_m", state.bucket_depth_below_target_surface_m );
+      DrawEnvArray6( 33, "dig_area_surface_depth_m", state.dig_area_surface_depth_m );
+      DrawEnvArray6( 39, "dig_area_removed_depth_m", state.dig_area_removed_depth_m );
+      DrawEnvArray6( 45, "dig_area_target_depth_m", state.dig_area_target_depth_m );
+      DrawEnvArray6( 51, "dig_area_cell_valid_mask", state.dig_area_cell_valid_mask );
+      DrawEnvScalar( 57, "bucket_mass_delta_kg", state.bucket_mass_delta_kg );
+      DrawEnvScalar( 58, "deposited_mass_in_dump_area_kg", state.deposited_mass_in_dump_area_kg );
+      DrawEnvScalar( 59, "offtarget_deposited_mass_kg", state.offtarget_deposited_mass_kg );
+      DrawEnvScalar( 60, "target_geometry_available", state.target_geometry_available );
+      DrawEnvScalar( 61, "bucket_dig_area_penetration_contact_mask", state.bucket_dig_area_penetration_contact_mask );
+      DrawEnvScalar( 62, "bucket_contact_dump_area_mask", state.bucket_contact_dump_area_mask );
+      DrawEnvScalar( 63, "hard_collision_count", state.hard_collision_count );
+    }
+
+    private void DrawDigAreaReferenceDebug()
+    {
+      var measurement = ResolveDigAreaMeasurement();
+      if ( measurement == null ) {
+        GUILayout.Label( "DigArea reference: n/a", m_style );
+        return;
+      }
+
+      var root = measurement.DigAreaRoot;
+      var box = measurement.DigAreaBox;
+      var rigidBody = measurement.DigAreaRigidBody;
+      GUILayout.Label(
+        $"DigArea root: {( root != null ? FormatVector3( root.position ) : "n/a" )}    " +
+        $"box: {( box != null ? FormatVector3( box.transform.position ) : "n/a" )}",
+        m_style );
+      GUILayout.Label(
+        $"DigArea AGX: rbEnabled={FormatBoolRaw( rigidBody != null && rigidBody.enabled )} " +
+        $"rbNative={FormatBoolRaw( rigidBody != null && rigidBody.Native != null )} " +
+        $"boxEnabled={FormatBoolRaw( box != null && box.enabled )} " +
+        $"boxNative={FormatBoolRaw( box != null && box.NativeGeometry != null )}",
+        m_style );
+
+      if ( measurement.TryGetDigAreaNativeRigidBodyPosition( out var nativeRigidBodyPosition ) ||
+           measurement.TryGetDigAreaNativeBoxPosition( out var nativeBoxPosition ) ) {
+        GUILayout.Label(
+          $"DigArea native: rb={( measurement.TryGetDigAreaNativeRigidBodyPosition( out nativeRigidBodyPosition ) ? FormatVector3( nativeRigidBodyPosition ) : "n/a" )}    " +
+          $"box={( measurement.TryGetDigAreaNativeBoxPosition( out nativeBoxPosition ) ? FormatVector3( nativeBoxPosition ) : "n/a" )}",
+          m_style );
+      }
+
+      GUILayout.Label(
+        "DigArea visuals: disabled; measurement uses the assigned Box transform/HalfExtents only",
+        m_style );
+    }
+
+    private void DrawEnvArray6( int startIndex, string baseName, float[] values )
+    {
+      DrawEnvScalar( startIndex + 0, $"{baseName}_r0_c0", EnvArrayValue( values, 0 ) );
+      DrawEnvScalar( startIndex + 1, $"{baseName}_r0_c1", EnvArrayValue( values, 1 ) );
+      DrawEnvScalar( startIndex + 2, $"{baseName}_r1_c0", EnvArrayValue( values, 2 ) );
+      DrawEnvScalar( startIndex + 3, $"{baseName}_r1_c1", EnvArrayValue( values, 3 ) );
+      DrawEnvScalar( startIndex + 4, $"{baseName}_r2_c0", EnvArrayValue( values, 4 ) );
+      DrawEnvScalar( startIndex + 5, $"{baseName}_r2_c1", EnvArrayValue( values, 5 ) );
+    }
+
+    private void DrawEnvScalar( int index, string name, float value )
+    {
+      GUILayout.Label( $"[{index:00}] {name}: {FormatEnvValue( value )}", m_style );
+    }
+
+    private static float EnvArrayValue( float[] values, int index )
+    {
+      return values != null && index >= 0 && index < values.Length ? values[ index ] : 0.0f;
+    }
+
+    private static string FormatEnvValue( float value )
+    {
+      if ( float.IsNaN( value ) )
+        return "NaN";
+      if ( float.IsPositiveInfinity( value ) )
+        return "+Inf";
+      if ( float.IsNegativeInfinity( value ) )
+        return "-Inf";
+      return $"{value:0.0000}";
+    }
+
+    private void DrawPlannerDebug()
+    {
+      if ( m_stepAckServer == null )
+        return;
+
+      var debug = m_stepAckServer.LastPlannerDebug;
+      if ( debug == null || !debug.valid ) {
+        if ( debug != null && !string.IsNullOrWhiteSpace( debug.parse_warning ) ) {
+          GUILayout.Space( 6.0f );
+          GUILayout.Label( "<b>Planner</b>", m_style );
+          GUILayout.Label( $"Parse warning: {debug.parse_warning}", m_style );
+        }
+        return;
+      }
+
+      GUILayout.Space( 6.0f );
+      GUILayout.Label( "<b>Planner</b>", m_style );
+      GUILayout.Label( $"Mode: {debug.mode}    Skill: {debug.skill}    Cycle: {debug.cycle}", m_style );
+      GUILayout.Label( $"Corridor: {debug.selected_corridor_id}    Score: {debug.score:0.000}    Depleted: {debug.depleted_count}", m_style );
+      GUILayout.Label( $"Entry: ({debug.entry_x_m:0.000}, {debug.entry_z_m:0.000})    Exit: ({debug.exit_x_m:0.000}, {debug.exit_z_m:0.000})", m_style );
+      GUILayout.Label( $"Last payload: {debug.last_payload_gain_kg:0.0} kg    Last deposit: {debug.last_effective_deposit_delta_kg:0.0} kg", m_style );
+      GUILayout.Label( $"Token: {debug.token_source}    Prior: {debug.prior_id}", m_style );
+      if ( debug.pre_dig_align_enabled )
+        GUILayout.Label( $"Pre-align: step {debug.pre_dig_align_step_count}    hold {debug.pre_dig_align_hold_count}    entry err {debug.pre_dig_align_entry_error_m:0.000} m", m_style );
+      if ( debug.terminal_stop_requested || !string.IsNullOrWhiteSpace( debug.stop_reason ) )
+        GUILayout.Label( $"Stop: {Colorize( debug.stop_reason, WarnColor )}", m_style );
+    }
+
+    private void EnsurePlannerVisualizer()
+    {
+      if ( m_plannerDecisionVisualizer == null )
+        m_plannerDecisionVisualizer = GetComponent<PlannerDecisionVisualizer>();
+      if ( m_plannerDecisionVisualizer == null )
+        m_plannerDecisionVisualizer = gameObject.AddComponent<PlannerDecisionVisualizer>();
+      m_plannerDecisionVisualizer.Configure( m_stepAckServer );
     }
 
     private void DrawCalibrationDebug()
@@ -630,6 +811,13 @@ namespace AGXUnity_Excavator.Scripts.Presentation
       return m_episodeManager != null ? m_episodeManager.TargetContactMaxNormalForceN : 0.0f;
     }
 
+    private global::DigAreaMeasurement ResolveDigAreaMeasurement()
+    {
+      if ( m_digAreaMeasurement == null )
+        m_digAreaMeasurement = global::DigAreaMeasurement.FindOrCreateInScene();
+      return m_digAreaMeasurement;
+    }
+
     private float GetDigAreaTouchTolerance()
     {
       return m_episodeManager != null ? m_episodeManager.GoodDigAreaTouchToleranceM : 0.05f;
@@ -640,12 +828,22 @@ namespace AGXUnity_Excavator.Scripts.Presentation
       return m_episodeManager != null ? m_episodeManager.GoodDigBelowPlaneDepthToleranceM : 0.02f;
     }
 
+    private float GetDisplayedBucketContactDigAreaMask( bool useStepAckTelemetry,
+                                                        ActTaskState collectorTaskState,
+                                                        bool isBucketNearDigArea,
+                                                        bool isBucketBelowDigAreaPlane )
+    {
+      if ( useStepAckTelemetry && collectorTaskState != null )
+        return collectorTaskState.bucket_dig_area_penetration_contact_mask;
+
+      return isBucketNearDigArea && isBucketBelowDigAreaPlane ? 1.0f : 0.0f;
+    }
+
     private string FormatGoodDigStartLine( bool useStepAckTelemetry,
-                                           bool isBucketTouchingDigArea,
-                                           bool isBucketBelowDigAreaPlane )
+                                           float bucketContactDigAreaMask )
     {
       if ( useStepAckTelemetry ) {
-        if ( isBucketTouchingDigArea && isBucketBelowDigAreaPlane )
+        if ( bucketContactDigAreaMask > 0.5f )
           return $"Good dig start: {Colorize( "step-ack ready, waiting for load", WarnColor )}";
 
         return $"Good dig start: {Colorize( "step-ack mode", NeutralColor )}";
@@ -670,13 +868,14 @@ namespace AGXUnity_Excavator.Scripts.Presentation
       return $"Good dig start: {Colorize( "waiting", BadColor )}";
     }
 
-    private string FormatDigAreaTouchLine( float minDistanceToDigArea, bool isBucketTouchingDigArea )
+    private string FormatDigAreaProximityLine( float minDistanceToDigArea, bool isBucketNearDigArea )
     {
       if ( minDistanceToDigArea < 0.0f )
-        return $"DigArea touch: {Colorize( "n/a", NeutralColor )}    Min distance to DigArea: n/a";
+        return $"DigArea proximity: {Colorize( "n/a", NeutralColor )}    Min distance to DigArea: n/a";
 
-      return $"DigArea touch: {FormatBooleanState( isBucketTouchingDigArea )}    " +
-             $"Min distance to DigArea: {minDistanceToDigArea:0.000} m";
+      return $"DigArea proximity: {FormatBooleanState( isBucketNearDigArea )}    " +
+             $"Min distance to DigArea: {minDistanceToDigArea:0.000} m    " +
+             $"Near threshold: {GetDigAreaTouchTolerance():0.000} m";
     }
 
     private string FormatDigAreaDepthLine( float minDistanceToDigArea,
@@ -687,12 +886,34 @@ namespace AGXUnity_Excavator.Scripts.Presentation
         return $"Below DigArea plane: {Colorize( "n/a", NeutralColor )}    Effective depth below plane: n/a";
 
       return $"Below DigArea plane: {FormatBooleanState( isBucketBelowDigAreaPlane )}    " +
-             $"Effective depth below plane: {bucketDepthBelowDigAreaPlane:0.000} m";
+             $"Effective depth below plane: {bucketDepthBelowDigAreaPlane:0.000} m    " +
+             $"Depth threshold: {GetDigAreaBelowPlaneTolerance():0.000} m";
+    }
+
+    private string FormatDigAreaContactMaskLine( bool useStepAckTelemetry, float bucketContactDigAreaMask )
+    {
+      var source = useStepAckTelemetry ? "env_state[61]" : "local gate";
+      return $"DigArea contact mask ({source}): {FormatFloatMask( bucketContactDigAreaMask )}";
     }
 
     private static string FormatBooleanState( bool value )
     {
       return value ? Colorize( "yes", GoodColor ) : Colorize( "no", BadColor );
+    }
+
+    private static string FormatFloatMask( float value )
+    {
+      return Colorize( $"{value:0.000}", value > 0.5f ? GoodColor : BadColor );
+    }
+
+    private static string FormatBoolRaw( bool value )
+    {
+      return value ? "yes" : "no";
+    }
+
+    private static string FormatVector3( Vector3 value )
+    {
+      return $"({value.x:0.000}, {value.y:0.000}, {value.z:0.000})";
     }
 
     private static string Colorize( string text, string colorHex )

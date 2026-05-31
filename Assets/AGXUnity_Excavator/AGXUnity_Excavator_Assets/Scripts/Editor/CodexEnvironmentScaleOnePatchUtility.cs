@@ -68,7 +68,6 @@ namespace AGXUnity_Excavator.Scripts.Editor
 
         PatchContainerBoxSensor();
         PatchSettledFloorCleaner();
-        PatchDigAreaMeasurement();
 
         EditorSceneManager.MarkSceneDirty( scene );
         EditorSceneManager.SaveScene( scene );
@@ -154,20 +153,6 @@ namespace AGXUnity_Excavator.Scripts.Editor
 
       serializedObject.ApplyModifiedPropertiesWithoutUndo();
       EditorUtility.SetDirty( cleaner );
-    }
-
-    private static void PatchDigAreaMeasurement()
-    {
-      foreach ( var measurement in Resources.FindObjectsOfTypeAll<DigAreaMeasurement>() ) {
-        if ( measurement == null || !measurement.gameObject.scene.IsValid() )
-          continue;
-
-        var serializedObject = new SerializedObject( measurement );
-        SetFloat( serializedObject, "m_contourWidth", 0.05333333f );
-        SetFloat( serializedObject, "m_depthHorizontalBlendDistance", 0.1666667f );
-        serializedObject.ApplyModifiedPropertiesWithoutUndo();
-        EditorUtility.SetDirty( measurement );
-      }
     }
 
     private static void SetFloat( SerializedObject serializedObject, string propertyName, float value )

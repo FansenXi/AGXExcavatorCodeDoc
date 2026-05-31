@@ -1,7 +1,7 @@
 # AGXUnity Excavator Task Scene - Current V0 Reference
 
 **Status:** current English source of truth for the Unity/AGX side  
-**Last updated:** 2026-05-14
+**Last updated:** 2026-05-23
 **Companion translation:** `Docs/scene.zh-CN.md` is a reading-only mirror; if the two files ever diverge, this English file wins.
 
 This document is no longer an implementation plan. It describes the scene and task contract that are currently implemented across the Unity repo and the linked Python testbed workflow.
@@ -134,21 +134,81 @@ Scene scale:
   `official_target_mass_source`
 
 Runtime target routing is implemented, so the same exported field names continue to refer to the **currently active target**.
-The runtime HUD also exposes DigArea good-start state, DigArea touch state, and
-bucket depth below the DigArea plane for quick operator validation. The DigArea
-runtime visual now includes an orange 3x2 Cell Entry grid child under the
-DigArea collide Box. It is aligned from the Box transform and footprint rather
-than the deformable terrain height, so digging the terrain lower does not pull
-the grid down into the pit. The orange grid has its own visibility toggle, so it
-can stay visible even when the broader DigArea fill/contour runtime visual is
-disabled. Terrain auto-align for the DigArea collide Box is performed once when
-the measurement component initializes only when explicitly enabled; it is off in
-the YuLong scene to preserve the calibrated dig-depth plane.
+The runtime HUD also exposes DigArea good-start state, DigArea penetration-contact state, and
+working-edge depth below the DigArea plane for quick operator validation.
+`DigAreaMeasurement` no longer creates renderer-backed DigArea fill, contour,
+or cell-grid helpers. The ACT-facing 3x2 DigArea Cell Entry grid is computed
+directly from the manually assigned DigArea Box transform, `HalfExtents`, and
+fixed `3 x 2` index mapping; renderer objects are not a telemetry source.
+Legacy visual children are removed during reference resolution to avoid
+confusing the manually calibrated measurement frame. The 3x2 DigArea depth
+telemetry now uses the same calibrated DigArea Box lower face as
+`bucket_depth_below_dig_area_plane_m`: each terrain-surface sample is
+transformed into the DigArea local frame and measured as positive downward
+distance from the manually placed box lower face. The preferred source is a downward physics raycast
+onto the DigTerrain collider; live AGX `DeformableTerrainBase` native height
+and Unity `TerrainData` are compatibility fallbacks. Each cell averages several
+in-cell samples and reports reset-relative `removed_depth`, so planner coverage
+logic can distinguish genuinely depleted regions from untouched regions. An
+opt-in mass-attributed coverage fallback exists for diagnostics, but it is
+disabled by default because it is a planner proxy rather than a pure geometric
+surface reconstruction. Bucket DigArea plane depth is a pure plane-frame
+geometry signal: it uses the centered bucket measurement volume corners and
+reports the farthest amount that the volume extends below the manually placed
+DigArea Box lower face. It is not clipped by terrain surface height. DigArea
+distance and local-pose telemetry now use the same bucket measurement volume,
+without target-distance proxy or shovel cutting-edge/tooth samples.
+`bucket_depth_below_local_surface_m` uses the
+same centered bucket measurement volume corners but compares each corner against
+the measured DigTerrain surface at that corner's DigArea-local `x/z`; it reports
+the maximum current-surface penetration. `bucket_depth_below_target_surface_m`
+compares the same geometry against the target cut surface at
+`DigAreaBoxLowerFaceY - target_depth_m`. `bucket_dig_area_penetration_contact_mask` is
+driven by local terrain-surface penetration when that surface can be sampled, so
+a positive plane-depth value alone is not treated as soil contact.
+The measurement component no longer auto-aligns or moves the DigArea collide
+Box at runtime. The manually placed Box is the reference footprint and plane;
+the component also no longer searches by name or picks the thinnest child Box
+when that reference is missing. The DigArea object is kept out of the DigTerrain
+transform hierarchy, and `DigAreaMeasurement` forces its optional
+`AGXUnity.RigidBody` to static with zero velocity during reference resolution so
+AGX does not drift the manually calibrated frame in Play Mode. Downstream labels
+should still treat the DigArea Box plane and measured terrain surface separately.
 When `AgxSimStepAckServer` is serving and temporarily disables
 `EpisodeManager.Update()`, the HUD now falls back to the latest
 `ActObservationCollector` task-state sample for live mass, target-distance,
 DigArea, and active-target-collision telemetry instead of showing stale
 EpisodeManager-side cached values.
+For YuLong V2.4 coverage-planner evals, Repo A may append
+`planner_debug_json` to each `STEP_REQ`; the HUD then shows the selected
+planner corridor, productivity history, depleted count, and stop reason, while
+`PlannerDecisionVisualizer` draws a thin vertical entry pointer and an
+entry-to-exit arrow over the DigArea plane. Current V2.4 payloads also include
+the pre-step bucket tip in DigArea-local coordinates; the same visualizer draws
+that actual bucket tip as a magenta cross so handoff error is visible when the
+policy starts digging away from the selected green entry marker. The visualizer accepts both
+`operator_prior_coverage` and `operator_prior_sweep_belief`, so hindsight-goal
+rollouts show the same selected corridor decision. `AgxSimStepAckServer` also
+auto-creates this runtime visualizer, so the pointer still appears when the HUD
+object is missing or not refreshed. This visualization is diagnostic-only and
+does not affect action execution or recorded `env_state`.
+When Repo A enables pre-dig align, the same Planner HUD also shows the align
+step, hold count, and entry error so operators can tell whether the scripted
+alignment layer reached the planned entry before dig ACT takes over.
+For telemetry bring-up, the HUD can show the full 64D `STEP_RESP.env_state`
+payload in wire order, including the 3x2 surface-depth, removed-depth,
+target-depth, and valid-mask grids. This is intended for operator-side truth
+checks before trusting the Python-side planner/audit interpretation.
+
+The manually placed DigArea reference object is intentionally detached from AGX
+rigid-body synchronization: the legacy `AGXUnity.RigidBody` component is
+disabled, the assigned `AGXUnity.Collide.Box` component is also disabled as an
+AGX native shape, and `DigAreaMeasurement` enforces both states again at
+runtime. The assigned Box object remains as the Unity-side footprint, plane,
+and `HalfExtents` source, so moving the DigArea Transform in Play Mode changes
+the telemetry reference instead of being overwritten by AGX native body/geometry
+sync. The HUD prints DigArea root/Box positions plus AGX enabled/native flags to
+distinguish the Unity reference Transform from stale debug/native geometry.
 
 ### 3.2 Target Mass Measurement
 
@@ -249,12 +309,12 @@ The step-ack export path already measures DigArea geometry through
 `ActObservationCollector`. It does not depend on `EpisodeManager` staying
 enabled while the server is listening. `DigAreaMeasurement` uses the calibrated
 scene `AGXUnity.RigidBody.DigArea` Box as the measurement footprint and depth
-plane. For the YuLong `watou` bucket, the touch/depth path samples the attached
-`DeformableTerrainShovel` cutting edge, tooth direction, and top edge first, and
-falls back to the older bucket DigArea proxy volume only when shovel geometry is
-not available. Runtime grid rendering is visual-only; terrain auto-align is
-disabled in the YuLong scene so replay labels keep the same dig-depth plane as
-teleop records.
+plane. It does not auto-align, move, or name-search/rebind that Box at runtime,
+so manual scene assignment and placement are the source of truth for the
+reference plane. For the YuLong bucket, DigArea distance, plane depth, cell, and
+local-pose fields use the bucket measurement volume configured by
+`ExcavationMassTracker`; target-distance proxy and shovel-line geometry are not
+part of this DigArea telemetry path.
 
 ### 3.7 Dual-Path VR Spectator Presentation
 
@@ -346,8 +406,10 @@ Field semantics:
 - `min_distance_to_target_m`: bucket proxy footprint outside-distance to the active `DumpArea` clearance footprint
 - `target_hard_collision_count`: cumulative episode count of monitored excavator-vs-active-target hard collisions
 - `target_contact_max_normal_force_n`: per-step maximum monitored excavator-vs-active-target solved normal force in Newtons
-- `min_distance_to_dig_area_m`: approximate minimum distance from the YuLong shovel edge samples, or fallback bucket DigArea proxy volume, to the calibrated `DigArea` Box
-- `bucket_depth_below_dig_area_plane_m`: maximum YuLong shovel edge depth, or fallback bucket DigArea proxy depth, below the calibrated DigArea Box center plane; the signal becomes positive when the shovel samples go below the DigArea plane inside the footprint
+- `min_distance_to_dig_area_m`: minimum distance from the YuLong bucket
+  measurement volume to the calibrated DigArea lower-face reference-plane
+  rectangle; this is not the distance to the full 3D box volume
+- `bucket_depth_below_dig_area_plane_m`: maximum centered bucket measurement-volume extension below the manually placed DigArea Box lower face; this is a plane-frame geometry signal, not terrain-contact truth
 
 The target-distance field uses the dedicated bucket target-distance proxy volume
 configured on `ExcavationMassTracker`, and compares its footprint against the
@@ -355,6 +417,10 @@ active `DumpArea` clearance footprint. During step-ack serving, these DigArea
 and target metrics continue to update in both the wire payload and the runtime HUD via
 `ActObservationCollector`; only the local `EpisodeManager`-side good-dig latch
 logic remains paused while that component is disabled.
+
+For DigArea local pose fields, Unity uses the lowest sampled point of the
+bucket measurement volume in DigArea local `y`; it does not use the bucket
+volume center as the `bucket_tip` / cell reference.
 
 For precise wire details, use `Docs/protocol.md`.
 
@@ -430,7 +496,7 @@ The intended episode flow is now:
 1. reset the scene
 2. confirm or set the active dump target
 3. scoop material from the soil pile
-   The intended good start is now: bucket DigArea proxy touches the
+   The intended good start is now: bucket measurement volume touches the
    calibrated `DigArea` region and digs below the DigArea plane while load increases.
 4. transport the load toward the selected target
 5. dump material into the target

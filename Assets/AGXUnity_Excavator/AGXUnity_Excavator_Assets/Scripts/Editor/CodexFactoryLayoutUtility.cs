@@ -600,37 +600,9 @@ namespace AGXUnity_Excavator.Scripts.Editor
         return;
       }
 
-      var digTerrain = FindSceneObject( "DigTerrain" );
-      var terrain = digTerrain != null ? digTerrain.GetComponent<Terrain>() : null;
-      var digAreaHalfExtents = new Vector3(
-        AreaSizeX * 0.5f,
-        0.025f * EnvironmentScale,
-        AreaSizeZ * 0.5f );
-      if ( terrain != null && terrain.terrainData != null ) {
-        var terrainSize = terrain.terrainData.size;
-        digArea.transform.SetParent( terrain.transform, false );
-        digArea.transform.localPosition = new Vector3(
-          0.5f * terrainSize.x,
-          terrain.terrainData.GetInterpolatedHeight( 0.5f, 0.5f ),
-          0.5f * terrainSize.z );
-        digArea.transform.localRotation = Quaternion.identity;
-        digArea.transform.localScale = Vector3.one;
-        digAreaHalfExtents = new Vector3(
-          0.5f * terrainSize.x,
-          0.025f * EnvironmentScale,
-          0.5f * terrainSize.z );
-      }
-      else {
-        digArea.transform.position = new Vector3( digCenter.x, 0.025f * EnvironmentScale, digCenter.z );
-        digArea.transform.rotation = Quaternion.identity;
-      }
-      SetFirstAgxBoxHalfExtents( digArea, digAreaHalfExtents );
-      ResetFirstAgxBoxLocalTransform( digArea );
-      EditorUtility.SetDirty( digArea );
-      result.updated_dig_area = true;
-
-      MoveContourIfPresent( "DigAreaContour", digCenter, new Vector3( AreaSizeX, 0.03f * EnvironmentScale, AreaSizeZ ) );
-      MoveContourIfPresent( "DigAreaContourRuntime", digCenter, new Vector3( AreaSizeX, 0.03f * EnvironmentScale, AreaSizeZ ) );
+      result.warnings.Add(
+        "Manual DigArea reference was preserved; factory layout no longer reparents, moves, or resizes AGXUnity.RigidBody.DigArea." );
+      result.updated_dig_area = false;
     }
 
     private static void UpdateExistingDumpSensor( Vector3 dumpCenter, FactoryLayoutResult result )

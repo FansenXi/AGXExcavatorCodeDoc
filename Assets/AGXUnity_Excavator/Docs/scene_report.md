@@ -47,8 +47,8 @@ Current meanings:
   failure volumes from the target distance / hard-collision geometry set
 - `target_hard_collision_count` is the cumulative hard-collision event count within the current episode
 - `target_contact_max_normal_force_n` is the current-step maximum monitored normal force
-- `min_distance_to_dig_area_m` is the approximate minimum distance from the bucket DigArea proxy to the DigArea region
-- `bucket_depth_below_dig_area_plane_m` is the maximum bucket DigArea proxy depth below the DigArea center plane
+- `min_distance_to_dig_area_m` is the minimum distance from the bucket measurement volume to the DigArea lower-face reference-plane rectangle
+- `bucket_depth_below_dig_area_plane_m` is the maximum bucket measurement-volume extension below the DigArea lower-face reference plane
 
 ### 2.2 Hard-Collision Monitoring Upgrade
 
@@ -110,7 +110,7 @@ DigArea alignment:
 - the existing scene `DigArea` thin box is reused as a semi-transparent fill
 - a colored contour is drawn around the DigArea footprint at runtime
 - `ExperimentHUD` now shows whether good dig start has latched
-- the HUD also shows live DigArea touch status and the current bucket depth
+- the HUD also shows live DigArea penetration-contact status and the current bucket depth
 below the DigArea plane
 - `ExcavationMassTracker` now exposes a `Target Distance Proxy` section in the
 Inspector so the bucket proxy box can be resized directly in Unity Editor

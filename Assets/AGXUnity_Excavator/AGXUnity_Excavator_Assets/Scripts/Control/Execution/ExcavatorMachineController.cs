@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using AGXUnity;
 using AGXUnity.Utils;
@@ -392,6 +393,60 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
       ReleaseE85ParkingBrake();
     }
 
+    public bool TryRealignNormalizedPose( float[] qposNorm, out string warning )
+    {
+      warning = string.Empty;
+      if ( qposNorm == null || qposNorm.Length < 4 ) {
+        warning = "qpos_dim_must_be_4";
+        return false;
+      }
+
+      if ( m_machineComponent == null && !ResolveReferences() ) {
+        warning = "machine_component_missing";
+        return false;
+      }
+
+      if ( !EnsureAxisActuators() ) {
+        warning = "axis_actuators_missing";
+        return false;
+      }
+
+      EnsureNormalizationSoftLimitProfileLoaded();
+      StopMotion();
+
+      var warnings = new List<string>();
+      var applied = false;
+      applied |= TryLockAxisToNormalizedPosition(
+        m_swingConstraint,
+        m_softLimitSwingRange,
+        qposNorm[ 0 ],
+        "swing",
+        warnings );
+      applied |= TryLockAxisToNormalizedPosition(
+        GetReferenceConstraint( m_boomConstraints ),
+        m_softLimitBoomRange,
+        qposNorm[ 1 ],
+        "boom",
+        warnings );
+      applied |= TryLockAxisToNormalizedPosition(
+        m_stickConstraint,
+        m_softLimitStickRange,
+        qposNorm[ 2 ],
+        "stick",
+        warnings );
+      applied |= TryLockAxisToNormalizedPosition(
+        m_bucketConstraint,
+        m_softLimitBucketRange,
+        qposNorm[ 3 ],
+        "bucket",
+        warnings );
+
+      ZeroMachineRigidBodyVelocities();
+      if ( warnings.Count > 0 )
+        warning = string.Join( ",", warnings );
+      return applied;
+    }
+
     private void ApplyActuation( ExcavatorActuationCommand command, bool immediateConstraintStop )
     {
       if ( m_machineComponent == null && !ResolveReferences() )
@@ -533,6 +588,60 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
 
       body.Native.setForce( Vector3.zero.ToHandedVec3() );
       body.Native.setTorque( Vector3.zero.ToHandedVec3() );
+    }
+
+    private bool TryLockAxisToNormalizedPosition( Constraint constraint,
+                                                  ActuatorNormalizationRange range,
+                                                  float normalizedPosition,
+                                                  string axisName,
+                                                  List<string> warnings )
+    {
+      if ( float.IsNaN( normalizedPosition ) )
+        return false;
+
+      if ( constraint == null ) {
+        warnings?.Add( $"{axisName}_constraint_missing" );
+        return false;
+      }
+
+      if ( range == null ) {
+        warnings?.Add( $"{axisName}_normalization_range_missing" );
+        return false;
+      }
+
+      var targetPosition = range.Denormalize( normalizedPosition );
+      var speedController = constraint.GetController<TargetSpeedController>();
+      if ( speedController != null ) {
+        speedController.Speed = 0.0f;
+        speedController.LockAtZeroSpeed = false;
+        speedController.Enable = false;
+      }
+
+      var lockController = constraint.GetController<LockController>();
+      if ( lockController == null ) {
+        warnings?.Add( $"{axisName}_lock_controller_missing" );
+        return false;
+      }
+
+      lockController.Position = targetPosition;
+      lockController.Enable = true;
+      return true;
+    }
+
+    private void ZeroMachineRigidBodyVelocities()
+    {
+      var root = MachineRoot;
+      if ( root == null )
+        return;
+
+      foreach ( var body in root.GetComponentsInChildren<AGXUnity.RigidBody>( true ) ) {
+        if ( body == null )
+          continue;
+
+        body.LinearVelocity = Vector3.zero;
+        body.AngularVelocity = Vector3.zero;
+        ClearNativeForceAndTorque( body );
+      }
     }
 
     private void SetSwing( float value, bool immediateStop )

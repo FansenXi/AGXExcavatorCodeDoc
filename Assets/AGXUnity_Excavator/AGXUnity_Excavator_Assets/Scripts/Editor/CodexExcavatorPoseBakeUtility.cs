@@ -5,6 +5,8 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using AGXUnity;
+using AGXUnity_Excavator.Scripts.Control.Sources;
+using AGXUnity_Excavator.Scripts.SimulationBridge;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -20,7 +22,10 @@ namespace AGXUnity_Excavator.Scripts.Editor
     private const string OutputDirectory = "Temp/CodexExcavatorPoseBake";
     private const string DefaultSnapshotPath = "Temp/CodexExcavatorPoseSnapshot/playmode_target_pose.json";
     private const string BackupDirectory = "CodexSceneBackups";
+    private const string YuLongNormalizationProfilePath =
+      "Assets/AGXUnity_Excavator/AGXUnity_Excavator_Assets/Calibration/YuLong_norm.json";
     private const int MaxReportedMissingPaths = 40;
+    private const int DefaultResetQposBurnInSteps = 3;
 
     private static double s_nextPollTime;
     private static bool s_isRunning;
@@ -184,6 +189,8 @@ namespace AGXUnity_Excavator.Scripts.Editor
           ApplyConstraintSample( constraint, constraintSample, appliedTransformPaths, result );
         }
 
+        ConfigureResetPoseQpos( snapshot, result );
+
         EditorSceneManager.MarkSceneDirty( scene );
         EditorSceneManager.SaveScene( scene );
         AssetDatabase.SaveAssets();
@@ -193,6 +200,10 @@ namespace AGXUnity_Excavator.Scripts.Editor
                          result.parse_failures.Count == 0;
         result.message = $"Baked {result.transform_samples_applied} transform samples, {result.constraints_applied} constraints, " +
                          $"{result.constraint_frames_applied} constraint frames, and {result.controllers_applied} controller values.";
+        if ( result.reset_qpos_applied )
+          result.message += $" Configured reset qpos {result.reset_qpos}.";
+        else if ( !string.IsNullOrWhiteSpace( result.reset_qpos_warning ) )
+          result.message += $" Reset qpos was not configured: {result.reset_qpos_warning}.";
         if ( result.controllers_skipped > 0 )
           result.message += $" Skipped {result.controllers_skipped} controller value(s) that were not present in the snapshot.";
         if ( !result.success )
@@ -208,6 +219,114 @@ namespace AGXUnity_Excavator.Scripts.Editor
       finally {
         s_isRunning = false;
       }
+    }
+
+    private static void ConfigureResetPoseQpos( PoseSnapshotResult snapshot, PoseBakeResult result )
+    {
+      if ( !TryBuildYuLongResetQpos( snapshot, out var qpos, out var warning ) ) {
+        result.reset_qpos_warning = warning;
+        return;
+      }
+
+      var servers = UnityEngine.Object.FindObjectsByType<AgxSimStepAckServer>(
+        FindObjectsInactive.Include,
+        FindObjectsSortMode.None );
+      if ( servers == null || servers.Length == 0 ) {
+        result.reset_qpos_warning = "AgxSimStepAckServer was not found in the scene.";
+        return;
+      }
+
+      var server = servers[ 0 ];
+      Undo.RecordObject( server, "Configure Excavator Reset QPos" );
+      server.ConfigureResetPoseQpos( qpos, DefaultResetQposBurnInSteps );
+      EditorUtility.SetDirty( server );
+      PrefabUtility.RecordPrefabInstancePropertyModifications( server );
+
+      result.reset_qpos_applied = true;
+      result.reset_qpos = FormatFloatArray( qpos );
+      result.reset_qpos_burn_in_steps = DefaultResetQposBurnInSteps;
+    }
+
+    private static bool TryBuildYuLongResetQpos( PoseSnapshotResult snapshot,
+                                                 out float[] qpos,
+                                                 out string warning )
+    {
+      qpos = null;
+      warning = string.Empty;
+
+      if ( snapshot?.constraints == null || snapshot.constraints.Count == 0 ) {
+        warning = "snapshot has no constraints.";
+        return false;
+      }
+
+      var hasSwing = TryGetConstraintAngle( snapshot, "joint1", out var swingRaw );
+      var hasBoom = TryGetConstraintAngle( snapshot, "joint2", out var boomRaw );
+      var hasStick = TryGetConstraintAngle( snapshot, "joint3", out var stickRaw );
+      var hasBucket = TryGetConstraintAngle( snapshot, "joint4", out var bucketRaw );
+      if ( !hasSwing || !hasBoom || !hasStick || !hasBucket ) {
+        warning = "snapshot does not contain current angles for joint1..joint4.";
+        return false;
+      }
+
+      var profilePath = GetProjectRelativeAbsolutePath( YuLongNormalizationProfilePath );
+      if ( !File.Exists( profilePath ) ) {
+        warning = $"YuLong normalization profile was not found: {YuLongNormalizationProfilePath}";
+        return false;
+      }
+
+      var profile = JsonUtility.FromJson<ActuatorNormalizationProfile>( File.ReadAllText( profilePath ) );
+      if ( profile == null ) {
+        warning = "YuLong normalization profile could not be parsed.";
+        return false;
+      }
+
+      qpos = new[]
+      {
+        NormalizeAxis( swingRaw, profile.swing ),
+        NormalizeAxis( boomRaw, profile.boom ),
+        NormalizeAxis( stickRaw, profile.stick ),
+        NormalizeAxis( bucketRaw, profile.bucket )
+      };
+      return true;
+    }
+
+    private static bool TryGetConstraintAngle( PoseSnapshotResult snapshot, string name, out float angle )
+    {
+      angle = 0.0f;
+      foreach ( var constraint in snapshot.constraints ) {
+        if ( constraint == null )
+          continue;
+
+        if ( !string.Equals( constraint.name, name, StringComparison.OrdinalIgnoreCase ) )
+          continue;
+
+        return float.TryParse( constraint.current_angle,
+                               NumberStyles.Float,
+                               CultureInfo.InvariantCulture,
+                               out angle );
+      }
+
+      return false;
+    }
+
+    private static float NormalizeAxis( float rawAngle, ActuatorNormalizationAxisProfile profile )
+    {
+      if ( profile == null || Mathf.Abs( profile.max - profile.min ) < 1.0e-5f )
+        return 0.0f;
+
+      return Mathf.Clamp01( Mathf.InverseLerp( profile.min, profile.max, rawAngle ) );
+    }
+
+    private static string FormatFloatArray( float[] values )
+    {
+      if ( values == null || values.Length == 0 )
+        return string.Empty;
+
+      var parts = new string[ values.Length ];
+      for ( var index = 0; index < values.Length; ++index )
+        parts[ index ] = values[ index ].ToString( "0.######", CultureInfo.InvariantCulture );
+
+      return "[" + string.Join( ", ", parts ) + "]";
     }
 
     private static Scene EnsureTargetSceneIsAvailable( PoseBakeResult result )
@@ -476,6 +595,10 @@ namespace AGXUnity_Excavator.Scripts.Editor
 
     private static GameObject ResolveExcavatorRoot()
     {
+      var preferredYuLong = ResolveYuLongRoot();
+      if ( preferredYuLong != null )
+        return preferredYuLong;
+
       var preferredBobcat = FindSceneObject( "Excavator_BobcatE85 Variant" ) ??
                             FindSceneObject( "Excavator_BobcatE85" );
       if ( preferredBobcat != null )
@@ -505,6 +628,38 @@ namespace AGXUnity_Excavator.Scripts.Editor
 
       return FindSceneObject( "Excavator CAT 365 Tracked" ) ??
              FindSceneObject( "Excavator" );
+    }
+
+    private static GameObject ResolveYuLongRoot()
+    {
+      var namedYuLongRoot = FindSceneObject( "remake3" );
+      if ( namedYuLongRoot != null )
+        return namedYuLongRoot;
+
+      foreach ( var component in Resources.FindObjectsOfTypeAll<Component>() ) {
+        if ( component == null || component.gameObject == null || !component.gameObject.scene.IsValid() )
+          continue;
+
+        if ( component.GetType().Name != "ExcavatorYuLong" )
+          continue;
+
+        var prefabRoot = PrefabUtility.GetOutermostPrefabInstanceRoot( component.gameObject );
+        if ( prefabRoot != null &&
+             prefabRoot.scene.IsValid() &&
+             prefabRoot.name.IndexOf( "ExperimentRig", StringComparison.OrdinalIgnoreCase ) < 0 &&
+             prefabRoot.name != "=== Scene ===" )
+          return prefabRoot;
+
+        var transform = component.transform;
+        while ( transform.parent != null &&
+                transform.parent.name != "=== Scene ===" &&
+                transform.parent.name.IndexOf( "ExperimentRig", StringComparison.OrdinalIgnoreCase ) < 0 )
+          transform = transform.parent;
+
+        return transform.gameObject;
+      }
+
+      return FindSceneObject( "remake3" );
     }
 
     private static GameObject FindSceneObject( string objectName )
@@ -711,6 +866,10 @@ namespace AGXUnity_Excavator.Scripts.Editor
       public int constraint_frames_applied;
       public int controllers_applied;
       public int controllers_skipped;
+      public bool reset_qpos_applied;
+      public string reset_qpos;
+      public string reset_qpos_warning;
+      public int reset_qpos_burn_in_steps;
       public List<string> missing_transform_paths = new List<string>();
       public List<string> missing_constraint_paths = new List<string>();
       public List<string> controller_type_mismatches = new List<string>();

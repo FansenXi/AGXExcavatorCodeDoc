@@ -1,7 +1,7 @@
 # AGXUnity Step-Ack Binary Protocol
 
 **Status:** current implementation truth source for Unity side<br>
-**Last updated:** 2026-05-17
+**Last updated:** 2026-05-23
 **Implementation files:**
 - `AGXUnity_Excavator_Assets/Scripts/SimulationBridge/AgxSimProtocol.cs`
 - `AGXUnity_Excavator_Assets/Scripts/SimulationBridge/AgxSimStepAckServer.cs`
@@ -25,6 +25,9 @@ The protocol is used by the Unity `AgxSimStepAckServer` for:
 - `GET_INFO`
 - `RESET`
 - `STEP`
+- `REALIGN_POSE`, a replay-only actuator pose correction used when old source
+  data contains stochastic swing jumps that no longer reproduce after the Unity
+  physics fix
 
 It is a TCP binary protocol with:
 - fixed-size frame header
@@ -124,11 +127,30 @@ qpos normalization:
 - `0.0` means no monitored active-target contact was observed for that step
 
 `min_distance_to_dig_area_m` semantics:
-- this field is the approximate minimum distance between the current bucket and the `DigArea` thin box
-- in the YuLong scene, Unity samples the `DeformableTerrainShovel` cutting edge, tooth direction, and top edge attached to `bucket`; the legacy `watou` object name is accepted only as a deprecated fallback
-- `DigAreaMeasurement` treats the calibrated scene `AGXUnity.RigidBody.DigArea` Box as the source of truth for the measurement footprint and plane
-- terrain auto-align is opt-in repair behavior and is disabled in the YuLong scene, because moving the calibrated Box changes depth labels
-- `0.0` means the shovel edge samples, or fallback bucket DigArea proxy volume, are touching or overlapping the DigArea box volume
+- this field is the minimum geometric distance between the current bucket
+  measurement volume and the calibrated `DigArea` lower-face reference-plane
+  rectangle, not the full 3D box volume
+- in the YuLong scene, Unity uses only the bucket measurement volume configured
+  by `ExcavationMassTracker`; it does not mix in the target-distance proxy or
+  `DeformableTerrainShovel` cutting-edge / tooth-direction samples
+- `DigAreaMeasurement` treats the scene-assigned DigArea Box reference as the
+  source of truth for the measurement footprint and plane
+- runtime auto-alignment of the DigArea Box has been removed. The manually
+  placed DigArea Box is the reference frame; consumers should treat its plane
+  and the measured terrain surface as separate signals rather than assuming the
+  plane is always the live soil surface
+- runtime name-based DigArea Box rebinding has also been removed. If the scene
+  reference is missing, DigArea telemetry is unavailable instead of silently
+  selecting another box
+- the DigArea object is not parented under DigTerrain. Its legacy AGX
+  `RigidBody` component is disabled in the scene and `DigAreaMeasurement`
+  disables it again during reference resolution. The assigned
+  `AGXUnity.Collide.Box` component is also disabled as an AGX native shape while
+  kept as a Unity-side geometry/half-extents source. This prevents AGX native
+  rigid-body or geometry synchronization from overriding manual Play Mode edits
+  of the calibrated DigArea transform.
+- `0.0` means the bucket measurement volume touches or intersects the DigArea
+  lower-face reference-plane rectangle
 - `-1.0` means the distance could not be evaluated for the current frame
 
 V2.2 `env_state` contract:
@@ -143,14 +165,63 @@ V2.2 `env_state` contract:
 - `offtarget_deposited_mass_kg = -1.0` means the active scene has no reliable
   off-target deposited-mass sensor; consumers must treat it as unavailable rather
   than as zero
-- DigArea grid depths are meters below the calibrated DigArea plane, positive
-  downward; row-major order is `r0c0, r0c1, r1c0, r1c1, r2c0, r2c1`
+- DigArea grid depths are meters below the manually placed DigArea Box lower
+  face, positive downward; row-major order is
+  `r0c0, r0c1, r1c0, r1c1, r2c0, r2c1`
+- YuLong DigArea grid depths use the same calibrated DigArea Box plane as
+  `bucket_depth_below_dig_area_plane_m`: Unity samples terrain-surface points
+  in each 3x2 cell, transforms those points into the DigArea Box local frame,
+  and reports positive downward distance from the box lower face. The preferred
+  surface source is a downward physics raycast onto the DigTerrain collider;
+  live AGX `DeformableTerrainBase` native height and then Unity `TerrainData`
+  are compatibility fallbacks. Unity averages multiple points per cell and
+  computes `removed_depth = max(0, current_surface_depth - reset_baseline)`.
+  An opt-in mass-attributed coverage fallback exists for diagnostics, but it is
+  disabled by default because it is a planner proxy rather than a pure
+  geometric soil-surface measurement.
 
 `bucket_depth_below_dig_area_plane_m` semantics:
-- this field is the current bucket depth below the DigArea plane
-- in the YuLong scene, Unity computes it from the maximum depth of sampled shovel edge points below the calibrated DigArea Box center plane, blended to zero when samples are horizontally outside the footprint
-- if shovel geometry is unavailable, Unity falls back to the older bucket DigArea proxy volume depth
-- it only becomes positive when shovel samples, or the fallback measurement volume, go below the DigArea plane inside the footprint
+- this field is geometric depth below the manually placed DigArea Box plane,
+  positive downward. It is a plane measurement, not a terrain-surface/contact
+  measurement.
+- Unity computes it from the centered bucket measurement volume: it transforms
+  the volume corners into the DigArea Box frame and reports the farthest amount
+  that the bucket volume extends below the DigArea Box lower face. For the thin
+  manually placed DigArea Box, that lower face is the operator-controlled
+  reference plane.
+- the value is not clipped by current terrain height and is not forced to zero
+  merely because the measured point is outside the DigArea footprint. Consumers
+  should combine plane depth with `bucket_tip_dig_area_x/z`,
+  `min_distance_to_dig_area_m`, and
+  `bucket_dig_area_penetration_contact_mask` when they need in-footprint soil contact.
+
+`bucket_depth_below_local_surface_m` semantics:
+- this field is the current bucket penetration below the measured local terrain
+  surface, positive downward. Unity computes it from the centered bucket
+  measurement volume corners, samples the DigTerrain surface at each corner's
+  DigArea-local `x/z`, and reports the maximum
+  `surface_local_y - bucket_corner_local_y`.
+- it is a terrain-surface/contact signal, not a fixed-plane signal. If the soil
+  has already been excavated lower in that local region, this value becomes
+  shallower for the same absolute bucket pose.
+
+`bucket_depth_below_target_surface_m` semantics:
+- this field uses the same centered bucket measurement volume corners, but
+  compares them to the target cut surface at
+  `DigAreaBoxLowerFaceY - target_depth_m`
+- it reports how far the bucket geometry has gone below the desired target
+  depth surface, independent of the currently measured terrain height
+
+`bucket_dig_area_penetration_contact_mask` semantics:
+- this field is a working-edge soil-contact approximation, not a pure DigArea
+  plane-crossing flag
+- when local terrain-surface depth is available, Unity sets this mask only from
+  `bucket_depth_below_local_surface_m > 0.005m`
+- if local surface depth cannot be measured, Unity falls back to a conservative
+  DigArea proximity check: near the DigArea footprint and below the plane by
+  more than `0.005m`
+- `bucket_depth_below_dig_area_plane_m > 0` alone is intentionally insufficient
+  to claim contact
 
 `target_horizontal_distance_m` semantics:
 - explicit horizontal planar distance between the bucket target-distance proxy footprint and the active dump-area clearance footprint
@@ -228,6 +299,8 @@ Unity currently rejects frames if:
 | `RESET_RESP` | `4` |
 | `STEP_REQ` | `5` |
 | `STEP_RESP` | `6` |
+| `REALIGN_POSE_REQ` | `7` |
+| `REALIGN_POSE_RESP` | `8` |
 
 ## 5. Request Payloads
 
@@ -255,11 +328,43 @@ Binary field order:
 1. `step_id: int64`
 2. `action: float32[]`
 3. `client_time_ns: int64` optional
+4. `planner_debug_json: string` optional, only present when field 3 is present
 
 Constraints:
 - action length must be at least `4`
 - Unity currently consumes the first four action values in this order:
   `[swing, boom, stick, bucket]`
+- `planner_debug_json` is a diagnostic-only tail field. Missing, empty, or
+  malformed JSON must not change action execution; Unity only uses it for the
+  runtime Planner HUD and DigArea corridor visualizer. Current V2.4 payloads
+  may include the pre-step bucket center/tip in DigArea-local coordinates; the
+  visualizer draws that actual bucket-tip marker separately from the planned
+  corridor entry so operators can see execution error at dig handoff.
+
+### 5.4 REALIGN_POSE_REQ
+
+Binary field order:
+1. `step_id: int64`
+2. `qpos: float32[]`
+3. `qvel: float32[]`
+4. `burn_in_steps: int32`
+5. `client_time_ns: int64`
+6. `realign_reason: string`
+
+Constraints and behavior:
+- qpos length must be at least `4` in the same order advertised by
+  `GET_INFO_RESP.qpos_order`
+- Unity currently uses qpos and ignores qvel except for logging/forward
+  compatibility
+- qpos values are normalized; Unity denormalizes them with the active actuator
+  normalization profile, writes each available `LockController.Position`, zeros
+  the excavator rigid-body velocities, and then runs up to `100` burn-in
+  simulation steps
+- clients may keep non-target axes unchanged by sending the current replay qpos
+  value for those axes; `tb-replay --realign-axis swing` uses that mode
+- this request must not reset terrain, scene pose, DigArea surface baseline, or
+  measurement ledgers; it is intended only for replay salvage after a known
+  source-data actuator jump
 
 ## 6. Common Response Prefix
 
@@ -327,9 +432,10 @@ Current behavior:
 - transport-branch latency experiments may use other scheduling paths, but they
   are outside the baseline payload contract documented here
 
-## 9. STEP_RESP Payload
+## 9. STEP_RESP / REALIGN_POSE_RESP Payload
 
-After the common response prefix, fields are written in this order:
+After the common response prefix, both response types write the same observation
+layout in this order:
 1. `step_id: int64`
 2. `qpos: float32[]`
 3. `qvel: float32[]`
@@ -345,10 +451,10 @@ After the common response prefix, fields are written in this order:
 Current Unity values:
 - `qpos.len = 4`
 - `qvel.len = 4`
-- `env_state.len = 28`
+- `env_state.len = 64`
 - `env_state_order` keeps the original 16 entries unchanged and appends the
   3x2 DigArea Cell Entry fields:
-  `dig_area_geometry_available`, `dig_area_long_axis`,
+  `bucket_dig_area_cell_in_bounds_mask`, `dig_area_long_axis`,
   `dig_area_grid_long_count`, `dig_area_grid_short_count`,
   `bucket_dig_area_relative_x_m`, `bucket_dig_area_relative_y_m`,
   `bucket_dig_area_relative_z_m`, `bucket_dig_area_long_norm`,
@@ -387,8 +493,9 @@ Target note:
 - `env_state[4]` reports the approximate minimum bucket-to-target distance in meters
 - `env_state[5]` reports the cumulative episode hard-collision count for monitored excavator-vs-active-target contacts
 - `env_state[6]` reports the maximum monitored contact normal force in Newtons for the completed step
-- `env_state[7]` reports the approximate minimum bucket-to-DigArea distance in meters; YuLong uses shovel edge samples first and falls back to the bucket DigArea proxy volume
-- `env_state[8]` reports the current maximum shovel-edge or fallback bucket DigArea proxy depth below the DigArea center plane in meters
+- `env_state[7]` reports the minimum distance from the bucket measurement
+  volume to the DigArea lower-face reference-plane rectangle in meters
+- `env_state[8]` reports the maximum centered bucket measurement-volume extension below the manually placed DigArea Box lower face in meters
 - `env_state[9]` reports explicit horizontal bucket-to-dump-area clearance-footprint distance in meters
 - `env_state[10]` reports bucket bottom height above the active dump-area rim/top in meters
 - `env_state[11]` reports whether the bucket proxy footprint overlaps the active dump-area footprint
@@ -396,27 +503,29 @@ Target note:
 - `env_state[13]` reports bucket proxy center x in active dump-area local frame
 - `env_state[14]` reports bucket proxy center z in active dump-area local frame
 - `env_state[15]` reports unsigned distance outside the active dump-area footprint
-- `env_state[16]` reports whether the bucket DigArea proxy center is inside the
-  3x2 Cell Entry grid and geometry is available
+- `env_state[16]` reports whether the bucket measurement-volume reference point
+  is inside the 3x2 Cell Entry grid and geometry is available
 - `env_state[17]` reports the DigArea local long axis: `0` for local x, `2` for
   local z
 - `env_state[18]` and `env_state[19]` report the fixed Cell Entry grid shape:
   long count `3`, short count `2`
-- `env_state[20..22]` report bucket proxy center x/y/z in DigArea local frame
+- `env_state[20..22]` report the selected bucket DigArea reference point in
+  DigArea local frame: the lowest sampled point of the bucket measurement
+  volume in DigArea local `y`, not the volume center.
 - `env_state[23]` and `env_state[24]` report signed normalized long/short
   coordinates in `[-1, 1]` when inside the DigArea footprint
 - `env_state[25]` and `env_state[26]` report long/short cell indices, or `-1`
   when out of bounds or unavailable
 - `env_state[27]` reports `cell_id = long_index * 2 + short_index`, or `-1`
   when out of bounds or unavailable
-- `DigAreaMeasurement` draws an orange runtime child named
-  `DigAreaCellGridRuntime` with two long-axis split lines and one short-axis
-  center line under the DigArea collide Box; the grid refreshes from the Box
-  transform and `HalfExtents` every frame and does not follow deformable terrain
-  height changes after digging. The grid uses its own `m_enableCellGridVisuals`
-  toggle and can remain visible even when the filled DigArea runtime visual and
-  contour are disabled. The grid is visual-only and must not move or resize the
-  calibrated DigArea collide Box used for `bucket_depth_below_dig_area_plane_m`.
+- `DigAreaMeasurement` no longer creates renderer-backed DigArea fill,
+  contour, or cell-grid helpers. The 3x2 Cell Entry grid reported in
+  `env_state[16..27]` is computed directly from the assigned DigArea Box
+  transform, `HalfExtents`, and fixed `3 x 2` index mapping; it is not read
+  from any renderer or scene visual. Legacy runtime children named
+  `DigAreaContour*`, `DigAreaCellGridRuntime`, or
+  `AGXUnity.Collide.Box_Visual` are removed during reference resolution so they
+  cannot mask telemetry/debug mistakes.
 - Unity local CSV logs now include `target_name` for debugging
 - the binary `STEP_RESP` payload does **not** yet carry `target_name`; clients should treat target identity as scene/runtime configuration for now
 
@@ -429,7 +538,7 @@ Image payload rules:
 ## 10. Step-Ack Rules
 
 The required control loop is:
-1. Python sends `STEP_REQ(step_id=k, action=...)`
+1. Python sends `STEP_REQ(step_id=k, action=..., planner_debug_json=optional)`
 2. Unity applies the action
 3. Unity performs exactly one logical `DoStep()`
 4. Unity samples qpos / qvel / env_state / FPV frame
@@ -439,6 +548,14 @@ Hard rules:
 - `STEP_RESP.step_id` must equal the request `step_id`
 - one `STEP_REQ` must correspond to one exposed simulation step
 - image payload must describe the same post-step state as qpos / qvel
+
+Replay realignment rules:
+- `REALIGN_POSE_RESP.step_id` must equal the request `step_id`
+- `REALIGN_POSE_REQ` is not an action step and should not be counted as a
+  policy action in regenerated HDF5 files
+- clients that use realignment should record a diagnostic event and keep the
+  regenerated observation/action stream self-consistent; post-hoc editing of old
+  HDF5 qpos is not a supported recovery path
 
 ## 11. Current Implementation Update
 
@@ -453,6 +570,25 @@ Compared with older drafts in this repo, the current Unity implementation has th
 - Unity now exports active-target hard-collision summary metrics without changing the meaning of the first five env_state indices.
 - Unity now also exports DigArea good-start geometry metrics while keeping the first seven env_state indices stable.
 - Unity now exports explicit dump-area geometry metrics while keeping the first nine env_state indices stable.
+- `ExperimentHUD` can display the complete 64D `STEP_RESP.env_state` payload in
+  wire order so operators can verify Unity-side telemetry before debugging
+  Repo A planner/audit consumers.
+- `STEP_REQ` accepts an optional trailing `planner_debug_json` string. The
+  Unity server caches the latest valid planner debug snapshot, the HUD shows
+  mode/cycle/skill/corridor/productivity/stop reason, and a runtime visualizer
+  draws the selected `operator_prior_coverage` or `operator_prior_sweep_belief`
+  entry point as a thin vertical pointer plus an entry-to-exit direction arrow
+  in the DigArea local frame. When Repo A includes current bucket-tip telemetry
+  in the same JSON, the visualizer draws it as a magenta cross so a planned
+  entry/exit decision can be compared against the actual bucket pose. The server
+  now auto-creates the runtime visualizer on itself, so the pointer does not
+  depend on an `ExperimentHUD` component being present. When present, pre-dig
+  align debug fields are shown in the HUD only; they remain diagnostic and do
+  not change Unity control.
+- `REALIGN_POSE_REQ` / `REALIGN_POSE_RESP` were added for replay-time salvage of
+  old YuLong recordings affected by stochastic swing pose jumps. The endpoint
+  uses actuator lock targets plus burn-in and deliberately leaves terrain and
+  removed-depth baselines untouched.
 
 ## 12. Known Limits
 
