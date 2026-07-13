@@ -66,8 +66,15 @@ public class ExcavationMassTracker : ScriptComponent
   public float ExcavatedMass => m_excavatedMass;
   public float MassInBucket => m_massInBucket;
   public float RawMassInBucket => m_rawMassInBucket;
+  public float LastTerrainDynamicMassInBucket => m_lastTerrainDynamicMassInBucket;
+  public float LastHandledAsParticleRigidBodyMassInBucket => m_lastHandledAsParticleRigidBodyMassInBucket;
+  public int LastTerrainSoilParticleCount => m_lastTerrainSoilParticleCount;
   public float MassInBucketDeadbandKg => Mathf.Max( 0.0f, m_massInBucketDeadbandKg );
   public Transform BucketMeasurementFrame => ResolveBucketMeasurementFrame();
+
+  private float m_lastTerrainDynamicMassInBucket = 0.0f;
+  private float m_lastHandledAsParticleRigidBodyMassInBucket = 0.0f;
+  private int m_lastTerrainSoilParticleCount = 0;
 
 
   protected override bool Initialize()
@@ -152,7 +159,21 @@ public class ExcavationMassTracker : ScriptComponent
     if ( m_terrain != null && m_terrain.Native != null && shovel != null && shovel.Native != null )
       terrainDynamicMass = (float)m_terrain.Native.getDynamicMass( shovel.Native );
 
-    return terrainDynamicMass + ReadHandledAsParticleRigidBodyMassInBucket();
+    var handledAsParticleRigidBodyMass = ReadHandledAsParticleRigidBodyMassInBucket();
+    m_lastTerrainDynamicMassInBucket = terrainDynamicMass;
+    m_lastHandledAsParticleRigidBodyMassInBucket = handledAsParticleRigidBodyMass;
+    m_lastTerrainSoilParticleCount = ReadTerrainSoilParticleCount();
+
+    return terrainDynamicMass + handledAsParticleRigidBodyMass;
+  }
+
+  private int ReadTerrainSoilParticleCount()
+  {
+    if ( m_terrain == null || m_terrain.Native == null )
+      return 0;
+
+    var particleCount = m_terrain.Native.getNumSoilParticles();
+    return particleCount > int.MaxValue ? int.MaxValue : System.Convert.ToInt32( particleCount );
   }
 
   private float ReadHandledAsParticleRigidBodyMassInBucket()

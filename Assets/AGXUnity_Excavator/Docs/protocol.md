@@ -1,7 +1,7 @@
 # AGXUnity Step-Ack Binary Protocol
 
 **Status:** current implementation truth source for Unity side<br>
-**Last updated:** 2026-05-17
+**Last updated:** 2026-07-07
 **Implementation files:**
 - `AGXUnity_Excavator_Assets/Scripts/SimulationBridge/AgxSimProtocol.cs`
 - `AGXUnity_Excavator_Assets/Scripts/SimulationBridge/AgxSimStepAckServer.cs`
@@ -9,6 +9,8 @@
 - `AGXUnity_Excavator_Assets/Scripts/Control/Sources/ActObservationCollector.cs`
 - `AGXUnity_Excavator_Assets/Scripts/Experiment/SwitchableTargetMassSensor.cs`
 - `AGXUnity_Excavator_Assets/Scripts/Experiment/TargetMassSensorBase.cs`
+- `AGXUnity_Excavator_Assets/Scripts/Experiment/BucketContactForceMonitor.cs`
+- `AGXUnity_Excavator_Assets/Scripts/Experiment/SceneResetService.cs`
 - `AGXUnity_Excavator_Assets/Scripts/TerrainParticleBoxMassSensor.cs`
 
 This document describes the protocol that is currently implemented in the Unity repo.
@@ -25,6 +27,7 @@ The protocol is used by the Unity `AgxSimStepAckServer` for:
 - `GET_INFO`
 - `RESET`
 - `STEP`
+- `REALIGN_POSE` diagnostic replay only
 
 It is a TCP binary protocol with:
 - fixed-size frame header
@@ -54,6 +57,33 @@ Current control semantics:
 - current baseline consumes pending step-ack requests on Unity `Update`
 - latency / transport experiments belong to dedicated transport branches and are
   outside the baseline protocol described in this document
+
+Replay determinism diagnostics:
+- `RESET.seed` is consumed by `SceneResetService` and applied to Unity's
+  managed random source through `UnityEngine.Random.InitState(seed)`.
+- The current AGX deformable-terrain reset path has no confirmed soil/native
+  seed API. Unity therefore reports `soil_seed_status=not_supported` instead of
+  claiming strict soil determinism.
+- `RESET` responses may include `reset_diagnostic:*` warnings with seed,
+  terrain reset count, native terrain recreate request status, dynamic soil
+  particle clear counts before and after terrain recreation, soil compactor
+  reset count, and report status.
+- `STEP` responses may include `bucket_contact_diagnostic:*` warnings with
+  bucket-vs-external-shape contact count and max normal force for that
+  simulation step.
+- `STEP` responses may include `bucket_mass_diagnostic:*` warnings when bucket
+  load or live terrain particles are non-zero. These warnings decompose the
+  current bucket load into reported mass, raw mass, AGX terrain dynamic mass,
+  handled-as-particle rigid-body mass, and live terrain soil particle count.
+- `REALIGN_POSE` is a diagnostic replay request that locks the four YuLong
+  actuator positions to a requested normalized qpos, optionally burns in manual
+  simulation steps, clears rigid-body velocities before and after burn-in, and
+  then returns the same observation payload layout as `STEP_RESP`.
+- These warnings are diagnostics only. They do not change the 64D `env_state`
+  contract, planner semantics, replay defaults, or gold-sample acceptance.
+- Gold replay remains locked behind a strict replay gate: no realign, no
+  step exceptions, stable short A/A qpos and bucket mass, and a fresh
+  same-branch source replay that reproduces under the same Unity build.
 
 Current observation semantics:
 - qpos order: `[swing_position_norm, boom_position_norm, stick_position_norm, bucket_position_norm]`
@@ -228,6 +258,8 @@ Unity currently rejects frames if:
 | `RESET_RESP` | `4` |
 | `STEP_REQ` | `5` |
 | `STEP_RESP` | `6` |
+| `REALIGN_POSE_REQ` | `7` |
+| `REALIGN_POSE_RESP` | `8` |
 
 ## 5. Request Payloads
 
@@ -260,6 +292,24 @@ Constraints:
 - action length must be at least `4`
 - Unity currently consumes the first four action values in this order:
   `[swing, boom, stick, bucket]`
+
+### 5.4 REALIGN_POSE_REQ
+
+Binary field order:
+1. `step_id: int64`
+2. `qpos: float32[]`
+3. `qvel: float32[]`
+4. `burn_in_steps: int32`
+5. `client_time_ns: int64` optional
+6. `reason: string` optional
+
+Constraints and status:
+- qpos length must be exactly `4` in normalized actuator order.
+- qvel is accepted on the wire for Python compatibility, but Unity currently
+  reports `pose_realign_diagnostic:qvel_applied=false`; it does not inject raw
+  joint velocities during diagnostic realign.
+- realigned replay output is diagnostic-only and must not be accepted as strict
+  gold replay or calibrated label truth.
 
 ## 6. Common Response Prefix
 
@@ -381,6 +431,21 @@ Reward note:
   when the cumulative `target_hard_collision_count` increases on that step
 - current default testbed success signal is
   `deposited_mass_in_target_box_kg >= 100.0 kg` for `25` consecutive steps
+
+## 10. REALIGN_POSE_RESP Payload
+
+`REALIGN_POSE_RESP` uses the same binary payload layout as `STEP_RESP`.
+
+The response warnings include `pose_realign_diagnostic:*` entries:
+- `status`
+- `requested_burn_in_steps`
+- `applied_burn_in_steps`
+- `locked_constraint_count`
+- `cleared_rigid_body_velocities`
+- `cleared_rigid_body_velocities_after_burn_in`
+- `qvel_applied`
+- `qvel_status=ignored` when qvel was provided but not applied
+- `reason` when supplied by the client
 
 Target note:
 - `env_state[2]` and `env_state[3]` report the active target selected by Unity runtime target routing

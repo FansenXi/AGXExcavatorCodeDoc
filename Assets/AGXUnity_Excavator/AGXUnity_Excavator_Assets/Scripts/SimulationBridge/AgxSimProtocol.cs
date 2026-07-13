@@ -24,7 +24,9 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
     ResetReq = 3,
     ResetResp = 4,
     StepReq = 5,
-    StepResp = 6
+    StepResp = 6,
+    RealignPoseReq = 7,
+    RealignPoseResp = 8
   }
 
   [Serializable]
@@ -54,8 +56,12 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
   {
     public long step_id = 0;
     public float[] action = Array.Empty<float>();
+    public float[] qpos = Array.Empty<float>();
+    public float[] qvel = Array.Empty<float>();
+    public int burn_in_steps = 0;
     public int seed = 0;
     public string scenario_id = string.Empty;
+    public string reason = string.Empty;
     public long client_time_ns = -1;
     public bool reset_terrain = true;
     public bool reset_pose = true;
@@ -193,6 +199,20 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
                                        reader.ReadInt64() :
                                        -1;
               return true;
+            case AgxSimMessageType.RealignPoseReq:
+              payload.step_id = reader.ReadInt64();
+              payload.qpos = ReadFloatArray( reader );
+              payload.qvel = ReadFloatArray( reader );
+              payload.burn_in_steps = payloadStream.Position + sizeof(int) <= payloadStream.Length ?
+                                      reader.ReadInt32() :
+                                      0;
+              payload.client_time_ns = payloadStream.Position + sizeof(long) <= payloadStream.Length ?
+                                       reader.ReadInt64() :
+                                       -1;
+              payload.reason = payloadStream.Position < payloadStream.Length ?
+                               ReadString( reader ) :
+                               string.Empty;
+              return true;
             default:
               error = "unsupported_request_type";
               return false;
@@ -224,6 +244,9 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
             WriteResetResponsePayload( writer, payload );
             break;
           case AgxSimMessageType.StepResp:
+            WriteStepResponsePayload( writer, payload );
+            break;
+          case AgxSimMessageType.RealignPoseResp:
             WriteStepResponsePayload( writer, payload );
             break;
           default:

@@ -780,6 +780,34 @@ namespace AGXUnity_Excavator.Scripts.Control.Sources
       return range.Normalize( rawPosition );
     }
 
+    public bool TryDenormalizeQpos( float[] normalizedQpos, out float[] rawQpos, out string error )
+    {
+      rawQpos = Array.Empty<float>();
+      error = string.Empty;
+
+      if ( normalizedQpos == null || normalizedQpos.Length < 4 ) {
+        error = "qpos_dim_must_be_4";
+        return false;
+      }
+
+      rawQpos = new[]
+      {
+        DenormalizeConstraintPosition( normalizedQpos[ 0 ], m_swingRange ),
+        DenormalizeConstraintPosition( normalizedQpos[ 1 ], m_boomRange ),
+        DenormalizeConstraintPosition( normalizedQpos[ 2 ], m_stickRange ),
+        DenormalizeConstraintPosition( normalizedQpos[ 3 ], m_bucketRange )
+      };
+      return true;
+    }
+
+    private static float DenormalizeConstraintPosition( float normalizedPosition, ActuatorNormalizationRange range )
+    {
+      if ( range == null )
+        return 0.0f;
+
+      return Mathf.Lerp( range.Min, range.Max, Mathf.Clamp01( normalizedPosition ) );
+    }
+
     private static void UpdateCalibrationDebug( ActuatorCalibrationDebugInfo debugInfo,
                                                 Constraint constraint,
                                                 float rawPosition,
