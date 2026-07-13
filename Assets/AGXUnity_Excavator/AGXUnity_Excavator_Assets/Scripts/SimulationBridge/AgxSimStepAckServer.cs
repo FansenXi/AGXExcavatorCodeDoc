@@ -41,6 +41,12 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
     private SceneResetService m_sceneResetService = null;
 
     [SerializeField]
+    private BucketContactForceMonitor m_bucketContactForceMonitor = null;
+
+    [SerializeField]
+    private global::ExcavationMassTracker m_massTracker = null;
+
+    [SerializeField]
     private EpisodeManager m_episodeManager = null;
 
     [SerializeField]
@@ -387,14 +393,19 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
 
       if ( shouldResetToInitialFrame ) {
         if ( m_sceneResetService != null ) {
-          m_sceneResetService.ResetScene( resetTerrain, resetPose );
+          var report = m_sceneResetService.ResetSceneWithReport( resetTerrain,
+                                                                  resetPose,
+                                                                  request != null ? request.seed : 0 );
+          AppendResetDiagnosticWarnings( warnings, report );
           if ( resetPose )
             ApplyConfiguredResetPoseQpos( warnings );
           m_machineController?.StartEngine();
-          resetApplied = true;
+          resetApplied = report != null && report.Status == "applied";
+          m_bucketContactForceMonitor?.ResetMonitoring();
         }
         else if ( m_episodeManager != null && resetTerrain && resetPose ) {
           m_episodeManager.ResetEpisode( restartEpisode: true );
+          warnings.Add( "reset_diagnostic:scene_reset_report_unavailable" );
           ApplyConfiguredResetPoseQpos( warnings );
           resetApplied = true;
         }
@@ -486,6 +497,8 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
         Bucket = request.action[ 3 ]
       }.ClampAxes() );
 
+      m_bucketContactForceMonitor?.EnsureMonitoring();
+
       if ( Simulation.HasInstance )
         Simulation.Instance.DoStep();
       else
@@ -505,34 +518,27 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
       if ( request.qpos == null || request.qpos.Length < 4 )
         return CreateErrorResponse( AgxSimMessageType.RealignPoseResp, "qpos_dim_must_be_4" );
 
+      if ( m_observationCollector == null )
+        return CreateErrorResponse( AgxSimMessageType.RealignPoseResp, "observation_collector_missing" );
+
+      if ( m_sceneResetService == null )
+        return CreateErrorResponse( AgxSimMessageType.RealignPoseResp, "scene_reset_service_missing" );
+
+      if ( !m_observationCollector.TryDenormalizeQpos( request.qpos, out var rawQpos, out var error ) )
+        return CreateErrorResponse( AgxSimMessageType.RealignPoseResp, error );
+
       var warnings = new List<string>();
       EnsureManualStepping( warnings );
 
-      if ( m_machineController == null ) {
-        return CreateErrorResponse( AgxSimMessageType.RealignPoseResp, "machine_controller_missing" );
-      }
+      var report = m_sceneResetService.RealignActuatorPose( rawQpos,
+                                                            request.qvel,
+                                                            Mathf.Max( 0, request.burn_in_steps ),
+                                                            request.reason );
+      AppendPoseRealignDiagnosticWarnings( warnings, report, request.qvel );
+      m_machineController?.StartEngine();
+      m_bucketContactForceMonitor?.ResetMonitoring();
+      m_observationCollector.ResetSampling();
 
-      if ( !m_machineController.TryRealignNormalizedPose( request.qpos, out var realignWarning ) ) {
-        var error = string.IsNullOrWhiteSpace( realignWarning ) ?
-                    "pose_realign_failed" :
-                    $"pose_realign_failed:{realignWarning}";
-        return CreateErrorResponse( AgxSimMessageType.RealignPoseResp, error );
-      }
-
-      if ( !string.IsNullOrWhiteSpace( realignWarning ) )
-        warnings.Add( realignWarning );
-
-      var burnInSteps = Mathf.Clamp( request.burn_in_steps, 0, 100 );
-      for ( var stepIndex = 0; stepIndex < burnInSteps; ++stepIndex ) {
-        if ( Simulation.HasInstance )
-          Simulation.Instance.DoStep();
-        else {
-          warnings.Add( "simulation_instance_missing" );
-          break;
-        }
-      }
-
-      warnings.Add( $"pose_realign_applied:burn_in_steps={burnInSteps}" );
       var payload = CreateObservationStepPayload( request.step_id, warnings );
       RecordStepResponseDebug( payload );
 
@@ -631,8 +637,99 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
       payload.reward = observation.task_state != null ? observation.task_state.deposited_mass_in_target_box_kg : 0.0f;
       payload.sim_time_ns = observation != null ? (long)Math.Round( observation.sim_time_sec * 1000000000.0 ) : -1;
       payload.image_fpv = CaptureImageFrame( warnings );
+      AppendBucketMassDiagnosticWarnings( warnings );
+      AppendBucketContactDiagnosticWarnings( warnings );
       payload.warnings = warnings.ToArray();
       return payload;
+    }
+
+    private static void AppendResetDiagnosticWarnings( List<string> warnings, SceneResetService.SceneResetReport report )
+    {
+      if ( warnings == null )
+        return;
+
+      if ( report == null ) {
+        warnings.Add( "reset_diagnostic:missing_report" );
+        return;
+      }
+
+      warnings.Add( $"reset_diagnostic:status={report.Status}" );
+      warnings.Add( $"reset_diagnostic:seed={report.RequestedSeed}" );
+      warnings.Add( $"reset_diagnostic:unity_random_seed_applied={FormatBool( report.UnityRandomSeedApplied )}" );
+      warnings.Add( $"reset_diagnostic:soil_seed_status={report.SoilSeedStatus}" );
+      warnings.Add( $"reset_diagnostic:reset_terrain={FormatBool( report.ResetTerrain )}" );
+      warnings.Add( $"reset_diagnostic:reset_pose={FormatBool( report.ResetPose )}" );
+      warnings.Add( $"reset_diagnostic:terrain_reset_count={report.TerrainResetCount}" );
+      warnings.Add( $"reset_diagnostic:native_terrain_recreate_requested={FormatBool( report.NativeTerrainRecreateRequested )}" );
+      warnings.Add( $"reset_diagnostic:dynamic_soil_particles_cleared_before_terrain_reset={report.DynamicSoilParticlesClearedBeforeTerrainReset}" );
+      warnings.Add( $"reset_diagnostic:dynamic_soil_particles_cleared_after_terrain_reset={report.DynamicSoilParticlesClearedAfterTerrainReset}" );
+      warnings.Add( $"reset_diagnostic:dynamic_soil_particles_cleared={report.DynamicSoilParticlesCleared}" );
+      warnings.Add( $"reset_diagnostic:soil_compactor_reset_count={report.SoilCompactorResetCount}" );
+    }
+
+    private static void AppendPoseRealignDiagnosticWarnings( List<string> warnings,
+                                                             SceneResetService.ScenePoseRealignReport report,
+                                                             float[] requestedQvel )
+    {
+      if ( warnings == null )
+        return;
+
+      if ( report == null ) {
+        warnings.Add( "pose_realign_diagnostic:missing_report" );
+        return;
+      }
+
+      warnings.Add( $"pose_realign_diagnostic:status={report.Status}" );
+      warnings.Add( $"pose_realign_diagnostic:requested_burn_in_steps={report.RequestedBurnInSteps}" );
+      warnings.Add( $"pose_realign_diagnostic:applied_burn_in_steps={report.AppliedBurnInSteps}" );
+      warnings.Add( $"pose_realign_diagnostic:locked_constraint_count={report.LockedConstraintCount}" );
+      warnings.Add( $"pose_realign_diagnostic:cleared_rigid_body_velocities={FormatBool( report.ClearedRigidBodyVelocities )}" );
+      warnings.Add( $"pose_realign_diagnostic:cleared_rigid_body_velocities_after_burn_in={FormatBool( report.ClearedRigidBodyVelocitiesAfterBurnIn )}" );
+      warnings.Add( $"pose_realign_diagnostic:qvel_applied={FormatBool( report.QvelApplied )}" );
+      if ( requestedQvel != null && requestedQvel.Length > 0 && !report.QvelApplied )
+        warnings.Add( "pose_realign_diagnostic:qvel_status=ignored" );
+      if ( !string.IsNullOrEmpty( report.Reason ) )
+        warnings.Add( $"pose_realign_diagnostic:reason={report.Reason}" );
+    }
+
+    private void AppendBucketContactDiagnosticWarnings( List<string> warnings )
+    {
+      if ( warnings == null || m_bucketContactForceMonitor == null )
+        return;
+
+      if ( !m_bucketContactForceMonitor.IsMonitoring ) {
+        warnings.Add( "bucket_contact_diagnostic:monitor_status=not_registered" );
+        return;
+      }
+
+      if ( m_bucketContactForceMonitor.BucketContactCountThisStep <= 0 )
+        return;
+
+      warnings.Add( $"bucket_contact_diagnostic:contact_count={m_bucketContactForceMonitor.BucketContactCountThisStep}" );
+      warnings.Add( $"bucket_contact_diagnostic:max_normal_force_n={m_bucketContactForceMonitor.BucketContactMaxNormalForceN:0.###}" );
+    }
+
+    private void AppendBucketMassDiagnosticWarnings( List<string> warnings )
+    {
+      if ( warnings == null || m_massTracker == null )
+        return;
+
+      if ( m_massTracker.RawMassInBucket <= 1.0e-4f &&
+           m_massTracker.LastTerrainDynamicMassInBucket <= 1.0e-4f &&
+           m_massTracker.LastHandledAsParticleRigidBodyMassInBucket <= 1.0e-4f &&
+           m_massTracker.LastTerrainSoilParticleCount <= 0 )
+        return;
+
+      warnings.Add( $"bucket_mass_diagnostic:mass_in_bucket_kg={m_massTracker.MassInBucket:0.###}" );
+      warnings.Add( $"bucket_mass_diagnostic:raw_mass_in_bucket_kg={m_massTracker.RawMassInBucket:0.###}" );
+      warnings.Add( $"bucket_mass_diagnostic:terrain_dynamic_mass_kg={m_massTracker.LastTerrainDynamicMassInBucket:0.###}" );
+      warnings.Add( $"bucket_mass_diagnostic:handled_particle_mass_kg={m_massTracker.LastHandledAsParticleRigidBodyMassInBucket:0.###}" );
+      warnings.Add( $"bucket_mass_diagnostic:terrain_soil_particle_count={m_massTracker.LastTerrainSoilParticleCount}" );
+    }
+
+    private static string FormatBool( bool value )
+    {
+      return value ? "true" : "false";
     }
 
     private void EnsureManualStepping( List<string> warnings )
@@ -836,6 +933,10 @@ namespace AGXUnity_Excavator.Scripts.SimulationBridge
       m_machineController = ExcavatorRigLocator.ResolveComponent( this, m_machineController );
       m_observationCollector = ExcavatorRigLocator.ResolveComponent( this, m_observationCollector );
       m_sceneResetService = ExcavatorRigLocator.ResolveComponent( this, m_sceneResetService );
+      m_bucketContactForceMonitor = ExcavatorRigLocator.ResolveComponent( this, m_bucketContactForceMonitor );
+      if ( m_bucketContactForceMonitor == null && Application.isPlaying )
+        m_bucketContactForceMonitor = gameObject.AddComponent<BucketContactForceMonitor>();
+      m_massTracker = ExcavatorRigLocator.ResolveComponent( this, m_massTracker );
       m_episodeManager = ExcavatorRigLocator.ResolveComponent( this, m_episodeManager );
       m_fpvCamera = ExcavatorRigLocator.ResolveComponent( this, m_fpvCamera );
     }

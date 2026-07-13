@@ -1,7 +1,7 @@
 # AGXUnity Step-Ack Binary Protocol
 
 **Status:** current implementation truth source for Unity side<br>
-**Last updated:** 2026-05-23
+**Last updated:** 2026-07-13
 **Implementation files:**
 - `AGXUnity_Excavator_Assets/Scripts/SimulationBridge/AgxSimProtocol.cs`
 - `AGXUnity_Excavator_Assets/Scripts/SimulationBridge/AgxSimStepAckServer.cs`
@@ -9,6 +9,8 @@
 - `AGXUnity_Excavator_Assets/Scripts/Control/Sources/ActObservationCollector.cs`
 - `AGXUnity_Excavator_Assets/Scripts/Experiment/SwitchableTargetMassSensor.cs`
 - `AGXUnity_Excavator_Assets/Scripts/Experiment/TargetMassSensorBase.cs`
+- `AGXUnity_Excavator_Assets/Scripts/Experiment/BucketContactForceMonitor.cs`
+- `AGXUnity_Excavator_Assets/Scripts/Experiment/SceneResetService.cs`
 - `AGXUnity_Excavator_Assets/Scripts/TerrainParticleBoxMassSensor.cs`
 
 This document describes the protocol that is currently implemented in the Unity repo.
@@ -57,6 +59,31 @@ Current control semantics:
 - current baseline consumes pending step-ack requests on Unity `Update`
 - latency / transport experiments belong to dedicated transport branches and are
   outside the baseline protocol described in this document
+
+Replay determinism diagnostics:
+- `RESET.seed` is consumed by `SceneResetService` and applied to Unity's
+  managed random source through `UnityEngine.Random.InitState(seed)`.
+- The current AGX deformable-terrain reset path has no confirmed soil/native
+  seed API. Unity therefore reports `soil_seed_status=not_supported` instead of
+  claiming strict soil determinism.
+- `RESET` responses may include `reset_diagnostic:*` warnings with seed,
+  terrain reset count, native terrain recreate request status, dynamic soil
+  particle clear counts before and after terrain recreation, soil compactor
+  reset count, and report status.
+- `STEP` and `REALIGN_POSE` responses may include `bucket_contact_diagnostic:*`
+  warnings with bucket-vs-external-shape contact count and max normal force for
+  the completed simulation step.
+- `STEP` and `REALIGN_POSE` responses may include
+  `bucket_mass_diagnostic:*` warnings when bucket load or live terrain
+  particles are non-zero. These warnings decompose the current bucket load into
+  reported mass, raw mass, AGX terrain dynamic mass, handled-as-particle
+  rigid-body mass, and live terrain soil particle count.
+- `REALIGN_POSE` is diagnostic-only. It denormalizes requested qpos with the
+  active profile, realigns actuator pose through `SceneResetService`, optionally
+  burns in manual simulation steps, clears rigid-body velocities before and
+  after burn-in, and returns the same observation payload layout as `STEP_RESP`.
+- These warnings do not change the 64D `env_state` contract, planner semantics,
+  replay defaults, or gold-sample acceptance.
 
 Current observation semantics:
 - qpos order: `[swing_position_norm, boom_position_norm, stick_position_norm, bucket_position_norm]`
@@ -348,14 +375,14 @@ Binary field order:
 2. `qpos: float32[]`
 3. `qvel: float32[]`
 4. `burn_in_steps: int32`
-5. `client_time_ns: int64`
-6. `realign_reason: string`
+5. `client_time_ns: int64` optional
+6. `reason: string` optional
 
 Constraints and behavior:
 - qpos length must be at least `4` in the same order advertised by
   `GET_INFO_RESP.qpos_order`
-- Unity currently uses qpos and ignores qvel except for logging/forward
-  compatibility
+- qvel is accepted on the wire for Python compatibility. Unity reports whether
+  it was applied through `pose_realign_diagnostic:qvel_applied`.
 - qpos values are normalized; Unity denormalizes them with the active actuator
   normalization profile, writes each available `LockController.Position`, zeros
   the excavator rigid-body velocities, and then runs up to `100` burn-in
@@ -425,7 +452,11 @@ Current behavior:
 - when both flags are true, Unity performs the full scene reset path, including dump-area rigid bodies and constraints
 - when `reset_terrain = true`, Unity rebuilds the deformable terrain native instance so dynamic soil mass/particles are cleared as part of reset, including particles that were still trapped in the bucket
 - for step-ack serving, a successful reset also re-arms the machine controller engine so subsequent `STEP_REQ` actions take effect immediately
-- Unity reset path prefers `SceneResetService.ResetScene(resetTerrain, resetPose)` and only falls back to `EpisodeManager.ResetEpisode(...)` for full resets
+- Unity reset path prefers
+  `SceneResetService.ResetSceneWithReport(resetTerrain, resetPose, seed)` and
+  only falls back to `EpisodeManager.ResetEpisode(...)` for full resets
+- reset diagnostics are emitted as response warnings; clients should treat them
+  as run/debug metadata, not as additional observation dimensions
 - when `AgxSimStepAckServer` is configured to disable `EpisodeManager` while serving, the reset path may still arm the manual input-cut state for later hand-back, but the HUD "Release Controls" popup is only shown while `EpisodeManager` itself is enabled
 - terrain reset is handled by `ResetTerrain` / `SceneResetService`; the excavation metrics component no longer mutates terrain heights during reset
 - baseline step-ack requests are consumed on Unity `Update`
@@ -463,9 +494,23 @@ Current Unity values:
 - `reward = deposited_mass_in_target_box_kg`
 - `image_format = "raw_rgb"` when FPV capture succeeds
 - `image_w = 0`, `image_h = 0`, `image_payload = empty` when no FPV frame is available
+- `warnings` may include `bucket_contact_diagnostic:*` and
+  `bucket_mass_diagnostic:*` entries when replay diagnostics observe contact or
+  bucket material during the response step
 - FPV capture renders directly from the tracked camera into a `RenderTexture`;
   IMGUI overlays such as `ExperimentHUD` and the camera window chrome are not
   included in `image_payload`
+
+`REALIGN_POSE_RESP` warning details:
+- `pose_realign_diagnostic:status`
+- `pose_realign_diagnostic:requested_burn_in_steps`
+- `pose_realign_diagnostic:applied_burn_in_steps`
+- `pose_realign_diagnostic:locked_constraint_count`
+- `pose_realign_diagnostic:cleared_rigid_body_velocities`
+- `pose_realign_diagnostic:cleared_rigid_body_velocities_after_burn_in`
+- `pose_realign_diagnostic:qvel_applied`
+- `pose_realign_diagnostic:qvel_status=ignored` when qvel was provided but not applied
+- `pose_realign_diagnostic:reason` when supplied by the client
 
 Reward note:
 - for the current V0 stationary digging pipeline, `reward` is a Unity-side
@@ -587,8 +632,11 @@ Compared with older drafts in this repo, the current Unity implementation has th
   not change Unity control.
 - `REALIGN_POSE_REQ` / `REALIGN_POSE_RESP` were added for replay-time salvage of
   old YuLong recordings affected by stochastic swing pose jumps. The endpoint
-  uses actuator lock targets plus burn-in and deliberately leaves terrain and
-  removed-depth baselines untouched.
+  uses `SceneResetService` actuator realign plus burn-in and deliberately leaves
+  terrain and removed-depth baselines untouched.
+- reset, realign, bucket-contact, and bucket-mass diagnostics are now surfaced
+  through response warnings so replay drift can be audited without changing the
+  observation vector or planner contract.
 
 ## 12. Known Limits
 
@@ -599,3 +647,6 @@ The current Unity implementation still has some limits that clients should know 
 - this document describes Unity-side implementation only; Python client must mirror the same field order exactly
 - active target identity is not yet serialized in `GET_INFO_RESP` / `STEP_RESP`; use scene config or Unity-side logs/HUD when switching targets
 - Unity does not export a full contact-event stream; only the current active-target hard-collision summary fields are on the wire
+- AGX deformable-terrain native soil seeding is not confirmed; `RESET.seed`
+  applies Unity managed random state and reports soil seed status as diagnostic
+  metadata only

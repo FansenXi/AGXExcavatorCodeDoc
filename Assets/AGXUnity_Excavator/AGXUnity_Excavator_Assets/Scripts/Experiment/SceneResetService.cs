@@ -12,6 +12,34 @@ namespace AGXUnity_Excavator.Scripts.Experiment
 {
   public class SceneResetService : MonoBehaviour
   {
+    public sealed class SceneResetReport
+    {
+      public int RequestedSeed = 0;
+      public bool UnityRandomSeedApplied = false;
+      public string SoilSeedStatus = "not_requested";
+      public bool ResetTerrain = false;
+      public bool ResetPose = false;
+      public int TerrainResetCount = 0;
+      public bool NativeTerrainRecreateRequested = false;
+      public int DynamicSoilParticlesClearedBeforeTerrainReset = 0;
+      public int DynamicSoilParticlesClearedAfterTerrainReset = 0;
+      public int DynamicSoilParticlesCleared = 0;
+      public int SoilCompactorResetCount = 0;
+      public string Status = "not_run";
+    }
+
+    public sealed class ScenePoseRealignReport
+    {
+      public string Status = "not_run";
+      public int RequestedBurnInSteps = 0;
+      public int AppliedBurnInSteps = 0;
+      public int LockedConstraintCount = 0;
+      public bool ClearedRigidBodyVelocities = false;
+      public bool ClearedRigidBodyVelocitiesAfterBurnIn = false;
+      public bool QvelApplied = false;
+      public string Reason = string.Empty;
+    }
+
     private sealed class RigidBodySnapshot
     {
       public RigidBody Body = null;
@@ -105,6 +133,8 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     private bool m_isResetInProgress = false;
     private bool m_pendingInitialSnapshotCapture = false;
 
+    public SceneResetReport LastResetReport { get; private set; } = new SceneResetReport();
+
     private void Awake()
     {
       ResolveReferences();
@@ -189,12 +219,17 @@ namespace AGXUnity_Excavator.Scripts.Experiment
 
     public void ResetScene( bool resetTerrain, bool resetPose )
     {
+      ResetSceneWithReport( resetTerrain, resetPose, seed: 0 );
+    }
+
+    public SceneResetReport ResetSceneWithReport( bool resetTerrain, bool resetPose, int seed )
+    {
       if ( m_isResetInProgress )
-        return;
+        return SetLastResetReport( CreateSkippedResetReport( resetTerrain, resetPose, seed, "already_in_progress" ) );
 
       if ( !Application.isPlaying ) {
         Debug.LogWarning( "SceneResetService.ResetScene(): hard reset is only supported in Play Mode.", this );
-        return;
+        return SetLastResetReport( CreateSkippedResetReport( resetTerrain, resetPose, seed, "not_in_play_mode" ) );
       }
 
       ResolveReferences();
@@ -203,8 +238,18 @@ namespace AGXUnity_Excavator.Scripts.Experiment
 
       if ( resetPose && !m_hasSnapshot ) {
         Debug.LogWarning( "SceneResetService.ResetScene(): no rigid body snapshot available.", this );
-        return;
+        return SetLastResetReport( CreateSkippedResetReport( resetTerrain, resetPose, seed, "missing_rigid_body_snapshot" ) );
       }
+
+      var report = new SceneResetReport
+      {
+        RequestedSeed = seed,
+        UnityRandomSeedApplied = true,
+        SoilSeedStatus = resetTerrain ? "not_supported" : "not_requested",
+        ResetTerrain = resetTerrain,
+        ResetPose = resetPose,
+        Status = "started"
+      };
 
       m_isResetInProgress = true;
       var previousAutoStepping = Simulation.HasInstance ?
@@ -212,6 +257,8 @@ namespace AGXUnity_Excavator.Scripts.Experiment
                                  Simulation.AutoSteppingModes.FixedUpdate;
 
       try {
+        UnityEngine.Random.InitState( seed );
+
         m_episodeManager?.StopEpisode( "scene_reset" );
         m_machineController?.StopEngine();
 
@@ -223,11 +270,19 @@ namespace AGXUnity_Excavator.Scripts.Experiment
           SetRigidBodiesMotionControlForRestore();
         }
 
-        ResetTerrains( resetTerrain );
+        if ( resetTerrain ) {
+          report.DynamicSoilParticlesClearedBeforeTerrainReset = ClearDynamicSoilParticles();
+        }
+
+        report.TerrainResetCount = ResetTerrains( resetTerrain );
+        report.NativeTerrainRecreateRequested = resetTerrain && report.TerrainResetCount > 0;
 
         if ( resetTerrain ) {
-          ClearDynamicSoilParticles();
-          ResetSoilCompactors();
+          report.DynamicSoilParticlesClearedAfterTerrainReset = ClearDynamicSoilParticles();
+          report.DynamicSoilParticlesCleared =
+            report.DynamicSoilParticlesClearedBeforeTerrainReset +
+            report.DynamicSoilParticlesClearedAfterTerrainReset;
+          report.SoilCompactorResetCount = ResetSoilCompactors();
         }
 
         if ( resetPose ) {
@@ -248,6 +303,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
           RestoreRigidBodyMotionControls();
         }
         ResetMeasurementTrackers();
+        report.Status = "applied";
 
       }
       finally {
@@ -256,6 +312,61 @@ namespace AGXUnity_Excavator.Scripts.Experiment
 
         m_isResetInProgress = false;
       }
+
+      return SetLastResetReport( report );
+    }
+
+    public ScenePoseRealignReport RealignActuatorPose( float[] rawQpos,
+                                                       float[] qvel,
+                                                       int burnInSteps,
+                                                       string reason )
+    {
+      var report = new ScenePoseRealignReport
+      {
+        RequestedBurnInSteps = burnInSteps,
+        Reason = reason ?? string.Empty,
+        Status = "started"
+      };
+
+      if ( m_isResetInProgress ) {
+        report.Status = "already_in_progress";
+        return report;
+      }
+
+      if ( !Application.isPlaying ) {
+        Debug.LogWarning( "SceneResetService.RealignActuatorPose(): realign is only supported in Play Mode.", this );
+        report.Status = "not_in_play_mode";
+        return report;
+      }
+
+      if ( rawQpos == null || rawQpos.Length < 4 ) {
+        report.Status = "qpos_dim_must_be_4";
+        return report;
+      }
+
+      ResolveReferences();
+      m_machineController?.StopMotion();
+      report.ClearedRigidBodyVelocities = ClearRigidBodyVelocitiesAndForces();
+
+      report.LockedConstraintCount += ApplyLockTarget( m_machineController != null ? m_machineController.SwingConstraint : null,
+                                                       rawQpos[ 0 ] );
+
+      var boomConstraints = m_machineController != null ? m_machineController.BoomConstraints : null;
+      if ( boomConstraints != null ) {
+        foreach ( var boomConstraint in boomConstraints )
+          report.LockedConstraintCount += ApplyLockTarget( boomConstraint, rawQpos[ 1 ] );
+      }
+
+      report.LockedConstraintCount += ApplyLockTarget( m_machineController != null ? m_machineController.StickConstraint : null,
+                                                       rawQpos[ 2 ] );
+      report.LockedConstraintCount += ApplyLockTarget( m_machineController != null ? m_machineController.BucketConstraint : null,
+                                                       rawQpos[ 3 ] );
+
+      report.AppliedBurnInSteps = RunManualSimulationSteps( burnInSteps );
+      report.ClearedRigidBodyVelocitiesAfterBurnIn = ClearRigidBodyVelocitiesAndForces();
+      report.QvelApplied = false;
+      report.Status = report.LockedConstraintCount > 0 ? "applied" : "no_lock_controllers";
+      return report;
     }
 
     [ContextMenu( "Reset Episode To Initial Snapshot" )]
@@ -269,12 +380,13 @@ namespace AGXUnity_Excavator.Scripts.Experiment
         ResetScene();
     }
 
-    private void ResetTerrains( bool resetTerrain )
+    private int ResetTerrains( bool resetTerrain )
     {
       if ( !resetTerrain )
-        return;
+        return 0;
 
       var terrainResetHandled = false;
+      var resetCount = 0;
       if ( m_resetTerrains != null ) {
         foreach ( var terrainResetter in m_resetTerrains ) {
           if ( terrainResetter == null )
@@ -282,42 +394,132 @@ namespace AGXUnity_Excavator.Scripts.Experiment
 
           terrainResetter.ResetTerrainHeights();
           terrainResetHandled = true;
+          ++resetCount;
         }
       }
 
       if ( terrainResetHandled || m_fallbackTerrains == null )
-        return;
+        return resetCount;
 
       foreach ( var terrain in m_fallbackTerrains ) {
-        if ( terrain != null )
-          terrain.ResetHeightsAndRecreateNative();
+        if ( terrain == null )
+          continue;
+
+        terrain.ResetHeightsAndRecreateNative();
+        ++resetCount;
       }
+
+      return resetCount;
     }
 
-    private void ClearDynamicSoilParticles()
+    private int ClearDynamicSoilParticles()
     {
       if ( !m_clearSoilParticlesOnReset )
-        return;
+        return 0;
 
-      global::DeformableTerrainParticleResetUtility.RemoveAllParticlesInScene();
+      return global::DeformableTerrainParticleResetUtility.RemoveAllParticlesInScene();
     }
 
-    private void ResetSoilCompactors()
+    private int ResetSoilCompactors()
     {
+      var resetCount = 0;
       if ( m_dumpParticleCompactors != null ) {
         foreach ( var compactor in m_dumpParticleCompactors ) {
-          if ( compactor != null )
-            compactor.ResetCompactionState();
+          if ( compactor == null )
+            continue;
+
+          compactor.ResetCompactionState();
+          ++resetCount;
         }
       }
 
       if ( m_settledTerrainParticleCompactors == null )
-        return;
+        return resetCount;
 
       foreach ( var compactor in m_settledTerrainParticleCompactors ) {
-        if ( compactor != null )
-          compactor.ResetCompactionState();
+        if ( compactor == null )
+          continue;
+
+        compactor.ResetCompactionState();
+        ++resetCount;
       }
+
+      return resetCount;
+    }
+
+    private int ApplyLockTarget( Constraint constraint, float targetPosition )
+    {
+      if ( constraint == null )
+        return 0;
+
+      var speedController = constraint.GetController<TargetSpeedController>();
+      if ( speedController != null ) {
+        speedController.Speed = 0.0f;
+        speedController.LockAtZeroSpeed = false;
+        speedController.Enable = false;
+      }
+
+      var lockController = constraint.GetController<LockController>();
+      if ( lockController == null )
+        return 0;
+
+      lockController.Position = targetPosition;
+      lockController.Enable = true;
+      return 1;
+    }
+
+    private bool ClearRigidBodyVelocitiesAndForces()
+    {
+      var clearedAny = false;
+      foreach ( var body in EnumerateRigidBodiesToReset() ) {
+        if ( body == null )
+          continue;
+
+        body.LinearVelocity = Vector3.zero;
+        body.AngularVelocity = Vector3.zero;
+        ClearNativeForceAndTorque( body );
+        clearedAny = true;
+      }
+
+      return clearedAny;
+    }
+
+    private int RunManualSimulationSteps( int requestedSteps )
+    {
+      var steps = Mathf.Max( 0, requestedSteps );
+      if ( steps <= 0 || !Simulation.HasInstance )
+        return 0;
+
+      var previousAutoStepping = Simulation.Instance.AutoSteppingMode;
+      Simulation.Instance.AutoSteppingMode = Simulation.AutoSteppingModes.Disabled;
+      try {
+        for ( var stepIndex = 0; stepIndex < steps; ++stepIndex )
+          Simulation.Instance.DoStep();
+      }
+      finally {
+        Simulation.Instance.AutoSteppingMode = previousAutoStepping;
+      }
+
+      return steps;
+    }
+
+    private SceneResetReport CreateSkippedResetReport( bool resetTerrain, bool resetPose, int seed, string status )
+    {
+      return new SceneResetReport
+      {
+        RequestedSeed = seed,
+        UnityRandomSeedApplied = false,
+        SoilSeedStatus = resetTerrain ? "not_applied" : "not_requested",
+        ResetTerrain = resetTerrain,
+        ResetPose = resetPose,
+        Status = status
+      };
+    }
+
+    private SceneResetReport SetLastResetReport( SceneResetReport report )
+    {
+      LastResetReport = report ?? new SceneResetReport();
+      return LastResetReport;
     }
 
     private void ResetMeasurementTrackers()

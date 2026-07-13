@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using AGXUnity.Model;
 using AGXUnity.Utils;
@@ -370,7 +371,7 @@ public static class DeformableTerrainParticleResetUtility
 {
   public static int RemoveAllParticlesInScene()
   {
-    return RemoveAllParticles( Object.FindObjectsOfType<DeformableTerrainBase>( true ) );
+    return RemoveAllParticles( UnityEngine.Object.FindObjectsOfType<DeformableTerrainBase>( true ) );
   }
 
   public static int RemoveAllParticles( IEnumerable<DeformableTerrainBase> terrains )
@@ -394,6 +395,12 @@ public static class DeformableTerrainParticleResetUtility
   {
     if ( terrain == null )
       return 0;
+
+    if ( terrain is DeformableTerrain deformableTerrain && deformableTerrain.Native != null ) {
+      var nativeParticleCount = deformableTerrain.Native.getNumSoilParticles();
+      deformableTerrain.Native.clearAllSoilParticles();
+      return nativeParticleCount > int.MaxValue ? int.MaxValue : Convert.ToInt32( nativeParticleCount );
+    }
 
     var particles = terrain.GetParticles();
     var soilInterface = terrain.GetSoilSimulationInterface();
