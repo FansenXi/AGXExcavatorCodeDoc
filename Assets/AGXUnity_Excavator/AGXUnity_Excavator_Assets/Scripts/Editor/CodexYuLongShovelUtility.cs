@@ -325,7 +325,7 @@ namespace AGXUnity_Excavator.Scripts.Editor
           return rig.BucketReference;
       }
 
-	      return FindChildRecursive( root, "bucket" ) ?? FindChildRecursive( root, "watou" );
+	      return FindChildRecursive( root, "bucket" );
     }
 
     private static Transform FindChildRecursive( Transform root, string objectName )

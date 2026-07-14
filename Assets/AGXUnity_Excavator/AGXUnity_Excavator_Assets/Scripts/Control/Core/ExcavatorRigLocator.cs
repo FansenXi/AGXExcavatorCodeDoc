@@ -9,8 +9,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Core
 	    {
 	      "bucket",
 	      "Bucket",
-	      "Shovel",
-	      "watou"
+	      "Shovel"
     };
 
     public static T ResolveComponent<T>( Component context, T current ) where T : Component

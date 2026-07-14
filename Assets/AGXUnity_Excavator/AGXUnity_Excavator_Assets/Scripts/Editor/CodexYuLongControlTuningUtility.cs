@@ -147,15 +147,15 @@ namespace AGXUnity_Excavator.Scripts.Editor
       rig.ResolveReferences();
 
       TuneBody( root, "base_link", 814.3f, agx.RigidBody.MotionControl.STATIC, result );
-      TuneBody( root, "controller", 1543.7f, agx.RigidBody.MotionControl.DYNAMICS, result );
-      TuneBody( root, "dabi", 180.0f, agx.RigidBody.MotionControl.DYNAMICS, result );
-      TuneBody( root, "xiaobi", 120.0f, agx.RigidBody.MotionControl.DYNAMICS, result );
+      TuneBody( root, "upper_structure", 1543.7f, agx.RigidBody.MotionControl.DYNAMICS, result );
+      TuneBody( root, "boom", 180.0f, agx.RigidBody.MotionControl.DYNAMICS, result );
+      TuneBody( root, "stick", 120.0f, agx.RigidBody.MotionControl.DYNAMICS, result );
 	      TuneBody( root, "bucket", 70.0f, agx.RigidBody.MotionControl.DYNAMICS, result );
 
-      TuneConstraint( rig.SwingHinge, "joint1", SwingTorqueLimit, SwingMinAngle, SwingMaxAngle, result );
-      TuneConstraint( rig.BoomConstraint, "joint2", BoomTorqueLimit, BoomMinAngle, BoomMaxAngle, result );
-      TuneConstraint( rig.StickConstraint, "joint3", StickTorqueLimit, StickMinAngle, StickMaxAngle, result );
-      TuneConstraint( rig.BucketConstraint, "joint4", BucketTorqueLimit, BucketMinAngle, BucketMaxAngle, result );
+      TuneConstraint( rig.SwingHinge, "swing_joint", SwingTorqueLimit, SwingMinAngle, SwingMaxAngle, result );
+      TuneConstraint( rig.BoomConstraint, "boom_joint", BoomTorqueLimit, BoomMinAngle, BoomMaxAngle, result );
+      TuneConstraint( rig.StickConstraint, "stick_joint", StickTorqueLimit, StickMinAngle, StickMaxAngle, result );
+      TuneConstraint( rig.BucketConstraint, "bucket_joint", BucketTorqueLimit, BucketMinAngle, BucketMaxAngle, result );
 
       EditorUtility.SetDirty( rig );
     }
@@ -166,9 +166,7 @@ namespace AGXUnity_Excavator.Scripts.Editor
                                   agx.RigidBody.MotionControl motionControl,
                                   TuneResult result )
     {
-	      var transform = FindChildRecursive( root, objectName );
-	      if ( transform == null && string.Equals( objectName, "bucket", StringComparison.OrdinalIgnoreCase ) )
-	        transform = FindChildRecursive( root, "watou" );
+      var transform = FindChildRecursive( root, objectName );
       var rigidBody = transform != null ? transform.GetComponent<RigidBody>() : null;
       if ( rigidBody == null ) {
         Append( ref result.warnings, $"Missing RigidBody on {objectName}" );

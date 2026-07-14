@@ -259,12 +259,12 @@ namespace AGXUnity_Excavator.Scripts.Editor
         return false;
       }
 
-      var hasSwing = TryGetConstraintAngle( snapshot, "joint1", out var swingRaw );
-      var hasBoom = TryGetConstraintAngle( snapshot, "joint2", out var boomRaw );
-      var hasStick = TryGetConstraintAngle( snapshot, "joint3", out var stickRaw );
-      var hasBucket = TryGetConstraintAngle( snapshot, "joint4", out var bucketRaw );
+      var hasSwing = TryGetConstraintAngle( snapshot, "swing_joint", out var swingRaw );
+      var hasBoom = TryGetConstraintAngle( snapshot, "boom_joint", out var boomRaw );
+      var hasStick = TryGetConstraintAngle( snapshot, "stick_joint", out var stickRaw );
+      var hasBucket = TryGetConstraintAngle( snapshot, "bucket_joint", out var bucketRaw );
       if ( !hasSwing || !hasBoom || !hasStick || !hasBucket ) {
-        warning = "snapshot does not contain current angles for joint1..joint4.";
+        warning = "snapshot does not contain current angles for swing/boom/stick/bucket joints.";
         return false;
       }
 

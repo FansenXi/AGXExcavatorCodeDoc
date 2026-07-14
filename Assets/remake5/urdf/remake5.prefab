@@ -12,7 +12,7 @@ GameObject:
   - component: {fileID: 4375719050392547134}
   - component: {fileID: 1504548391138869152}
   m_Layer: 0
-  m_Name: xiaobi_Mesh
+  m_Name: stick_Mesh
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -92,7 +92,7 @@ GameObject:
   - component: {fileID: 4656524330003230894}
   - component: {fileID: 2105958421232261176}
   m_Layer: 0
-  m_Name: dabi (2)
+  m_Name: boom (2)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -189,7 +189,7 @@ GameObject:
   - component: {fileID: 2203683826504125111}
   - component: {fileID: 8345320631930179903}
   m_Layer: 0
-  m_Name: sigan1_VisualMesh
+  m_Name: bucket_link_VisualMesh
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -254,7 +254,7 @@ GameObject:
   - component: {fileID: 5371279263528926052}
   - component: {fileID: 54298601461126459}
   m_Layer: 0
-  m_Name: dabi (3)
+  m_Name: boom (3)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -351,7 +351,7 @@ GameObject:
   - component: {fileID: 4999714022134187397}
   - component: {fileID: 763202940643342055}
   m_Layer: 0
-  m_Name: dabi_to_huosai3a_joint
+  m_Name: boom_to_stick_cylinder_barrel_joint
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -554,7 +554,7 @@ GameObject:
   - component: {fileID: 5758717719534125602}
   - component: {fileID: 293751479267748196}
   m_Layer: 0
-  m_Name: controller (7)
+  m_Name: upper_structure (7)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -651,7 +651,7 @@ GameObject:
   - component: {fileID: 2315801778123144014}
   - component: {fileID: 4263526383479868941}
   m_Layer: 0
-  m_Name: huosai4a_Mesh
+  m_Name: bucket_cylinder_barrel_Mesh
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -728,7 +728,7 @@ GameObject:
   - component: {fileID: 4808292364540238358}
   - component: {fileID: 5350333661517653759}
   m_Layer: 0
-  m_Name: sigan1 (5)
+  m_Name: bucket_link (5)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -959,7 +959,7 @@ GameObject:
   - component: {fileID: 1798345291301942487}
   - component: {fileID: 5915403002560348672}
   m_Layer: 0
-  m_Name: dabi_to_xiaobi_joint
+  m_Name: stick_joint
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1161,7 +1161,7 @@ GameObject:
   - component: {fileID: 8566845044427540503}
   - component: {fileID: 12752924418178603}
   m_Layer: 0
-  m_Name: controller_VisualMesh
+  m_Name: upper_structure_VisualMesh
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1231,7 +1231,7 @@ GameObject:
   - component: {fileID: 3488833458308223578}
   - component: {fileID: 8097899198088233684}
   m_Layer: 0
-  m_Name: huosai2a_Mesh
+  m_Name: boom_cylinder_barrel_Mesh
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1307,7 +1307,7 @@ GameObject:
   - component: {fileID: 97798706739360964}
   - component: {fileID: 5754675573972471503}
   m_Layer: 0
-  m_Name: huosai4b_Mesh
+  m_Name: bucket_cylinder_rod_Mesh
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1383,7 +1383,7 @@ GameObject:
   - component: {fileID: 7778903386897655555}
   - component: {fileID: 8480476985948087678}
   m_Layer: 0
-  m_Name: watou_Mesh
+  m_Name: bucket_Mesh
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1509,7 +1509,7 @@ GameObject:
   - component: {fileID: 7110622525919975049}
   - component: {fileID: 559376359532805787}
   m_Layer: 0
-  m_Name: sigan2
+  m_Name: bucket_bellcrank
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1599,7 +1599,7 @@ GameObject:
   - component: {fileID: 6074361756252506457}
   - component: {fileID: 4511898887268839536}
   m_Layer: 0
-  m_Name: watou
+  m_Name: bucket
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1739,7 +1739,7 @@ GameObject:
   - component: {fileID: 3512361156918033875}
   - component: {fileID: 7764068407000886146}
   m_Layer: 0
-  m_Name: huosai2b_Mesh
+  m_Name: boom_cylinder_rod_Mesh
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1817,7 +1817,7 @@ GameObject:
   - component: {fileID: 1938324894561267184}
   - component: {fileID: 8049522922757955605}
   m_Layer: 0
-  m_Name: xiaobi_VisualMesh
+  m_Name: stick_VisualMesh
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1930,7 +1930,7 @@ GameObject:
   - component: {fileID: 6458102862729542012}
   - component: {fileID: 3822848734510408686}
   m_Layer: 0
-  m_Name: huosai4a_VisualMesh
+  m_Name: bucket_cylinder_barrel_VisualMesh
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -2041,7 +2041,7 @@ GameObject:
   - component: {fileID: 4212360119675298361}
   - component: {fileID: 7506640263130840222}
   m_Layer: 0
-  m_Name: controller
+  m_Name: upper_structure
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -2132,7 +2132,7 @@ GameObject:
   - component: {fileID: 7151440573468096241}
   - component: {fileID: 3189893963850899752}
   m_Layer: 0
-  m_Name: controller_to_huosai2a_joint
+  m_Name: upper_structure_to_boom_cylinder_barrel_joint
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -2384,7 +2384,7 @@ GameObject:
   - component: {fileID: 2495244043885403590}
   - component: {fileID: 7897530194462051451}
   m_Layer: 0
-  m_Name: dabi
+  m_Name: boom
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -2623,7 +2623,7 @@ GameObject:
   - component: {fileID: 919910725672681397}
   - component: {fileID: 3131039815967910568}
   m_Layer: 0
-  m_Name: huosai4a
+  m_Name: bucket_cylinder_barrel
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -3113,7 +3113,7 @@ GameObject:
   - component: {fileID: 5034858280556884247}
   - component: {fileID: 7941557998508843997}
   m_Layer: 0
-  m_Name: huosai3b
+  m_Name: stick_cylinder_rod
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -3201,7 +3201,7 @@ GameObject:
   - component: {fileID: 5514562707485911052}
   - component: {fileID: 8240944661906997697}
   m_Layer: 0
-  m_Name: sigan1_Mesh
+  m_Name: bucket_link_Mesh
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -3281,7 +3281,7 @@ GameObject:
   - component: {fileID: 1273056445685588914}
   - component: {fileID: 2180382819116091808}
   m_Layer: 0
-  m_Name: huosai4b_VisualMesh
+  m_Name: bucket_cylinder_rod_VisualMesh
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -3393,7 +3393,7 @@ GameObject:
   - component: {fileID: 6005187155285558452}
   - component: {fileID: 9100945436701945870}
   m_Layer: 0
-  m_Name: controller (6)
+  m_Name: upper_structure (6)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -3490,7 +3490,7 @@ GameObject:
   - component: {fileID: 8494280925238709340}
   - component: {fileID: 1244500908313404464}
   m_Layer: 0
-  m_Name: huosai3a_Mesh
+  m_Name: stick_cylinder_barrel_Mesh
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -3566,7 +3566,7 @@ GameObject:
   - component: {fileID: 2209890900709015699}
   - component: {fileID: 7537901436623761618}
   m_Layer: 0
-  m_Name: controller_Mesh
+  m_Name: upper_structure_Mesh
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -3652,7 +3652,7 @@ GameObject:
   - component: {fileID: 3889543963194330388}
   - component: {fileID: 2720451152065022657}
   m_Layer: 0
-  m_Name: controller (10)
+  m_Name: upper_structure (10)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -3749,7 +3749,7 @@ GameObject:
   - component: {fileID: 6090794186464399487}
   - component: {fileID: 3474882790846971193}
   m_Layer: 0
-  m_Name: sigan1
+  m_Name: bucket_link
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -3837,7 +3837,7 @@ GameObject:
   - component: {fileID: 4849458892701015438}
   - component: {fileID: 7786201681888080415}
   m_Layer: 0
-  m_Name: huosai4b
+  m_Name: bucket_cylinder_rod
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -3925,7 +3925,7 @@ GameObject:
   - component: {fileID: 920658681753994057}
   - component: {fileID: 5743043984696360042}
   m_Layer: 0
-  m_Name: controller_to_dabi_joint
+  m_Name: boom_joint
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -4127,7 +4127,7 @@ GameObject:
   - component: {fileID: 7952925856740461879}
   - component: {fileID: 6484650065459145882}
   m_Layer: 0
-  m_Name: xiaobi
+  m_Name: stick
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -4298,7 +4298,7 @@ GameObject:
   - component: {fileID: 953137175465512287}
   - component: {fileID: 355695675657844916}
   m_Layer: 0
-  m_Name: sigan1 (6)
+  m_Name: bucket_link (6)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -4395,7 +4395,7 @@ GameObject:
   - component: {fileID: 7121859528158309121}
   - component: {fileID: 2508043083442199422}
   m_Layer: 0
-  m_Name: huosai2b
+  m_Name: boom_cylinder_rod
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -4483,7 +4483,7 @@ GameObject:
   - component: {fileID: 6432119596217795117}
   - component: {fileID: 1731053351860559231}
   m_Layer: 0
-  m_Name: watou_to_sigan1
+  m_Name: bucket_to_bucket_link_joint
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -4685,7 +4685,7 @@ GameObject:
   - component: {fileID: 9134501331042555772}
   - component: {fileID: 7016268807717000479}
   m_Layer: 0
-  m_Name: sigan2_Mesh
+  m_Name: bucket_bellcrank_Mesh
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -4761,7 +4761,7 @@ GameObject:
   - component: {fileID: 2974352346383081013}
   - component: {fileID: 5097552422140222276}
   m_Layer: 0
-  m_Name: huosai2a
+  m_Name: boom_cylinder_barrel
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -4850,7 +4850,7 @@ GameObject:
   - component: {fileID: 3685852166441491732}
   - component: {fileID: 6273049055340326309}
   m_Layer: 0
-  m_Name: sigan1 (7)
+  m_Name: bucket_link (7)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -4948,7 +4948,7 @@ GameObject:
   - component: {fileID: 8238592040254264743}
   - component: {fileID: 2145714602050243353}
   m_Layer: 0
-  m_Name: dabi (4)
+  m_Name: boom (4)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -5047,7 +5047,7 @@ GameObject:
   - component: {fileID: 4327546049822071840}
   - component: {fileID: 8796450708970651610}
   m_Layer: 0
-  m_Name: sigan2_VisualMesh
+  m_Name: bucket_bellcrank_VisualMesh
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -5385,7 +5385,7 @@ GameObject:
   - component: {fileID: 2972146745426194691}
   - component: {fileID: 4196439042021152619}
   m_Layer: 0
-  m_Name: huosai2b_VisualMesh
+  m_Name: boom_cylinder_rod_VisualMesh
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -5496,7 +5496,7 @@ GameObject:
   - component: {fileID: 8930643470945985123}
   - component: {fileID: 7997969931148940398}
   m_Layer: 0
-  m_Name: base_to_controller_joint
+  m_Name: swing_joint
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -5787,7 +5787,7 @@ GameObject:
   - component: {fileID: 6739311808763490743}
   - component: {fileID: 3876944339378206285}
   m_Layer: 0
-  m_Name: xiaobi_to_huosai4a
+  m_Name: stick_to_bucket_cylinder_barrel_joint
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -5989,7 +5989,7 @@ GameObject:
   - component: {fileID: 8054042546004330817}
   - component: {fileID: 8310772853270079323}
   m_Layer: 0
-  m_Name: dabi_Mesh
+  m_Name: boom_Mesh
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -6070,7 +6070,7 @@ GameObject:
   - component: {fileID: 2229342096340824007}
   - component: {fileID: 4573509230466572880}
   m_Layer: 0
-  m_Name: huosai3b_Mesh
+  m_Name: stick_cylinder_rod_Mesh
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -6147,7 +6147,7 @@ GameObject:
   - component: {fileID: 4123434648807965653}
   - component: {fileID: 5604045005860900633}
   m_Layer: 0
-  m_Name: controller (9)
+  m_Name: upper_structure (9)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -6438,7 +6438,7 @@ GameObject:
   - component: {fileID: 974610112731714956}
   - component: {fileID: 6369109519959155033}
   m_Layer: 0
-  m_Name: xiaobi_to_watou_joint
+  m_Name: bucket_joint
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -6640,7 +6640,7 @@ GameObject:
   - component: {fileID: 6112658161076156020}
   - component: {fileID: 5502898538856556063}
   m_Layer: 0
-  m_Name: huosai3a
+  m_Name: stick_cylinder_barrel
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -6829,7 +6829,7 @@ GameObject:
   - component: {fileID: 5240237007049141421}
   - component: {fileID: 7956344198957311048}
   m_Layer: 0
-  m_Name: controller (3)
+  m_Name: upper_structure (3)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -6926,7 +6926,7 @@ GameObject:
   - component: {fileID: 707571950067491701}
   - component: {fileID: 1442457354708048404}
   m_Layer: 0
-  m_Name: sigan1_to_sigan2_joint
+  m_Name: bucket_link_to_bucket_bellcrank_joint
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -7128,7 +7128,7 @@ GameObject:
   - component: {fileID: 615767807052464315}
   - component: {fileID: 619303663307486838}
   m_Layer: 0
-  m_Name: dabi_to_huosai2b_joint
+  m_Name: boom_to_boom_cylinder_rod_joint
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -7330,7 +7330,7 @@ GameObject:
   - component: {fileID: 401279669042613565}
   - component: {fileID: 6869108208362556334}
   m_Layer: 0
-  m_Name: sigan2_to_huosai4b_joint
+  m_Name: bucket_bellcrank_to_bucket_cylinder_rod_joint
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -7533,7 +7533,7 @@ GameObject:
   - component: {fileID: 3418021476671471443}
   - component: {fileID: 6239069465961601431}
   m_Layer: 0
-  m_Name: controller (8)
+  m_Name: upper_structure (8)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -7632,7 +7632,7 @@ GameObject:
   - component: {fileID: 9182270638475980571}
   - component: {fileID: 8524339966625028508}
   m_Layer: 0
-  m_Name: watou_VisualMesh
+  m_Name: bucket_VisualMesh
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -7743,7 +7743,7 @@ GameObject:
   - component: {fileID: 3290737497887916943}
   - component: {fileID: 7189907503538561992}
   m_Layer: 0
-  m_Name: xiaobi_to_huosai3b_joint
+  m_Name: stick_to_stick_cylinder_rod_joint
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -7947,7 +7947,7 @@ GameObject:
   - component: {fileID: 5034987617574011199}
   - component: {fileID: 7487115414724665411}
   m_Layer: 0
-  m_Name: huosai2a_VisualMesh
+  m_Name: boom_cylinder_barrel_VisualMesh
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -8058,7 +8058,7 @@ GameObject:
   - component: {fileID: 6230553876212510066}
   - component: {fileID: 3854210937824838750}
   m_Layer: 0
-  m_Name: dabi_VisualMesh
+  m_Name: boom_VisualMesh
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -8123,7 +8123,7 @@ GameObject:
   - component: {fileID: 6023927394393482445}
   - component: {fileID: 7893626906873117893}
   m_Layer: 0
-  m_Name: controller (2)
+  m_Name: upper_structure (2)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -8220,7 +8220,7 @@ GameObject:
   - component: {fileID: 4963213111750738097}
   - component: {fileID: 9105233158031094576}
   m_Layer: 0
-  m_Name: xiaobi_to_sigan2_joint
+  m_Name: stick_to_bucket_bellcrank_joint
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -8423,7 +8423,7 @@ GameObject:
   - component: {fileID: 1533162592096488865}
   - component: {fileID: 8474831342612116266}
   m_Layer: 0
-  m_Name: controller (4)
+  m_Name: upper_structure (4)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -8571,7 +8571,7 @@ GameObject:
   - component: {fileID: 5181486951498965310}
   - component: {fileID: 6822672736658048934}
   m_Layer: 0
-  m_Name: controller (5)
+  m_Name: upper_structure (5)
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -8670,7 +8670,7 @@ GameObject:
   - component: {fileID: 2895975713351065405}
   - component: {fileID: 2776486187614309109}
   m_Layer: 0
-  m_Name: huosai3a_VisualMesh
+  m_Name: stick_cylinder_barrel_VisualMesh
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -8833,7 +8833,7 @@ GameObject:
   - component: {fileID: 1606722059481760102}
   - component: {fileID: 1197527676017509836}
   m_Layer: 0
-  m_Name: huosai3b_VisualMesh
+  m_Name: stick_cylinder_rod_VisualMesh
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

@@ -34,13 +34,13 @@ namespace AGXUnity_Excavator.Scripts.Control.Core
     [AllowRecursiveEditing]
     public Constraint SwingHinge
     {
-      get { return ResolveConstraint( ref m_swingHinge, "joint1", "base_to_controller_joint" ); }
+      get { return ResolveConstraint( ref m_swingHinge, "swing_joint" ); }
     }
 
     [AllowRecursiveEditing]
     public Constraint BoomConstraint
     {
-      get { return ResolveConstraint( ref m_boomConstraint, "joint2", "controller_to_dabi_joint" ); }
+      get { return ResolveConstraint( ref m_boomConstraint, "boom_joint" ); }
     }
 
     [AllowRecursiveEditing]
@@ -52,7 +52,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Core
     [AllowRecursiveEditing]
     public Constraint StickConstraint
     {
-      get { return ResolveConstraint( ref m_stickConstraint, "joint3", "dabi_to_xiaobi_joint" ); }
+      get { return ResolveConstraint( ref m_stickConstraint, "stick_joint" ); }
     }
 
     [AllowRecursiveEditing]
@@ -64,7 +64,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Core
     [AllowRecursiveEditing]
     public Constraint BucketConstraint
     {
-      get { return ResolveConstraint( ref m_bucketConstraint, "joint4", "xiaobi_to_watou_joint" ); }
+      get { return ResolveConstraint( ref m_bucketConstraint, "bucket_joint" ); }
     }
 
     [AllowRecursiveEditing]
@@ -73,11 +73,11 @@ namespace AGXUnity_Excavator.Scripts.Control.Core
       get { return ResolveConstraint( ref m_bucketCylinderPrismatic, "bucket_cylinder_prismatic" ); }
     }
 
-	    [AllowRecursiveEditing]
-	    public Transform BucketReference
-	    {
-	      get { return ResolveTransform( ref m_bucketReference, "bucket", "Bucket", "watou" ); }
-	    }
+    [AllowRecursiveEditing]
+    public Transform BucketReference
+    {
+      get { return ResolveTransform( ref m_bucketReference, "bucket" ); }
+    }
 
     public float Speed
     {
@@ -86,43 +86,34 @@ namespace AGXUnity_Excavator.Scripts.Control.Core
 
     public void ResolveReferences()
     {
-      ResolveConstraint( ref m_swingHinge, "joint1", "base_to_controller_joint" );
-      ResolveConstraint( ref m_boomConstraint, "joint2", "controller_to_dabi_joint" );
+      ResolveConstraint( ref m_swingHinge, "swing_joint" );
+      ResolveConstraint( ref m_boomConstraint, "boom_joint" );
       ResolveConstraint( ref m_boomCylinderPrismatic, "boom_cylinder_prismatic" );
-      ResolveConstraint( ref m_stickConstraint, "joint3", "dabi_to_xiaobi_joint" );
+      ResolveConstraint( ref m_stickConstraint, "stick_joint" );
       ResolveConstraint( ref m_stickCylinderPrismatic, "stick_cylinder_prismatic" );
-      ResolveConstraint( ref m_bucketConstraint, "joint4", "xiaobi_to_watou_joint" );
+      ResolveConstraint( ref m_bucketConstraint, "bucket_joint" );
       ResolveConstraint( ref m_bucketCylinderPrismatic, "bucket_cylinder_prismatic" );
-	      ResolveTransform( ref m_bucketReference, "watou" );
+      ResolveTransform( ref m_bucketReference, "bucket" );
     }
 
-    private Constraint ResolveConstraint( ref Constraint constraint, params string[] objectNames )
+    private Constraint ResolveConstraint( ref Constraint constraint, string objectName )
     {
       if ( IsUsable( constraint ) )
         return constraint;
 
-      foreach ( var objectName in objectNames ) {
-        var target = FindChildRecursive( transform, objectName );
-        constraint = target != null ? target.GetComponent<Constraint>() : null;
-        if ( constraint != null )
-          return constraint;
-      }
-
+      var target = FindChildRecursive( transform, objectName );
+      constraint = target != null ? target.GetComponent<Constraint>() : null;
       return constraint;
     }
 
-	    private Transform ResolveTransform( ref Transform reference, params string[] objectNames )
-	    {
-	      if ( reference != null )
-	        return reference;
-	
-	      foreach ( var objectName in objectNames ) {
-	        reference = FindChildRecursive( transform, objectName );
-	        if ( reference != null )
-	          return reference;
-	      }
-	      return reference;
-	    }
+    private Transform ResolveTransform( ref Transform reference, string objectName )
+    {
+      if ( reference != null )
+        return reference;
+
+      reference = FindChildRecursive( transform, objectName );
+      return reference;
+    }
 
     private static bool IsUsable( Component component )
     {
