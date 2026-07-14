@@ -1,0 +1,743 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot
+  name="remake5">
+  <link
+    name="base_link">
+    <inertial>
+      <origin
+        xyz="0.0223939305697832 0.000348077342381665 0.0454753625347418"
+        rpy="0 0 0" />
+      <mass
+        value="109.315349054885" />
+      <inertia
+        ixx="2.64091019967907"
+        ixy="0.000229290004958896"
+        ixz="-0.000345046768273635"
+        iyy="21.0436262038088"
+        iyz="-2.99361578542777E-05"
+        izz="19.9899139205161" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://remake5/meshes/base_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://remake5/meshes/base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="controller">
+    <inertial>
+      <origin
+        xyz="-0.257512763928901 -0.0314839804049316 -0.194537884922062"
+        rpy="0 0 0" />
+      <mass
+        value="77.6129571793414" />
+      <inertia
+        ixx="3.66606971425006"
+        ixy="-0.0229551972293722"
+        ixz="0.0678281723209963"
+        iyy="4.19411040780773"
+        iyz="0.0032466384382796"
+        izz="7.12254752152241" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://remake5/meshes/controller.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://remake5/meshes/controller.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="base_to_controller_joint"
+    type="revolute">
+    <origin
+      xyz="0 0 0.67"
+      rpy="0 0 0" />
+    <parent
+      link="base_link" />
+    <child
+      link="controller" />
+    <axis
+      xyz="0 0 -1" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="100"
+      velocity="1" />
+  </joint>
+  <link
+    name="dabi">
+    <inertial>
+      <origin
+        xyz="0.415647875262087 0.0349155693994563 0.899934854438424"
+        rpy="0 0 0" />
+      <mass
+        value="11.1002972149815" />
+      <inertia
+        ixx="0.635345475430364"
+        ixy="3.95874385550644E-07"
+        ixz="-0.361617670803655"
+        iyy="0.886197755286414"
+        iyz="7.73929655728433E-07"
+        izz="0.26758374344147" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://remake5/meshes/dabi.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://remake5/meshes/dabi.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="controller_to_dabi_joint"
+    type="revolute">
+    <origin
+      xyz="0.84031 -0.1344 -0.224"
+      rpy="0 0 0" />
+    <parent
+      link="controller" />
+    <child
+      link="dabi" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="100"
+      velocity="1" />
+  </joint>
+  <link
+    name="xiaobi">
+    <inertial>
+      <origin
+        xyz="0.225740015757746 -0.0895342301383664 -0.296165475735016"
+        rpy="0 0 0" />
+      <mass
+        value="4.97678856772179" />
+      <inertia
+        ixx="0.114028668436709"
+        ixy="-2.14400328254631E-08"
+        ixz="0.0504849328695355"
+        iyy="0.146950764141354"
+        iyz="-7.66581284584777E-08"
+        izz="0.0371473780417349" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://remake5/meshes/xiaobi.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://remake5/meshes/xiaobi.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="dabi_to_xiaobi_joint"
+    type="revolute">
+    <origin
+      xyz="1.09359335696479 0.123999781129014 1.47352591557926"
+      rpy="0 0 0" />
+    <parent
+      link="dabi" />
+    <child
+      link="xiaobi" />
+    <axis
+      xyz="0 0.99999999999998 0" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="100"
+      velocity="1" />
+  </joint>
+  <link
+    name="watou">
+    <inertial>
+      <origin
+        xyz="0.164005583089827 -0.0830367856092139 -0.262470226939849"
+        rpy="0 0 0" />
+      <mass
+        value="6.72063953784663" />
+      <inertia
+        ixx="0.0759538092371879"
+        ixy="-6.20543233769908E-07"
+        ixz="0.00369121004683547"
+        iyy="0.0526434064919526"
+        iyz="-7.34476299555951E-07"
+        izz="0.0503200659985818" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://remake5/meshes/watou.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://remake5/meshes/watou.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="xiaobi_to_watou_joint"
+    type="revolute">
+    <origin
+      xyz="0.455946627104724 -0.00650009125267029 -0.827736395860433"
+      rpy="0 0 0" />
+    <parent
+      link="xiaobi" />
+    <child
+      link="watou" />
+    <axis
+      xyz="0 0.99999999999998 0" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="100"
+      velocity="1" />
+  </joint>
+  <link
+    name="sigan1">
+    <inertial>
+      <origin
+        xyz="0.00101120266968691 -0.0866083549590553 0.056804604174963"
+        rpy="0 0 0" />
+      <mass
+        value="0.766349887273834" />
+      <inertia
+        ixx="0.00101847041478118"
+        ixy="-5.13482031342435E-08"
+        ixz="-2.69477488155855E-06"
+        iyy="0.000490142350691889"
+        iyz="-5.19313223251949E-08"
+        izz="0.000821881943376401" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://remake5/meshes/sigan1.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://remake5/meshes/sigan1.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="watou_to_sigan1"
+    type="revolute">
+    <origin
+      xyz="0.0997753251526592 0 0.00667390709543314"
+      rpy="0 0 0" />
+    <parent
+      link="watou" />
+    <child
+      link="sigan1" />
+    <axis
+      xyz="0 0.99999999999998 0" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="100"
+      velocity="1" />
+  </joint>
+  <link
+    name="huosai3b">
+    <inertial>
+      <origin
+        xyz="-0.229115917651314 -0.0199999285706746 -0.0912758472209845"
+        rpy="0 0 0" />
+      <mass
+        value="0.636593414100438" />
+      <inertia
+        ixx="0.0027450120843092"
+        ixy="7.2457126745639E-10"
+        ixz="-0.00645988946900808"
+        iyy="0.0189882709172767"
+        iyz="1.1371126446335E-10"
+        izz="0.016389781229001" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://remake5/meshes/huosai3b.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://remake5/meshes/huosai3b.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="xiaobi_to_huosai3b_joint"
+    type="revolute">
+    <origin
+      xyz="-0.0011748 -0.069 0.198"
+      rpy="0 0 0" />
+    <parent
+      link="xiaobi" />
+    <child
+      link="huosai3b" />
+    <axis
+      xyz="0 -1 0" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="100"
+      velocity="1" />
+  </joint>
+  <link
+    name="huosai4a">
+    <inertial>
+      <origin
+        xyz="0.103047090108206 -0.0227062042964373 -0.195245006286677"
+        rpy="0 0 0" />
+      <mass
+        value="1.11193350717462" />
+      <inertia
+        ixx="0.0219649623563888"
+        ixy="-9.88474596291755E-06"
+        ixz="0.0112402006589806"
+        iyy="0.028026671698401"
+        iyz="1.69520593235006E-05"
+        izz="0.0070451017057315" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://remake5/meshes/huosai4a.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://remake5/meshes/huosai4a.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="xiaobi_to_huosai4a"
+    type="revolute">
+    <origin
+      xyz="0.262116942692277 -0.0665000514603171 -0.092419584883574"
+      rpy="0 0 0" />
+    <parent
+      link="xiaobi" />
+    <child
+      link="huosai4a" />
+    <axis
+      xyz="0 -0.99999999999998 0" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="100"
+      velocity="1" />
+  </joint>
+  <link
+    name="sigan2">
+    <inertial>
+      <origin
+        xyz="0.0444354161953271 -0.0798019688256126 0.0424689613678306"
+        rpy="0 0 0" />
+      <mass
+        value="0.873348986641261" />
+      <inertia
+        ixx="0.00148122417147968"
+        ixy="3.77092437670316E-11"
+        ixz="-0.00052850357153218"
+        iyy="0.00163665502857873"
+        iyz="1.11739293948774E-10"
+        izz="0.00176060232992296" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://remake5/meshes/sigan2.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://remake5/meshes/sigan2.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="xiaobi_to_sigan2_joint"
+    type="revolute">
+    <origin
+      xyz="0.416378305836035 -0.0100000833334549 -0.755908524273468"
+      rpy="0 0 0" />
+    <parent
+      link="xiaobi" />
+    <child
+      link="sigan2" />
+    <axis
+      xyz="0 -0.99999999999998 0" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="100"
+      velocity="1" />
+  </joint>
+  <link
+    name="huosai4b">
+    <inertial>
+      <origin
+        xyz="-0.100270908181994 -0.0199999796012131 0.187002282705032"
+        rpy="0 0 0" />
+      <mass
+        value="0.584099353233864" />
+      <inertia
+        ixx="0.0111341801982769"
+        ixy="3.68186084737276E-10"
+        ixz="0.00588366134826714"
+        iyy="0.0143149044659556"
+        iyz="-1.28927266764785E-09"
+        izz="0.00331615281205771" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://remake5/meshes/huosai4b.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://remake5/meshes/huosai4b.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="sigan2_to_huosai4b_joint"
+    type="revolute">
+    <origin
+      xyz="0.142616525247579 -0.0590000285429868 0.109820414121545"
+      rpy="0 0 0" />
+    <parent
+      link="sigan2" />
+    <child
+      link="huosai4b" />
+    <axis
+      xyz="0 0.99999999999998 0" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="100"
+      velocity="1" />
+  </joint>
+  <link
+    name="huosai2b">
+    <inertial>
+      <origin
+        xyz="-0.123488492310623 -0.0231149610284648 -0.297946690038956"
+        rpy="0 0 0" />
+      <mass
+        value="1.53242458264255" />
+      <inertia
+        ixx="0.0698561615269996"
+        ixy="3.0783003200592E-05"
+        ixz="-0.0280072311932163"
+        iyy="0.0813770917675313"
+        iyz="0.000182745701890081"
+        izz="0.0130740540323226" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://remake5/meshes/huosai2b.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://remake5/meshes/huosai2b.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="dabi_to_huosai2b_joint"
+    type="revolute">
+    <origin
+      xyz="0.174394120072099 0.0569999650974322 0.998450892564747"
+      rpy="0 0 0" />
+    <parent
+      link="dabi" />
+    <child
+      link="huosai2b" />
+    <axis
+      xyz="0 -0.99999999999998 0" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="100"
+      velocity="1" />
+  </joint>
+  <link
+    name="huosai3a">
+    <inertial>
+      <origin
+        xyz="0.21684 -0.022348 0.084774"
+        rpy="0 0 0" />
+      <mass
+        value="1.2043" />
+      <inertia
+        ixx="0.0057177"
+        ixy="2.9187E-05"
+        ixz="-0.011583"
+        iyy="0.034788"
+        iyz="1.2325E-05"
+        izz="0.030139" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://remake5/meshes/huosai3a.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://remake5/meshes/huosai3a.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="dabi_to_huosai3a_joint"
+    type="revolute">
+    <origin
+      xyz="0.330116693603899 0.0574999339313985 1.36767977838426"
+      rpy="0 0 0" />
+    <parent
+      link="dabi" />
+    <child
+      link="huosai3a" />
+    <axis
+      xyz="0 -0.99999999999998 0" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="100"
+      velocity="1" />
+  </joint>
+  <link
+    name="huosai2a">
+    <inertial>
+      <origin
+        xyz="0.128965965701051 -0.0230000181932386 0.311025444594899"
+        rpy="0 0 0" />
+      <mass
+        value="0.656016306211451" />
+      <inertia
+        ixx="0.0309555745132963"
+        ixy="1.60305829123915E-09"
+        ixz="-0.0127594772400081"
+        iyy="0.0362680136009108"
+        iyz="3.73734554962365E-09"
+        izz="0.0054496641153312" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://remake5/meshes/huosai2a.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://remake5/meshes/huosai2a.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="controller_to_huosai2a_joint"
+    type="revolute">
+    <origin
+      xyz="0.695305211935226 -0.0768994271774273 0.00399999238143445"
+      rpy="0 0 0" />
+    <parent
+      link="controller" />
+    <child
+      link="huosai2a" />
+    <axis
+      xyz="0 -0.99999999999998 0" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="100"
+      velocity="1" />
+  </joint>
+</robot>

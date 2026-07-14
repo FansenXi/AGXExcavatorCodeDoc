@@ -157,6 +157,7 @@ namespace AGXUnity_Excavator.Scripts.Experiment
     {
       ResolveReferences();
       m_machineController?.ReleaseParkingBrake();
+      CaptureMachineMechanicalResetStates();
       m_pendingInitialSnapshotCapture = false;
 
       m_rigidBodySnapshots.Clear();
@@ -259,8 +260,13 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       try {
         UnityEngine.Random.InitState( seed );
 
+        var machineMechanicalResets = resetPose ?
+                                      ResolveMachineMechanicalResets() :
+                                      new List<IMachineMechanicalReset>();
+
         m_episodeManager?.StopEpisode( "scene_reset" );
         m_machineController?.StopEngine();
+        PrepareMachineMechanicalResets( machineMechanicalResets );
 
         if ( Simulation.HasInstance )
           Simulation.Instance.AutoSteppingMode = Simulation.AutoSteppingModes.Disabled;
@@ -301,6 +307,8 @@ namespace AGXUnity_Excavator.Scripts.Experiment
           RestoreDriveTrainFromSnapshot();
           ReinitializeTracksFromSnapshot();
           RestoreRigidBodyMotionControls();
+          RestoreMachineMechanicalResets( machineMechanicalResets );
+          FinalizeMachineMechanicalResets( machineMechanicalResets );
         }
         ResetMeasurementTrackers();
         report.Status = "applied";
@@ -629,6 +637,52 @@ namespace AGXUnity_Excavator.Scripts.Experiment
       m_excavator.GearRatio = m_driveTrainSnapshot.GearRatio;
     }
 
+    private void CaptureMachineMechanicalResetStates()
+    {
+      foreach ( var reset in ResolveMachineMechanicalResets() )
+        InvokeMachineMechanicalReset( reset, reset.CaptureInitialState, "capture" );
+    }
+
+    private static void PrepareMachineMechanicalResets( IReadOnlyList<IMachineMechanicalReset> resets )
+    {
+      foreach ( var reset in resets )
+        InvokeMachineMechanicalReset( reset, reset.PrepareForReset, "prepare" );
+    }
+
+    private static void RestoreMachineMechanicalResets( IReadOnlyList<IMachineMechanicalReset> resets )
+    {
+      foreach ( var reset in resets )
+        InvokeMachineMechanicalReset( reset, reset.RestoreInitialState, "restore" );
+    }
+
+    private static void FinalizeMachineMechanicalResets( IReadOnlyList<IMachineMechanicalReset> resets )
+    {
+      foreach ( var reset in resets )
+        InvokeMachineMechanicalReset( reset, reset.FinalizeAfterReset, "finalize" );
+    }
+
+    private static List<IMachineMechanicalReset> ResolveMachineMechanicalResets()
+    {
+      var resets = new List<IMachineMechanicalReset>();
+      foreach ( var behaviour in FindObjectsByType<MonoBehaviour>( FindObjectsInactive.Include, FindObjectsSortMode.None ) ) {
+        if ( behaviour is IMachineMechanicalReset reset && behaviour.isActiveAndEnabled )
+          resets.Add( reset );
+      }
+      return resets;
+    }
+
+    private static void InvokeMachineMechanicalReset( IMachineMechanicalReset reset, System.Action action, string phase )
+    {
+      if ( reset == null || action == null )
+        return;
+      try {
+        action();
+      }
+      catch ( System.Exception exception ) {
+        Debug.LogError( $"Machine mechanical reset '{reset.ResetDisplayName}' failed during {phase}: {exception}" );
+      }
+    }
+
     private void ReinitializeTracksFromSnapshot()
     {
       foreach ( var track in EnumerateTracksToReset() ) {
@@ -756,11 +810,20 @@ namespace AGXUnity_Excavator.Scripts.Experiment
         if ( m_yuLongExcavator.BoomConstraint != null )
           constraints.Add( m_yuLongExcavator.BoomConstraint );
 
+        if ( m_yuLongExcavator.BoomCylinderPrismatic != null )
+          constraints.Add( m_yuLongExcavator.BoomCylinderPrismatic );
+
         if ( m_yuLongExcavator.StickConstraint != null )
           constraints.Add( m_yuLongExcavator.StickConstraint );
 
+        if ( m_yuLongExcavator.StickCylinderPrismatic != null )
+          constraints.Add( m_yuLongExcavator.StickCylinderPrismatic );
+
         if ( m_yuLongExcavator.BucketConstraint != null )
           constraints.Add( m_yuLongExcavator.BucketConstraint );
+
+        if ( m_yuLongExcavator.BucketCylinderPrismatic != null )
+          constraints.Add( m_yuLongExcavator.BucketCylinderPrismatic );
       }
 
       return constraints;

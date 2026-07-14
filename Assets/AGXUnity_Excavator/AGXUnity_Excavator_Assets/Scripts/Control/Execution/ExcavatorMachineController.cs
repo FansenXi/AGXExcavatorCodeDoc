@@ -88,13 +88,23 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
     private float m_yuLongSwingDirection = 1.0f;
 
     [SerializeField]
-    private float m_yuLongBoomDirection = -1.0f;
+    private float m_yuLongBoomDirection = 1.0f;
 
     [SerializeField]
-    private float m_yuLongStickDirection = 1.0f;
+    private float m_yuLongStickDirection = -1.0f;
 
     [SerializeField]
-    private float m_yuLongBucketDirection = 1.0f;
+    private float m_yuLongBucketDirection = -1.0f;
+
+    [Header( "YuLong Actuator To Hinge Direction" )]
+    [SerializeField]
+    private float m_yuLongBoomHingeDirection = 1.0f;
+
+    [SerializeField]
+    private float m_yuLongStickHingeDirection = -1.0f;
+
+    [SerializeField]
+    private float m_yuLongBucketHingeDirection = -1.0f;
 
     [Header( "YuLong Swing Stabilization" )]
     [SerializeField]
@@ -135,8 +145,11 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
     private bool m_axisActuatorsInitialized = false;
     private Constraint m_swingConstraint = null;
     private Constraint[] m_boomConstraints = null;
+    private Constraint m_boomCylinderConstraint = null;
     private Constraint m_stickConstraint = null;
+    private Constraint m_stickCylinderConstraint = null;
     private Constraint m_bucketConstraint = null;
+    private Constraint m_bucketCylinderConstraint = null;
     private Constraint m_leftTrackConstraint = null;
     private Constraint m_rightTrackConstraint = null;
     private IExcavatorAxisActuator m_swingActuator = null;
@@ -653,6 +666,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
                                lockNeutralSwing ?
                                  0.0f :
                                  ApplyMachineAxisDirection( value, m_e85SwingDirection, m_yuLongSwingDirection ),
+                               1.0f,
                                immediateStop || lockNeutralSwing );
     }
 
@@ -662,6 +676,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
                                GetReferenceConstraint( m_boomConstraints ),
                                m_softLimitBoomRange,
                                ApplyMachineAxisDirection( value, m_e85BoomDirection, m_yuLongBoomDirection ),
+                               GetYuLongHingeDirection( m_yuLongBoomHingeDirection ),
                                immediateStop );
     }
 
@@ -671,6 +686,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
                                m_stickConstraint,
                                m_softLimitStickRange,
                                ApplyMachineAxisDirection( value, m_e85StickDirection, m_yuLongStickDirection ),
+                               GetYuLongHingeDirection( m_yuLongStickHingeDirection ),
                                immediateStop );
     }
 
@@ -680,6 +696,7 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
                                m_bucketConstraint,
                                m_softLimitBucketRange,
                                ApplyMachineAxisDirection( value, m_e85BucketDirection, m_yuLongBucketDirection ),
+                               GetYuLongHingeDirection( m_yuLongBucketHingeDirection ),
                                immediateStop );
     }
 
@@ -687,12 +704,15 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
                                           Constraint constraint,
                                           ActuatorNormalizationRange range,
                                           float command,
+                                          float hingeDirectionFromActuator,
                                           bool immediateStop )
     {
       if ( actuator == null )
         return;
 
-      var softLimitStop = ShouldStopAtNormalizationSoftLimit( constraint, range, command );
+      var softLimitStop = ShouldStopAtNormalizationSoftLimit( constraint,
+                                                              range,
+                                                              command * hingeDirectionFromActuator );
       actuator.Apply( softLimitStop ? 0.0f : command,
                       immediateStop || ( softLimitStop && m_lockAtNormalizationSoftLimit ) );
     }
@@ -749,6 +769,13 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
     private static float NormalizeAxisDirection( float direction )
     {
       return Mathf.Approximately( direction, 0.0f ) ? 1.0f : Mathf.Sign( direction );
+    }
+
+    private float GetYuLongHingeDirection( float direction )
+    {
+      return m_machineKind == ExcavatorMachineRigKind.YuLong ?
+             NormalizeAxisDirection( direction ) :
+             1.0f;
     }
 
     private bool ShouldLockYuLongSwingAtNeutral( float command )
@@ -875,20 +902,23 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
       ResolveRigConstraints();
       m_axisActuatorRig = m_machineComponent;
       m_swingActuator = CreateSwingActuator();
-      m_boomActuator = m_boomConstraints != null && m_boomConstraints.Length > 0 ?
-                       new TargetSpeedConstraintAxisActuator( m_boomConstraints,
+      var boomActuationConstraints = GetBoomActuationConstraints();
+      var stickActuationConstraint = GetStickActuationConstraint();
+      var bucketActuationConstraint = GetBucketActuationConstraint();
+      m_boomActuator = boomActuationConstraints != null && boomActuationConstraints.Length > 0 ?
+                       new TargetSpeedConstraintAxisActuator( boomActuationConstraints,
                                                               () => Limits.Boom.MaxSpeed,
                                                               GetBoomMaxAcceleration,
                                                               GetSimulationDeltaTime ) :
                        null;
-      m_stickActuator = m_stickConstraint != null ?
-                        new TargetSpeedConstraintAxisActuator( m_stickConstraint,
+      m_stickActuator = stickActuationConstraint != null ?
+                        new TargetSpeedConstraintAxisActuator( stickActuationConstraint,
                                                                () => Limits.Stick.MaxSpeed,
                                                                GetStickMaxAcceleration,
                                                                GetSimulationDeltaTime ) :
                         null;
-      m_bucketActuator = m_bucketConstraint != null ?
-                         new TargetSpeedConstraintAxisActuator( m_bucketConstraint,
+      m_bucketActuator = bucketActuationConstraint != null ?
+                         new TargetSpeedConstraintAxisActuator( bucketActuationConstraint,
                                                                 () => Limits.Bucket.MaxSpeed,
                                                                 GetBucketMaxAcceleration,
                                                                 GetSimulationDeltaTime ) :
@@ -976,9 +1006,29 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
 
     private float GetArmAccelerationFallback()
     {
+      return Limits.MaxLinearAcceleration;
+    }
+
+    private Constraint[] GetBoomActuationConstraints()
+    {
+      if ( m_machineKind == ExcavatorMachineRigKind.YuLong )
+        return m_boomCylinderConstraint != null ? new[] { m_boomCylinderConstraint } : new Constraint[0];
+
+      return m_boomConstraints ?? new Constraint[0];
+    }
+
+    private Constraint GetStickActuationConstraint()
+    {
       return m_machineKind == ExcavatorMachineRigKind.YuLong ?
-             Limits.MaxRotationalAcceleration :
-             Limits.MaxLinearAcceleration;
+             m_stickCylinderConstraint :
+             m_stickConstraint;
+    }
+
+    private Constraint GetBucketActuationConstraint()
+    {
+      return m_machineKind == ExcavatorMachineRigKind.YuLong ?
+             m_bucketCylinderConstraint :
+             m_bucketConstraint;
     }
 
     private float GetDirectTrackSpeedScale()
@@ -990,8 +1040,11 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
     {
       m_swingConstraint = null;
       m_boomConstraints = null;
+      m_boomCylinderConstraint = null;
       m_stickConstraint = null;
+      m_stickCylinderConstraint = null;
       m_bucketConstraint = null;
+      m_bucketCylinderConstraint = null;
       m_leftTrackConstraint = null;
       m_rightTrackConstraint = null;
 
@@ -1013,8 +1066,11 @@ namespace AGXUnity_Excavator.Scripts.Control.Execution
         m_boomConstraints = m_yuLongExcavator.BoomConstraint != null ?
                             new[] { m_yuLongExcavator.BoomConstraint } :
                             new Constraint[0];
+        m_boomCylinderConstraint = m_yuLongExcavator.BoomCylinderPrismatic;
         m_stickConstraint = m_yuLongExcavator.StickConstraint;
+        m_stickCylinderConstraint = m_yuLongExcavator.StickCylinderPrismatic;
         m_bucketConstraint = m_yuLongExcavator.BucketConstraint;
+        m_bucketCylinderConstraint = m_yuLongExcavator.BucketCylinderPrismatic;
         return;
       }
 

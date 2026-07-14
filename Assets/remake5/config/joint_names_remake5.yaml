@@ -1,0 +1,1 @@
+controller_joint_names: ['', 'base_to_controller_joint', 'controller_to_dabi_joint', 'dabi_to_xiaobi_joint', 'xiaobi_to_watou_joint', 'watou_to_sigan1', 'xiaobi_to_huosai3b_joint', 'xiaobi_to_huosai4a', 'xiaobi_to_sigan2_joint', 'sigan2_to_huosai4b_joint', 'dabi_to_huosai2b_joint', 'dabi_to_huosai3a_joint', 'controller_to_huosai2a_joint', ]

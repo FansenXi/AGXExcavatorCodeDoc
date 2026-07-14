@@ -1,0 +1,48 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f5e30fee37e24764d85f96927de331c3, type: 3}
+  m_Name: YuLongShovelSettings
+  m_EditorClassIdentifier: 
+  m_serializationVersion: 1
+  m_numberOfTeeth: 3
+  m_enableExcavationAtTeethEdge: 0
+  m_toothLength: 0.01
+  m_toothRadius:
+    Min: 0.006
+    Max: 0.025
+  m_verticalBladeSoilMergeDistance: 0
+  m_penetrationDepthThreshold: 0.12
+  m_penetrationForceScaling: 0.8
+  m_maxPenetrationForce: Infinity
+  m_noMergeExtensionDistance: 0.25
+  m_minimumSubmergedContactLengthFraction: 0.25
+  m_secondarySeparationDeadloadLimit: 0.8
+  m_contactRegionThreshold:
+    m_overrideToggle: 0
+    m_overrideValue: 0.02
+  m_removeContacts: 0
+  m_primaryExcavationSettings:
+    Enabled: 1
+    CreateDynamicMassEnabled: 1
+    ForceFeedbackEnabled: 1
+  m_deformBackExcavationSettings:
+    Enabled: 1
+    CreateDynamicMassEnabled: 0
+    ForceFeedbackEnabled: 1
+  m_deformRightExcavationSettings:
+    Enabled: 1
+    CreateDynamicMassEnabled: 0
+    ForceFeedbackEnabled: 1
+  m_deformLeftExcavationSettings:
+    Enabled: 1
+    CreateDynamicMassEnabled: 0
+    ForceFeedbackEnabled: 1
